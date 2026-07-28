@@ -1,14 +1,23 @@
 # Changelog
 
-## v0.1.0
+All notable changes to this project will be documented here.
+
+---
+
+## [Unreleased]
 
 ### Added
-- Initial project setup
+
+- Initial project structure
 - Project specification
-- Database schema
+- SQL schema
+- Development workflow
+- Claude project instructions
 
 ### Changed
-- None
+
+None
 
 ### Fixed
-- None
+
+None
