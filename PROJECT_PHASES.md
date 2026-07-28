@@ -4,9 +4,9 @@
 
 **Current Milestone:** Foundation
 
-**Current Phase:** Phase 1 - Database
+**Current Phase:** Phase 2 - Authentication
 
-**Last Updated:** YYYY-MM-DD
+**Last Updated:** 2026-07-28
 
 ---
 
@@ -14,12 +14,12 @@
 
 ## 🟢 Milestone 1 - Foundation
 
-- [ ] Phase 1 - Database
-    - [ ] Initial Schema
-    - [ ] Enums
-    - [ ] Constraints
-    - [ ] Seed Data
-    - [ ] Database Testing
+- [x] Phase 1 - Database
+    - [x] Initial Schema
+    - [x] Enums
+    - [x] Constraints
+    - [x] Seed Data
+    - [x] Database Testing
 
 - [ ] Phase 2 - Authentication
     - [ ] Supabase Auth
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None
+None — Phase 1 complete, awaiting review before starting Phase 2.
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 1 - Database
+Start Phase 2 - Authentication (Supabase Auth wiring, JWT middleware, protected routes).
 
 ---
 
@@ -158,3 +158,6 @@ Start Phase 1 - Database
 - Complete one phase before starting the next.
 - Test every phase before marking it complete.
 - Commit all working changes to Git before moving to the next phase.
+- Phase 1 seed data (`002_seed_data.sql`) is intentionally a small, curated
+  set (12 drugs, 7 interaction rules, 13 ADR rules) built from established
+  FDA label facts. Expand later without touching the schema.
