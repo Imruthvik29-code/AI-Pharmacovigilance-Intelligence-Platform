@@ -1,7 +1,3 @@
-**Disclaimer**
-
-This project is an educational and research-oriented pharmacovigilance application. It is not intended to replace professional medical advice, diagnosis, or treatment. The AI explains deterministic medication safety findings and should not be relied upon as the sole basis for clinical decisions.
-
 # AI Pharmacovigilance Intelligence Platform
 
 ## Overview
@@ -94,3 +90,7 @@ npm run dev
 - AI Reports
 
 ---
+
+**Disclaimer**
+
+This project is an educational and research-oriented pharmacovigilance application. It is not intended to replace professional medical advice, diagnosis, or treatment. The AI explains deterministic medication safety findings and should not be relied upon as the sole basis for clinical decisions.
