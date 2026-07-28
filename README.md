@@ -76,6 +76,18 @@ npm run dev
 ```
 
 ---
+## Development Workflow
+
+Development follows a phase-based workflow:
+
+1. Implement one project phase.
+2. Test the implementation.
+3. Update `PROJECT_PHASES.md`.
+4. Update `CHANGELOG.md`.
+5. Commit the completed phase to Git.
+6. Proceed to the next phase.
+
+The project specification (`pharmacovigilance-spec-v1.md`) is the single source of truth and should not be modified unless a new specification version is intentionally created.
 
 ## Roadmap
 
