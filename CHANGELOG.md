@@ -100,6 +100,41 @@ All notable changes to this project will be documented here.
     real seeded `reference_drugs` row) and `created_medication_ids` with
     autouse cleanup.
 
+- **Phase 5 — Conditions:**
+  - Condition endpoints (`app/api/v1/conditions.py`):
+    `POST /patients/{id}/conditions`, `PUT /conditions/{id}` — the only two
+    routes in the frozen API contract (spec section 7) for conditions; no
+    `GET` or `DELETE` route was added, confirmed with the project owner
+    during Phase 5 planning.
+  - Ownership enforcement via the parent patient, mirroring the pattern in
+    `patients.py`/`medications.py`: a condition or patient not owned by
+    the caller (or not existing) returns 404, never 403.
+  - `PUT /conditions/{id}` implements partial-update semantics
+    (`exclude_unset=True`), matching the precedent set in Phase 3/Phase 4.
+    No status-transition state machine is enforced — `status` may be set
+    to any of the five enum values regardless of current value, and
+    `resolved_date` is not auto-populated when status becomes `resolved`;
+    it remains an explicit client-supplied field, since the frozen spec
+    does not define a condition lifecycle state machine.
+  - Pydantic schemas (`app/schemas/condition.py`), with `status` and
+    `reason` constrained via `Literal` to the same values as the
+    database's `condition_status_enum` / `condition_reason_enum`, and
+    deliberately omitting `patient_id` from request bodies (always taken
+    from the path parameter).
+  - `app/main.py` updated to additionally register the conditions router.
+  - Integration tests (`tests/test_conditions_api.py`): condition creation
+    with applied defaults (verified via direct DB query, since there is no
+    `GET` route), nonexistent-patient (404), cross-user isolation on both
+    create and update, partial update preserving untouched fields,
+    nonexistent-condition update (404), and an end-to-end re-verification
+    of Phase 4's `condition_id` cross-patient validation now using a real
+    condition created through this phase's own endpoint (rather than a
+    directly-inserted row, as Phase 4 had to do before Condition CRUD
+    existed).
+  - Shared test fixtures (`tests/conftest.py`): `created_condition_ids`
+    with autouse cleanup, following the same explicit-tracking pattern as
+    `created_patient_ids`/`created_medication_ids`.
+
 ### Changed
 
 None

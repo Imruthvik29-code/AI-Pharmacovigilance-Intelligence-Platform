@@ -2,9 +2,9 @@
 
 **Project Status:** 🟢 In Development
 
-**Current Milestone:** Milestone 2 - Patient Management
+**Current Milestone:** Milestone 2 - Patient Data Management
 
-**Current Phase:** Phase 5 - Conditions
+**Current Phase:** Phase 6 - Symptoms
 
 **Last Updated:** 2026-07-30
 
@@ -44,11 +44,11 @@
     - [x] Delete Medication
     - [x] Medication Testing
 
-- [ ] Phase 5 - Conditions
-    - [ ] Add Condition
-    - [ ] Update Condition
-    - [ ] Status Management
-    - [ ] Condition Testing
+- [x] Phase 5 - Conditions
+    - [x] Add Condition
+    - [x] Update Condition
+    - [x] Status Management *(see note below)*
+    - [x] Condition Testing
 
 - [ ] Phase 6 - Symptoms
     - [ ] Add Symptoms
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 4 complete and approved, awaiting the start of Phase 5 (Conditions).
+None — Phase 5 complete and approved, awaiting the start of Phase 6 (Symptoms).
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 5 - Conditions (Add Condition, Update Condition, status lifecycle management, Condition Testing).
+Start Phase 6 - Symptoms (Add Symptoms, Link to Medication, Link to Condition, Symptom Testing).
 
 ---
 
@@ -172,8 +172,21 @@ Start Phase 5 - Conditions (Add Condition, Update Condition, status lifecycle ma
   contract and is implemented as a genuine hard delete (unlike patients).
   `condition_id` on a medication is validated against the `conditions`
   table if provided (must belong to the same patient), even though
-  Condition CRUD itself doesn't exist yet — this is a data-integrity
-  guard, not an early implementation of Phase 5.
+  Condition CRUD itself didn't exist yet at the time — this was a
+  data-integrity guard, not an early implementation of Phase 5.
+- **Phase 5 "Status Management" clarification:** the frozen spec does not
+  define a condition lifecycle state machine or transition rules.
+  `PUT /conditions/{id}` allows `status` to be set to any of the five enum
+  values regardless of its current value, and does not auto-populate
+  `resolved_date` when status is set to `resolved` — that remains an
+  explicit client-supplied field. The subtask checkbox is marked complete
+  because status is fully settable/updatable per the spec's actual scope,
+  not because a transition-validation state machine was built.
+- **Phase 5 scope note:** per the frozen spec (section 7), conditions only
+  expose `POST /patients/{id}/conditions` and `PUT /conditions/{id}` —
+  there is no `GET` or `DELETE` route for conditions. This was confirmed
+  with the project owner during Phase 5 planning and implemented strictly
+  as written.
 
 ## Repository Convention
 
