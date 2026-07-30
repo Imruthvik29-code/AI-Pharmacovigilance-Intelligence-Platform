@@ -135,6 +135,43 @@ All notable changes to this project will be documented here.
     with autouse cleanup, following the same explicit-tracking pattern as
     `created_patient_ids`/`created_medication_ids`.
 
+- **Phase 6 — Symptoms:**
+  - Symptom endpoints (`app/api/v1/symptoms.py`):
+    `POST /patients/{id}/symptoms`, `GET /patients/{id}/symptoms` — the
+    only two routes in the frozen API contract (spec section 7) for
+    symptoms; no `PUT` or `DELETE` route was added.
+  - Ownership enforcement via the parent patient, mirroring the pattern in
+    `conditions.py`/`medications.py`: a symptom or patient not owned by
+    the caller (or not existing) returns 404, never 403.
+  - Optional `condition_id`/`medication_id` links, if provided, are
+    validated as belonging to the same patient the symptom is logged for
+    (400 on mismatch) — the same data-integrity guard pattern used for
+    `medications.condition_id` in Phase 4.
+  - `severity` defaults to `mild`, matching the DB's `severity_level`
+    enum default, and is constrained via `Literal` to the same three
+    values (`mild`/`moderate`/`severe`).
+  - `onset_date` defaults to `date.today()` when omitted by the client,
+    applied in the application layer rather than relied upon as a
+    DB-side default reaching the ORM — consistent with how other
+    date/time defaults are handled throughout the codebase (e.g.
+    `created_at`).
+  - `GET /patients/{id}/symptoms` returns results ordered chronologically
+    by `onset_date` (then `created_at` as a same-day tiebreaker).
+  - Pydantic schemas (`app/schemas/symptom.py`), deliberately omitting
+    `patient_id` from request bodies (always taken from the path
+    parameter), matching the precedent set in `schemas/condition.py`.
+  - `app/main.py` updated to additionally register the symptoms router.
+  - Integration tests (`tests/test_symptoms_api.py`): default-application
+    on create, explicit-field overrides, condition-linked and
+    medication-linked symptom creation, mismatched `condition_id`/
+    `medication_id` across patients (400), nonexistent-patient (404),
+    cross-user isolation on both create and list, list scoping and
+    chronological ordering, and confirmation that `PUT`/`DELETE`
+    `/symptoms/{id}` return 405 (no such routes).
+  - Shared test fixtures (`tests/conftest.py`): `created_symptom_ids`
+    with autouse cleanup, following the same explicit-tracking pattern as
+    `created_patient_ids`/`created_medication_ids`/`created_condition_ids`.
+
 ### Changed
 
 None

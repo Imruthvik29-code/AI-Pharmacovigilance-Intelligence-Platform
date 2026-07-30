@@ -4,7 +4,7 @@
 
 **Current Milestone:** Milestone 2 - Patient Data Management
 
-**Current Phase:** Phase 6 - Symptoms
+**Current Phase:** Phase 7 - Timeline
 
 **Last Updated:** 2026-07-30
 
@@ -50,11 +50,11 @@
     - [x] Status Management *(see note below)*
     - [x] Condition Testing
 
-- [ ] Phase 6 - Symptoms
-    - [ ] Add Symptoms
-    - [ ] Link to Medication
-    - [ ] Link to Condition
-    - [ ] Symptom Testing
+- [x] Phase 6 - Symptoms
+    - [x] Add Symptoms
+    - [x] Link to Medication
+    - [x] Link to Condition
+    - [x] Symptom Testing
 
 - [ ] Phase 7 - Timeline
     - [ ] Timeline Events
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 5 complete and approved, awaiting the start of Phase 6 (Symptoms).
+None — Phase 6 complete and approved, awaiting the start of Phase 7 (Timeline).
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 6 - Symptoms (Add Symptoms, Link to Medication, Link to Condition, Symptom Testing).
+Start Phase 7 - Timeline (Timeline Events, Automatic Event Logging, Timeline API, Timeline Testing).
 
 ---
 
@@ -187,6 +187,23 @@ Start Phase 6 - Symptoms (Add Symptoms, Link to Medication, Link to Condition, S
   there is no `GET` or `DELETE` route for conditions. This was confirmed
   with the project owner during Phase 5 planning and implemented strictly
   as written.
+- **Phase 6 scope note:** per the frozen spec (section 7), symptoms only
+  expose `POST /patients/{id}/symptoms` and `GET /patients/{id}/symptoms`
+  — there is no `PUT` or `DELETE` route for symptoms, confirmed and
+  implemented strictly as written (`test_no_update_or_delete_endpoints_exist`
+  asserts 405 on both).
+- **Phase 6 "Link to Condition/Link to Medication" clarification:** these
+  subtasks refer to the optional `condition_id`/`medication_id` fields on
+  a symptom, each validated (if provided) to belong to the same patient
+  the symptom is being logged for — a 400 data-integrity guard, the same
+  pattern used for `medications.condition_id` in Phase 4. No cascading or
+  automatic linkage behavior beyond this validation was implemented or
+  required by the spec.
+- **Phase 6 "onset_date" note:** the DB column defines
+  `default current_date`, but this is applied in the application layer
+  (`date.today()` if omitted by the client) rather than relied upon as a
+  DB-side default reaching the ORM — consistent with how other date/time
+  defaults (e.g. `created_at`) are handled throughout this codebase.
 
 ## Repository Convention
 
