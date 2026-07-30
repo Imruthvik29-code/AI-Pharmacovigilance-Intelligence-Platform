@@ -1,24 +1,29 @@
 """
 FastAPI application entrypoint.
 
-Phase 3 addition: registers the patients router alongside auth.
+Phase 6 addition: registers the symptoms router alongside auth, patients,
+medications, and conditions.
 
-Verified additive-only (per Phase 3 review): this file has never defined
+Verified additive-only (per Phase 6 review): this file has never defined
 any middleware, exception handlers, or startup/shutdown events -- there
-was nothing for the new router registration to overwrite. The auth
-router registration from Phase 2 is untouched; `patients.router` is a
-second, independent `include_router` call. Future phases (medications,
-conditions, etc.) should follow the same pattern: one additional
-`app.include_router(...)` line, never replacing an existing one.
+was nothing for the new router registration to overwrite. The auth,
+patients, medications, and conditions router registrations from Phases
+2-5 are untouched; symptoms.router is a fifth, independent
+`include_router` call. Future phases (timeline, etc.) should follow the
+same pattern: one additional `app.include_router(...)` line, never
+replacing an existing one.
 """
 from fastapi import FastAPI
 
-from app.api.v1 import auth, patients
+from app.api.v1 import auth, conditions, medications, patients, symptoms
 
 app = FastAPI(title="Pharmacovigilance MVP API", version="0.1.0")
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(patients.router, prefix="/api/v1")
+app.include_router(medications.router, prefix="/api/v1")
+app.include_router(conditions.router, prefix="/api/v1")
+app.include_router(symptoms.router, prefix="/api/v1")
 
 
 @app.get("/health")
