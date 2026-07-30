@@ -36,7 +36,7 @@
 
 ---
 
-## 🟡 Milestone 2 - Patient Management
+## 🟡 Milestone 2 - Patient Data Management
 
 - [x] Phase 4 - Medication CRUD
     - [x] Add Medication
@@ -174,3 +174,10 @@ Start Phase 5 - Conditions (Add Condition, Update Condition, status lifecycle ma
   table if provided (must belong to the same patient), even though
   Condition CRUD itself doesn't exist yet — this is a data-integrity
   guard, not an early implementation of Phase 5.
+
+## Repository Convention
+
+The implementation is the source of truth.
+
+If PROJECT_PHASES.md or CHANGELOG.md differ from the implementation,
+the implementation takes precedence until the documentation is updated.
