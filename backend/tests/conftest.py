@@ -27,6 +27,12 @@ medications.drug_id has a real FK to reference_drugs (seeded in Phase 1's
 one. `created_medication_ids` + its cleanup fixture follow the exact same
 explicit-tracking pattern as `created_patient_ids`, for the same reason
 (no transactional rollback available under TestClient).
+
+Phase 5 addition: `created_condition_ids` + its cleanup fixture follow
+the same explicit-tracking pattern for conditions. No `existing_*_id`
+fixture is needed here since conditions have no external FK dependency
+beyond `patient_id`, which tests already create directly via the
+patients API.
 """
 import uuid
 
@@ -78,6 +84,12 @@ def created_medication_ids() -> list[uuid.UUID]:
     return []
 
 
+@pytest.fixture
+def created_condition_ids() -> list[uuid.UUID]:
+    """Same explicit-tracking pattern as created_patient_ids, for conditions."""
+    return []
+
+
 @pytest.fixture(autouse=True)
 async def _cleanup_created_patients(created_patient_ids: list[uuid.UUID]):
     yield
@@ -101,4 +113,17 @@ async def _cleanup_created_medications(created_medication_ids: list[uuid.UUID]):
     )
     async with AsyncSessionLocal() as session:
         await session.execute(stmt, {"ids": created_medication_ids})
+        await session.commit()
+
+
+@pytest.fixture(autouse=True)
+async def _cleanup_created_conditions(created_condition_ids: list[uuid.UUID]):
+    yield
+    if not created_condition_ids:
+        return
+    stmt = text("DELETE FROM conditions WHERE id IN :ids").bindparams(
+        bindparam("ids", expanding=True)
+    )
+    async with AsyncSessionLocal() as session:
+        await session.execute(stmt, {"ids": created_condition_ids})
         await session.commit()
