@@ -84,7 +84,10 @@ async def create_patient(
     await db.commit()
     await db.refresh(patient)
 
-    logger.info("patient_created", extra={"patient_id": str(patient.id), "user_id": str(current_user.id)})
+    logger.info(
+        "Patient created",
+        extra={"patient_id": patient.id, "user_id": current_user.id},
+    )
     return patient
 
 
@@ -105,7 +108,21 @@ async def update_patient(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Patient:
-    """Partially update a patient (only fields present in the payload are changed)."""
+    """
+    Update a patient.
+
+    PUT semantics note: the frozen spec (section 7) declares `PUT
+    /patients/{id}` but does not define full-replacement vs. partial-update
+    semantics. This implementation is intentionally partial -- only fields
+    present in the request body are changed (via `exclude_unset=True`),
+    everything else is left as-is. This was a deliberate choice, not an
+    oversight: a strict full-replace PUT would force clients to resend the
+    entire patient record on every edit (including fields like renal_flag/
+    hepatic_flag that are rarely touched), which is unnecessary friction
+    for a medical record the frontend edits field-by-field. If stricter
+    full-replace semantics are ever required, that's a spec change to
+    request explicitly, not something to guess at here.
+    """
     patient = await _get_owned_patient(patient_id, current_user, db)
 
     updates = payload.model_dump(exclude_unset=True)
@@ -116,5 +133,8 @@ async def update_patient(
     await db.commit()
     await db.refresh(patient)
 
-    logger.info("patient_updated", extra={"patient_id": str(patient.id), "user_id": str(current_user.id)})
+    logger.info(
+        "Patient updated",
+        extra={"patient_id": patient.id, "user_id": current_user.id},
+    )
     return patient

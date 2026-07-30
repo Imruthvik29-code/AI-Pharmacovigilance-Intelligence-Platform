@@ -7,6 +7,11 @@ a FastAPI dependency override on `get_current_user` -- these tests are
 about patient CRUD + ownership logic, not JWT verification (already
 covered by Phase 2's test_security.py / test_auth_api.py).
 
+Every test that creates a patient appends its id to the `created_patient_ids`
+fixture so the autouse cleanup in conftest.py can delete it afterward --
+see conftest.py's docstring for why explicit cleanup was chosen over
+transactional rollback here.
+
 Run with:  pytest backend/tests/test_patients_api.py -v
 Requires:  at least one row in auth.users (see conftest.py).
 """
@@ -29,12 +34,12 @@ def _override_current_user(user_id):
 
 
 @pytest.fixture(autouse=True)
-def _clear_overrides():
+def _clear_dependency_overrides():
     yield
     app.dependency_overrides.clear()
 
 
-def test_create_and_get_patient(existing_auth_user_id):
+def test_create_and_get_patient(existing_auth_user_id, created_patient_ids):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
     create_resp = client.post(
@@ -43,6 +48,8 @@ def test_create_and_get_patient(existing_auth_user_id):
     )
     assert create_resp.status_code == 201
     created = create_resp.json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
+
     assert created["name"] == "Jane Doe"
     assert created["user_id"] == str(existing_auth_user_id)
     assert created["renal_flag"] is False
@@ -52,10 +59,12 @@ def test_create_and_get_patient(existing_auth_user_id):
     assert get_resp.json()["id"] == created["id"]
 
 
-def test_list_patients_scoped_to_current_user(existing_auth_user_id):
+def test_list_patients_scoped_to_current_user(existing_auth_user_id, created_patient_ids):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    client.post("/api/v1/patients", json={"name": "List Test Patient"})
+    created = client.post("/api/v1/patients", json={"name": "List Test Patient"}).json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
+
     list_resp = client.get("/api/v1/patients")
 
     assert list_resp.status_code == 200
@@ -64,10 +73,11 @@ def test_list_patients_scoped_to_current_user(existing_auth_user_id):
     assert any(p["name"] == "List Test Patient" for p in patients)
 
 
-def test_update_patient_partial_fields(existing_auth_user_id):
+def test_update_patient_partial_fields(existing_auth_user_id, created_patient_ids):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
     created = client.post("/api/v1/patients", json={"name": "Update Me", "age": 30}).json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
 
     update_resp = client.put(f"/api/v1/patients/{created['id']}", json={"age": 31})
     assert update_resp.status_code == 200
@@ -84,7 +94,7 @@ def test_get_nonexistent_patient_returns_404(existing_auth_user_id):
     assert resp.status_code == 404
 
 
-def test_patient_owned_by_another_user_is_not_visible(existing_auth_user_id):
+def test_patient_owned_by_another_user_is_not_visible(existing_auth_user_id, created_patient_ids):
     """
     Create a patient as user A, then attempt to fetch it while
     authenticated as a different (fabricated) user B. Must 404, not 403 --
@@ -92,6 +102,7 @@ def test_patient_owned_by_another_user_is_not_visible(existing_auth_user_id):
     """
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
     created = client.post("/api/v1/patients", json={"name": "Owned By A"}).json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
 
     other_user_id = uuid.uuid4()
     app.dependency_overrides[get_current_user] = _override_current_user(other_user_id)
@@ -100,13 +111,14 @@ def test_patient_owned_by_another_user_is_not_visible(existing_auth_user_id):
     assert resp.status_code == 404
 
 
-def test_no_delete_endpoint_exists(existing_auth_user_id):
+def test_no_delete_endpoint_exists(existing_auth_user_id, created_patient_ids):
     """
     Confirms the deliberate decision (per project owner) to omit
     DELETE /patients/{id} since it is not in the frozen API contract.
     """
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
     created = client.post("/api/v1/patients", json={"name": "No Delete"}).json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
 
     resp = client.delete(f"/api/v1/patients/{created['id']}")
     assert resp.status_code == 405  # Method Not Allowed -- route doesn't exist
