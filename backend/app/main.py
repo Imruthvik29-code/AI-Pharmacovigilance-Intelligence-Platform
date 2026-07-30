@@ -1,21 +1,27 @@
 """
 FastAPI application entrypoint.
 
-Note: no main.py was present in any of the reviewed repository documents
-(Phase 1 was DB-schema-only, with no app process). This file was created
-for that reason. If an existing main.py exists elsewhere in the repo that
-wasn't part of the reviewed materials, merge the two lines below into it
-instead of replacing it:
-    from app.api.v1 import auth
-    app.include_router(auth.router, prefix="/api/v1")
+Phase 4 addition: registers the medications router alongside auth and
+patients.
+
+Verified additive-only (per Phase 4 review): this file has never defined
+any middleware, exception handlers, or startup/shutdown events -- there
+was nothing for the new router registration to overwrite. The auth and
+patients router registrations from Phases 2-3 are untouched;
+medications.router is a third, independent `include_router` call. Future
+phases (conditions, symptoms, etc.) should follow the same pattern: one
+additional `app.include_router(...)` line, never replacing an existing
+one.
 """
 from fastapi import FastAPI
 
-from app.api.v1 import auth
+from app.api.v1 import auth, medications, patients
 
 app = FastAPI(title="Pharmacovigilance MVP API", version="0.1.0")
 
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(patients.router, prefix="/api/v1")
+app.include_router(medications.router, prefix="/api/v1")
 
 
 @app.get("/health")
