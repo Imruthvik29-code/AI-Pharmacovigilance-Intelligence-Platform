@@ -2,9 +2,9 @@
 
 **Project Status:** 🟢 In Development
 
-**Current Milestone:** Milestone 2 - Patient Data Management
+**Current Milestone:** Milestone 3 - Medication Intelligence
 
-**Current Phase:** Phase 9 - Adherence
+**Current Phase:** Phase 10 - Drug Interaction Engine
 
 **Last Updated:** 2026-07-31
 
@@ -36,7 +36,7 @@
 
 ---
 
-## 🟡 Milestone 2 - Patient Data Management
+## 🟢 Milestone 2 - Patient Data Management
 
 - [x] Phase 4 - Medication CRUD
     - [x] Add Medication
@@ -67,16 +67,16 @@
     - [x] Upcoming Doses
     - [x] Scheduling Testing
 
-- [ ] Phase 9 - Adherence
-    - [ ] Taken
-    - [ ] Missed
-    - [ ] Skipped
-    - [ ] Adherence Statistics
-    - [ ] Adherence Testing
+- [x] Phase 9 - Adherence
+    - [x] Taken
+    - [x] Missed
+    - [x] Skipped
+    - [x] Adherence Statistics *(see note below — deferred, out of scope)*
+    - [x] Adherence Testing
 
 ---
 
-## 🟠 Milestone 3 - Medication Intelligence
+## 🟡 Milestone 3 - Medication Intelligence
 
 - [ ] Phase 10 - Drug Interaction Engine
     - [ ] Interaction Detection
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 8 complete and approved, awaiting the start of Phase 9 (Adherence).
+None — Phase 9 complete and approved, awaiting the start of Phase 10 (Drug Interaction Engine).
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 9 - Adherence (Taken, Missed, Skipped, Adherence Statistics, Adherence Testing).
+Start Phase 10 - Drug Interaction Engine (Interaction Detection, Severity Calculation, Interaction Testing).
 
 ---
 
@@ -210,18 +210,12 @@ Start Phase 9 - Adherence (Taken, Missed, Skipped, Adherence Statistics, Adheren
   Confirmed and implemented strictly as written
   (`test_no_post_put_delete_endpoints_exist` asserts 405 on all three).
 - **Phase 7 "Automatic Event Logging" clarification:** of the eight
-  `event_type` values documented in spec section 5, only the four
-  producible by phases built so far are wired up: `medication_started`
-  (medication creation), `medication_discontinued` (status transition
-  *into* `discontinued` only — not on every PUT, and not on the hard
-  `DELETE`, since the spec has no "medication deleted" event type),
-  `condition_status_changed` (only when status value actually changes),
-  and `symptom_reported` (symptom creation). `dose_taken`/`dose_missed`/
-  `dose_skipped` are deferred to Phase 9 (Adherence) and `analysis_run` to
-  Phase 12+ (Safety Score Engine), since neither dose marking nor
-  analysis runs exist yet. The subtask checkbox is marked complete
-  because all currently-possible event types are wired, not because all
-  eight values are in use yet.
+  `event_type` values documented in spec section 5, `dose_taken`/
+  `dose_missed`/`dose_skipped` and `analysis_run` were, at the time of
+  Phase 7, deferred to Phase 9 (Adherence) and Phase 12+ (Safety Score
+  Engine) respectively. `dose_taken`/`dose_missed`/`dose_skipped` are now
+  wired up as of Phase 9 (see Phase 9 note below); `analysis_run` remains
+  deferred to Phase 12+.
 - **Phase 7 architecture note:** a new `app/services/timeline_writer.py`
   was added (`log_timeline_event` helper) — not explicitly named in the
   spec's section 6 folder listing, but an additive fit consistent with
@@ -246,24 +240,64 @@ Start Phase 9 - Adherence (Taken, Missed, Skipped, Adherence Statistics, Adheren
   shape was added as a confirmed refinement after the initial Phase 8
   implementation, per project owner request — it does not alter any API
   contract, route, response model, or the database schema.
-- **Phase 8 scope note:** `POST /doses/{id}/mark` is listed in the frozen
-  spec's API contract (section 7) but is explicitly out of scope for
-  Phase 8 — it belongs to Phase 9 (Adherence) per spec section 10, and is
-  intentionally not registered on any router yet
-  (`test_mark_endpoint_not_yet_implemented` confirms a 404, not 405,
-  since the route doesn't exist).
+- **Phase 8 scope note (superseded by Phase 9):** at the time of Phase 8,
+  `POST /doses/{id}/mark` was listed in the frozen spec's API contract
+  but explicitly out of scope, with the route unregistered (404, not
+  405). This is no longer the current state — the route is now
+  implemented as of Phase 9. Retained here only for historical accuracy.
 - **Phase 8 "Upcoming Doses" clarification:**
   `GET /patients/{id}/doses/upcoming` returns only future
   (`scheduled_time >= now`), unmarked (`status IS NULL`) doses belonging
   to medications with `status == "active"` — doses for
   paused/discontinued/completed medications are excluded. Results are
   enriched with `drug_name`/`dose` via a join, ordered ascending by
-  `scheduled_time`.
+  `scheduled_time`. As of Phase 9, this route also runs the missed-dose
+  sweep (see below) before querying.
 - **Phase 8 cleanup note:** no dedicated `created_*_ids` fixture is used
   for generated `medication_schedule`/`medication_doses` rows — both
   tables cascade away via existing `ON DELETE CASCADE` constraints
   (`001_initial_schema.sql`) when a test's `created_patient_ids` cleanup
   deletes the patient (cascading through medications).
+- **Phase 9 — `POST /doses/{id}/mark` implementation note:** a dose's
+  `status` is set exactly once. If the dose is already marked (whether by
+  a prior explicit mark or by the automatic sweep, see below), the
+  request is rejected with 409 — the spec defines no "correct a mark"
+  flow, so marking is treated as immutable once set, consistent with the
+  "schedule already exists" 409 precedent from Phase 8. `actual_time`
+  defaults to `now()` when marking "taken" if omitted, and stays null for
+  "missed"/"skipped".
+- **Phase 9 — missed-dose background check note:** the tech stack (spec
+  section 4) has no job scheduler/cron component, so the spec's
+  "missed-dose background check" is implemented as a **lazy,
+  query-time sweep** (`_sweep_missed_doses` in `app/api/v1/schedule.py`)
+  rather than a true background job. It flips any dose belonging to the
+  relevant patient whose `scheduled_time` has passed and is still
+  unmarked to `missed`, logging a `dose_missed` timeline event per
+  affected dose. It runs (and commits) at the start of both
+  `GET /patients/{id}/doses/upcoming` and `POST /doses/{id}/mark`, so any
+  read or write touching a patient's doses first brings overdue doses up
+  to date. The sweep applies regardless of the parent medication's status
+  (active/paused/discontinued/etc.) — a dose that was due is either taken
+  or missed in reality, independent of the medication's current
+  lifecycle state.
+- **Phase 9 — Adherence Statistics clarification:** adherence statistics
+  (e.g. taken/missed/skipped counts or an adherence percentage) are
+  explicitly deferred — not part of the frozen section 7 API contract,
+  and confirmed out of scope for this phase. That data will feed the
+  Safety Score Engine (Phase 12+) instead. The subtask checkbox above is
+  marked complete in the sense that the scope decision was made and
+  verified, not because a statistics endpoint exists.
+- **Phase 9 — Automatic Event Logging update:** `dose_taken`,
+  `dose_missed`, and `dose_skipped` timeline events (deferred since
+  Phase 7) are now wired up via `POST /doses/{id}/mark` and the missed-
+  dose sweep, using the existing `app/services/timeline_writer.py`
+  helper, in the same transaction as the dose write. `analysis_run`
+  remains deferred to Phase 12+.
+- **Phase 9 cleanup note:** no dedicated `created_*_ids` fixture is
+  needed for dose-mark timeline events or sweep-generated status
+  changes — they modify existing `medication_doses`/`timeline_events`
+  rows that already cascade away via `ON DELETE CASCADE` when a test's
+  `created_patient_ids` cleanup deletes the patient.
 
 ## Repository Convention
 

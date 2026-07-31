@@ -275,6 +275,42 @@ All notable changes to this project will be documented here.
     existing `ON DELETE CASCADE` constraints (`001_initial_schema.sql`)
     when a test's `created_patient_ids` cleanup deletes the patient.
 
+- **Phase 9 — Adherence:**
+  - New endpoint (`app/api/v1/schedule.py`): `POST /doses/{id}/mark` —
+    marks a dose as `taken`, `missed`, or `skipped`. A dose can only be
+    marked once; a second attempt (explicit or sweep-applied) returns
+    409, since the spec defines no "correct a mark" flow.
+  - `actual_time` defaults to `now()` when marking `taken` if omitted by
+    the client, and is left `null` for `missed`/`skipped`.
+  - Missed-dose background check (spec section 10) implemented as a
+    lazy, query-time sweep (`_sweep_missed_doses`) rather than a true
+    background job, since the tech stack has no scheduler/cron
+    component. Runs at the top of both `GET /patients/{id}/doses/upcoming`
+    and `POST /doses/{id}/mark`, flipping any overdue unmarked dose for
+    the relevant patient to `missed` and logging a `dose_missed`
+    timeline event. Applies regardless of the parent medication's
+    status.
+  - Automatic timeline event logging completed: `dose_taken`,
+    `dose_missed`, `dose_skipped` (deferred since Phase 7) now wired up
+    via `app/services/timeline_writer.py`, in the same transaction as
+    the dose write.
+  - Adherence statistics (taken/missed/skipped counts, adherence
+    percentage) explicitly deferred — not part of the frozen section 7
+    API contract; will feed the Safety Score Engine in Phase 12+.
+  - Pydantic schema addition (`app/schemas/schedule.py`):
+    `MedicationDoseMarkRequest` (request body for the mark endpoint).
+  - Integration tests (`tests/test_schedule_api.py`, Phase 9 section):
+    mark taken (default and explicit `actual_time`), mark missed/skipped
+    (`actual_time` stays null), timeline event logging for all three
+    statuses, double-mark 409, nonexistent-dose 404, cross-user
+    isolation, invalid-status 422, sweep-via-`upcoming` and
+    sweep-via-`mark` behavior, and confirmation that a future dose is
+    unaffected by the sweep and remains explicitly markable.
+  - No dedicated cleanup fixture needed — dose/timeline rows affected by
+    marking or the sweep already cascade away via existing
+    `ON DELETE CASCADE` constraints when a test's `created_patient_ids`
+    cleanup deletes the patient.
+
 ### Changed
 
 None
