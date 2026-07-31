@@ -11,6 +11,12 @@ POST /medications/{id}/schedule and GET /patients/{id}/doses/upcoming are
 implemented -- POST /doses/{id}/mark is explicitly Phase 9 (Adherence)
 and is not tested here beyond confirming the route doesn't exist yet.
 
+Refinement (post-Phase-8-completion): schedule generation now also
+supports medications specified purely via interval_hours + duration_days,
+without times_per_day. Validation requires duration_days AND at least one
+of (times_per_day, interval_hours). New tests below cover this branch;
+all previously-existing tests are retained unchanged.
+
 No `created_*_ids` fixture is needed for generated schedule/dose rows --
 both medication_schedule.medication_id and medication_doses.medication_id
 have ON DELETE CASCADE, so rows are removed automatically when a test's
@@ -226,6 +232,121 @@ def test_generate_schedule_for_medication_owned_by_another_user_returns_404(
 
     resp = client.post(f"/api/v1/medications/{medication['id']}/schedule")
     assert resp.status_code == 404
+
+
+def test_generate_schedule_with_interval_hours_only_creates_expected_dose_count(
+    existing_auth_user_id, existing_drug_id, created_patient_ids
+):
+    """
+    times_per_day is omitted entirely; interval_hours + duration_days alone
+    must be sufficient to generate a schedule (the Phase 8 refinement).
+    """
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    patient = _create_patient("Interval Only Patient")
+    created_patient_ids.append(uuid.UUID(patient["id"]))
+
+    medication = _create_medication(
+        patient["id"], str(existing_drug_id), duration_days=1, interval_hours=8
+    )
+    assert medication["times_per_day"] is None
+
+    resp = client.post(f"/api/v1/medications/{medication['id']}/schedule")
+    assert resp.status_code == 201
+    doses = resp.json()
+
+    # floor(1 day * 24h / 8h) = 3 doses (hours 0, 8, 16 after anchor).
+    assert len(doses) == 3
+    assert all(d["medication_id"] == medication["id"] for d in doses)
+    assert all(d["status"] is None for d in doses)
+
+
+def test_generate_schedule_with_interval_hours_only_spacing_matches_interval(
+    existing_auth_user_id, existing_drug_id, created_patient_ids
+):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    patient = _create_patient("Interval Only Spacing Patient")
+    created_patient_ids.append(uuid.UUID(patient["id"]))
+
+    medication = _create_medication(
+        patient["id"], str(existing_drug_id), duration_days=2, interval_hours=6
+    )
+
+    resp = client.post(f"/api/v1/medications/{medication['id']}/schedule")
+    assert resp.status_code == 201
+    doses = sorted(resp.json(), key=lambda d: d["scheduled_time"])
+
+    from datetime import datetime
+
+    t0 = datetime.fromisoformat(doses[0]["scheduled_time"])
+    t1 = datetime.fromisoformat(doses[1]["scheduled_time"])
+    assert (t1 - t0).total_seconds() == 6 * 3600
+
+    # floor(2 days * 24h / 6h) = 8 doses.
+    assert len(doses) == 8
+
+
+def test_generate_schedule_with_interval_hours_only_floors_partial_dose(
+    existing_auth_user_id, existing_drug_id, created_patient_ids
+):
+    """
+    duration_days=1, interval_hours=5 -> 24/5 = 4.8 doses would fit, so the
+    schedule must floor to 4, never round up to a dose that falls outside
+    the duration window.
+    """
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    patient = _create_patient("Interval Only Floor Patient")
+    created_patient_ids.append(uuid.UUID(patient["id"]))
+
+    medication = _create_medication(
+        patient["id"], str(existing_drug_id), duration_days=1, interval_hours=5
+    )
+
+    resp = client.post(f"/api/v1/medications/{medication['id']}/schedule")
+    assert resp.status_code == 201
+    assert len(resp.json()) == 4
+
+
+def test_generate_schedule_missing_both_times_per_day_and_interval_hours_returns_400(
+    existing_auth_user_id, existing_drug_id, created_patient_ids
+):
+    """
+    Neither times_per_day nor interval_hours is set -- must 400 with a
+    message referencing both fields, distinct from the duration_days
+    missing-field error.
+    """
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    patient = _create_patient("Missing Both Fields Patient")
+    created_patient_ids.append(uuid.UUID(patient["id"]))
+
+    medication = _create_medication(patient["id"], str(existing_drug_id), duration_days=3)
+
+    resp = client.post(f"/api/v1/medications/{medication['id']}/schedule")
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert "times_per_day" in detail
+    assert "interval_hours" in detail
+
+
+def test_generate_schedule_interval_hours_only_exceeding_max_doses_returns_400(
+    existing_auth_user_id, existing_drug_id, created_patient_ids
+):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    patient = _create_patient("Interval Only Exceeds Max Patient")
+    created_patient_ids.append(uuid.UUID(patient["id"]))
+
+    # floor(400 days * 24h / 1h) = 9600 > MAX_GENERATED_DOSES (3650)
+    medication = _create_medication(
+        patient["id"], str(existing_drug_id), duration_days=400, interval_hours=1
+    )
+
+    resp = client.post(f"/api/v1/medications/{medication['id']}/schedule")
+    assert resp.status_code == 400
+    assert "exceeding" in resp.json()["detail"]
 
 
 def test_upcoming_doses_returns_future_unmarked_doses_ordered(
