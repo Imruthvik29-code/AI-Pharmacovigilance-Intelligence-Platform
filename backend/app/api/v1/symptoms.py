@@ -22,6 +22,10 @@ logged for. This is the same data-integrity guard pattern used for
 medications.condition_id in Phase 4 -- a mismatch is a 400, not a 404,
 since the id is well-formed and exists, just not applicable to this
 patient.
+
+Phase 7 addition: every created symptom logs a `symptom_reported`
+timeline event via app/services/timeline_writer.py, added to the same DB
+session/transaction as the symptom insert itself.
 """
 import logging
 import uuid
@@ -35,6 +39,7 @@ from app.core.security import CurrentUser, get_current_user
 from app.db.models import Condition, Medication, Patient, Symptom
 from app.db.session import get_db
 from app.schemas.symptom import SymptomCreate, SymptomResponse
+from app.services.timeline_writer import log_timeline_event
 
 router = APIRouter(tags=["symptoms"])
 logger = logging.getLogger("app.symptoms")
@@ -118,6 +123,20 @@ async def create_symptom(
         updated_at=now,
     )
     db.add(symptom)
+
+    await log_timeline_event(
+        db,
+        patient_id=patient_id,
+        event_type="symptom_reported",
+        ref_id=symptom.id,
+        event_title=f"Symptom reported: {payload.description[:80]}",
+        payload={
+            "severity": payload.severity,
+            "condition_id": str(payload.condition_id) if payload.condition_id else None,
+            "medication_id": str(payload.medication_id) if payload.medication_id else None,
+        },
+    )
+
     await db.commit()
     await db.refresh(symptom)
 
