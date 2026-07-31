@@ -172,6 +172,51 @@ All notable changes to this project will be documented here.
     with autouse cleanup, following the same explicit-tracking pattern as
     `created_patient_ids`/`created_medication_ids`/`created_condition_ids`.
 
+- **Phase 7 — Timeline:**
+  - Timeline endpoint (`app/api/v1/timeline.py`):
+    `GET /patients/{id}/timeline` — the only route in the frozen API
+    contract (spec section 7) for the timeline; read-only, since events
+    are never created directly by a client.
+  - New reusable event writer (`app/services/timeline_writer.py`):
+    `log_timeline_event()` adds a `timeline_events` row to the current DB
+    session without committing, so every event is persisted in the same
+    transaction as the entity write that triggered it (medication insert,
+    condition update, symptom insert).
+  - Automatic event logging wired into prior phases' write paths:
+    - `medications.py`: `medication_started` on creation;
+      `medication_discontinued` only on a genuine status transition
+      *into* `discontinued` (not on repeated PUTs, not on hard `DELETE`
+      — the spec's event_type list has no "deleted" value).
+    - `conditions.py`: `condition_status_changed` only when `status`
+      actually changes value (a PUT resending the current status logs
+      nothing).
+    - `symptoms.py`: `symptom_reported` on every symptom creation.
+    - `dose_taken`/`dose_missed`/`dose_skipped` (Phase 9) and
+      `analysis_run` (Phase 12+) are intentionally not wired yet, since
+      neither dose marking nor analysis runs exist in the codebase yet.
+  - Ownership enforcement via the parent patient, mirroring
+    `conditions.py`/`medications.py`/`symptoms.py`: a patient not owned
+    by the caller (or not existing) returns 404, never 403.
+  - `GET /patients/{id}/timeline` returns events ordered `event_time`
+    descending (most recent first), matching the existing
+    `idx_timeline_patient(patient_id, event_time desc)` index from
+    `001_initial_schema.sql`.
+  - Pydantic response schema (`app/schemas/timeline.py`) — read-only, no
+    Create/Update schema, since timeline events have no client-facing
+    write shape.
+  - `app/main.py` updated to additionally register the timeline router.
+  - Integration tests (`tests/test_timeline_api.py`): automatic logging
+    verification for medication start/discontinue (including no-duplicate-
+    event and no-event-on-delete checks), condition status change
+    (including no-event-when-status-unchanged), symptom reporting,
+    chronological ordering, patient scoping, cross-user isolation,
+    nonexistent-patient 404, and confirmation that
+    `POST`/`PUT`/`DELETE /patients/{id}/timeline` all return 405 (no such
+    routes).
+  - No new test fixture needed for cleanup — `timeline_events.patient_id`
+    already has `ON DELETE CASCADE`, so rows are removed automatically
+    when a test's `created_patient_ids` cleanup deletes the patient.
+
 ### Changed
 
 None

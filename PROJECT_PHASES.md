@@ -4,9 +4,9 @@
 
 **Current Milestone:** Milestone 2 - Patient Data Management
 
-**Current Phase:** Phase 7 - Timeline
+**Current Phase:** Phase 8 - Dose Scheduling
 
-**Last Updated:** 2026-07-30
+**Last Updated:** 2026-07-31
 
 ---
 
@@ -56,11 +56,11 @@
     - [x] Link to Condition
     - [x] Symptom Testing
 
-- [ ] Phase 7 - Timeline
-    - [ ] Timeline Events
-    - [ ] Automatic Event Logging
-    - [ ] Timeline API
-    - [ ] Timeline Testing
+- [x] Phase 7 - Timeline
+    - [x] Timeline Events
+    - [x] Automatic Event Logging *(see note below)*
+    - [x] Timeline API
+    - [x] Timeline Testing
 
 - [ ] Phase 8 - Dose Scheduling
     - [ ] Schedule Generator
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 6 complete and approved, awaiting the start of Phase 7 (Timeline).
+None — Phase 7 complete and approved, awaiting the start of Phase 8 (Dose Scheduling).
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 7 - Timeline (Timeline Events, Automatic Event Logging, Timeline API, Timeline Testing).
+Start Phase 8 - Dose Scheduling (Schedule Generator, Upcoming Doses, Scheduling Testing).
 
 ---
 
@@ -204,6 +204,30 @@ Start Phase 7 - Timeline (Timeline Events, Automatic Event Logging, Timeline API
   (`date.today()` if omitted by the client) rather than relied upon as a
   DB-side default reaching the ORM — consistent with how other date/time
   defaults (e.g. `created_at`) are handled throughout this codebase.
+- **Phase 7 scope note:** per the frozen spec (section 7), the timeline
+  only exposes `GET /patients/{id}/timeline` — read-only, no
+  POST/PUT/DELETE, since events are never created directly by a client.
+  Confirmed and implemented strictly as written
+  (`test_no_post_put_delete_endpoints_exist` asserts 405 on all three).
+- **Phase 7 "Automatic Event Logging" clarification:** of the eight
+  `event_type` values documented in spec section 5, only the four
+  producible by phases built so far are wired up: `medication_started`
+  (medication creation), `medication_discontinued` (status transition
+  *into* `discontinued` only — not on every PUT, and not on the hard
+  `DELETE`, since the spec has no "medication deleted" event type),
+  `condition_status_changed` (only when status value actually changes),
+  and `symptom_reported` (symptom creation). `dose_taken`/`dose_missed`/
+  `dose_skipped` are deferred to Phase 9 (Adherence) and `analysis_run` to
+  Phase 12+ (Safety Score Engine), since neither dose marking nor
+  analysis runs exist yet. The subtask checkbox is marked complete
+  because all currently-possible event types are wired, not because all
+  eight values are in use yet.
+- **Phase 7 architecture note:** a new `app/services/timeline_writer.py`
+  was added (`log_timeline_event` helper) — not explicitly named in the
+  spec's section 6 folder listing, but an additive fit consistent with
+  the existing `services/` convention, not an architecture change. It
+  only calls `db.add(...)` and never commits, so every timeline event is
+  written in the same transaction as the entity write that triggered it.
 
 ## Repository Convention
 
