@@ -4,7 +4,7 @@
 
 **Current Milestone:** Milestone 2 - Patient Data Management
 
-**Current Phase:** Phase 8 - Dose Scheduling
+**Current Phase:** Phase 9 - Adherence
 
 **Last Updated:** 2026-07-31
 
@@ -62,10 +62,10 @@
     - [x] Timeline API
     - [x] Timeline Testing
 
-- [ ] Phase 8 - Dose Scheduling
-    - [ ] Schedule Generator
-    - [ ] Upcoming Doses
-    - [ ] Scheduling Testing
+- [x] Phase 8 - Dose Scheduling
+    - [x] Schedule Generator *(see refinement note below)*
+    - [x] Upcoming Doses
+    - [x] Scheduling Testing
 
 - [ ] Phase 9 - Adherence
     - [ ] Taken
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 7 complete and approved, awaiting the start of Phase 8 (Dose Scheduling).
+None — Phase 8 complete and approved, awaiting the start of Phase 9 (Adherence).
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 8 - Dose Scheduling (Schedule Generator, Upcoming Doses, Scheduling Testing).
+Start Phase 9 - Adherence (Taken, Missed, Skipped, Adherence Statistics, Adherence Testing).
 
 ---
 
@@ -228,6 +228,42 @@ Start Phase 8 - Dose Scheduling (Schedule Generator, Upcoming Doses, Scheduling 
   the existing `services/` convention, not an architecture change. It
   only calls `db.add(...)` and never commits, so every timeline event is
   written in the same transaction as the entity write that triggered it.
+- **Phase 8 note:** `POST /medications/{id}/schedule` requires
+  `duration_days` and **at least one** of (`times_per_day`,
+  `interval_hours`) to already be set on the medication (400 otherwise).
+  Two supported input shapes:
+  - `times_per_day` set (with or without `interval_hours`): dose count is
+    `times_per_day * duration_days`; spacing uses `interval_hours` if set,
+    else an even daily spread (`24 / times_per_day`).
+  - `times_per_day` absent, `interval_hours` set: spacing uses
+    `interval_hours` directly; dose count is derived as
+    `floor(duration_days * 24 / interval_hours)` (minimum 1), i.e. as many
+    evenly-spaced doses as fit within the duration window, since there is
+    no explicit per-day count to multiply by.
+  Both shapes anchor the first dose at 08:00 UTC on `start_date`, reject
+  (409) regeneration of an existing schedule, and are capped at
+  `MAX_GENERATED_DOSES` (3650) as a defensive guard. The interval-only
+  shape was added as a confirmed refinement after the initial Phase 8
+  implementation, per project owner request — it does not alter any API
+  contract, route, response model, or the database schema.
+- **Phase 8 scope note:** `POST /doses/{id}/mark` is listed in the frozen
+  spec's API contract (section 7) but is explicitly out of scope for
+  Phase 8 — it belongs to Phase 9 (Adherence) per spec section 10, and is
+  intentionally not registered on any router yet
+  (`test_mark_endpoint_not_yet_implemented` confirms a 404, not 405,
+  since the route doesn't exist).
+- **Phase 8 "Upcoming Doses" clarification:**
+  `GET /patients/{id}/doses/upcoming` returns only future
+  (`scheduled_time >= now`), unmarked (`status IS NULL`) doses belonging
+  to medications with `status == "active"` — doses for
+  paused/discontinued/completed medications are excluded. Results are
+  enriched with `drug_name`/`dose` via a join, ordered ascending by
+  `scheduled_time`.
+- **Phase 8 cleanup note:** no dedicated `created_*_ids` fixture is used
+  for generated `medication_schedule`/`medication_doses` rows — both
+  tables cascade away via existing `ON DELETE CASCADE` constraints
+  (`001_initial_schema.sql`) when a test's `created_patient_ids` cleanup
+  deletes the patient (cascading through medications).
 
 ## Repository Convention
 

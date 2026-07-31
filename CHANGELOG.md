@@ -153,8 +153,7 @@ All notable changes to this project will be documented here.
   - `onset_date` defaults to `date.today()` when omitted by the client,
     applied in the application layer rather than relied upon as a
     DB-side default reaching the ORM — consistent with how other
-    date/time defaults are handled throughout the codebase (e.g.
-    `created_at`).
+    date/time defaults are handled throughout the codebase.
   - `GET /patients/{id}/symptoms` returns results ordered chronologically
     by `onset_date` (then `created_at` as a same-day tiebreaker).
   - Pydantic schemas (`app/schemas/symptom.py`), deliberately omitting
@@ -215,6 +214,65 @@ All notable changes to this project will be documented here.
     routes).
   - No new test fixture needed for cleanup — `timeline_events.patient_id`
     already has `ON DELETE CASCADE`, so rows are removed automatically
+    when a test's `created_patient_ids` cleanup deletes the patient.
+
+- **Phase 8 — Dose Scheduling:**
+  - Schedule endpoints (`app/api/v1/schedule.py`):
+    `POST /medications/{id}/schedule`, `GET /patients/{id}/doses/upcoming`.
+    `POST /doses/{id}/mark` is intentionally **not** implemented here — it
+    is explicitly scoped to Phase 9 (Adherence) per spec section 10.
+  - `POST /medications/{id}/schedule` generates the full dose schedule for
+    a medication in one call, requiring `duration_days` and **at least
+    one** of (`times_per_day`, `interval_hours`) to already be set (400
+    otherwise). Two supported input shapes:
+    - `times_per_day` set: dose count is `times_per_day * duration_days`;
+      spacing uses `interval_hours` if also set, else an even daily spread
+      (`24 / times_per_day`). *(Original Phase 8 behavior.)*
+    - `times_per_day` absent, `interval_hours` set: spacing uses
+      `interval_hours` directly; dose count is
+      `floor(duration_days * 24 / interval_hours)` (minimum 1) — as many
+      evenly-spaced doses as fit within the duration window. *(Refinement,
+      added after initial Phase 8 completion per project owner request.)*
+  - The first dose in both shapes anchors at 08:00 UTC on `start_date`
+    (`DEFAULT_FIRST_DOSE_TIME`), a documented convention rather than a
+    silent guess, since `Medication.start_date` is a date, not a datetime.
+  - Regenerating a schedule for a medication that already has one is
+    rejected with 409 — regeneration/rescheduling is not defined by the
+    spec.
+  - Generated dose count is capped at `MAX_GENERATED_DOSES` (3650) as a
+    defensive guard against pathological inputs (e.g. very small
+    `interval_hours` over a long `duration_days`); not a spec requirement,
+    purely a safety guard.
+  - `GET /patients/{id}/doses/upcoming` returns only future
+    (`scheduled_time >= now`), unmarked (`status IS NULL`) doses belonging
+    to medications with `status == "active"`, ordered ascending by
+    `scheduled_time`, and enriched with `drug_name`/`dose` via a join so
+    the response is directly usable by a "take your medication" UI
+    without a client-side re-lookup.
+  - Ownership enforcement via the parent patient/medication, mirroring
+    `conditions.py`/`medications.py`/`symptoms.py`/`timeline.py`: a
+    medication or patient not owned by the caller (or not existing)
+    returns 404, never 403.
+  - Pydantic schemas (`app/schemas/schedule.py`): `MedicationDoseResponse`
+    and `UpcomingDoseResponse` — response-only, since both routes generate
+    or derive their output rather than accepting a client-supplied body.
+  - `app/main.py` updated to additionally register the schedule router.
+  - Integration tests (`tests/test_schedule_api.py`): expected dose count
+    and even-spacing for the `times_per_day` shape, explicit
+    `interval_hours` override, missing `times_per_day`/`duration_days`
+    (400), duplicate schedule generation (409), exceeding
+    `MAX_GENERATED_DOSES` (400), nonexistent/cross-user medication (404),
+    upcoming-doses ordering/enrichment, exclusion of inactive medications,
+    patient scoping, cross-user isolation, and confirmation that
+    `POST /doses/{id}/mark` is unregistered (404, not 405). Refinement
+    coverage: `interval_hours`-only dose count and spacing, flooring of a
+    partial final dose (non-integer `duration_days * 24 / interval_hours`),
+    the new "at least one of `times_per_day`/`interval_hours`" 400 error,
+    and `MAX_GENERATED_DOSES` enforcement in the `interval_hours`-only
+    shape.
+  - No dedicated cleanup fixture needed for generated
+    `medication_schedule`/`medication_doses` rows — both cascade away via
+    existing `ON DELETE CASCADE` constraints (`001_initial_schema.sql`)
     when a test's `created_patient_ids` cleanup deletes the patient.
 
 ### Changed
