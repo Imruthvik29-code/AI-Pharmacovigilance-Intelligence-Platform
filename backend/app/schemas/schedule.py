@@ -1,19 +1,28 @@
 """
-Pydantic schemas for dose scheduling endpoints (spec section 7):
+Pydantic schemas for dose scheduling and adherence endpoints (spec section 7):
 
     POST /medications/{id}/schedule
     GET  /patients/{id}/doses/upcoming
+    POST /doses/{id}/mark
 
-Both routes are read/generate-only from the client's perspective -- there
-is no client-supplied request body for schedule generation (all inputs
-come from the medication's own fields: times_per_day, interval_hours,
-duration_days, start_date), so only response schemas are defined here,
-matching the pattern used for schemas/timeline.py in Phase 7.
+`MedicationDoseResponse` / `UpcomingDoseResponse` are response-only shapes
+for the schedule-generation and upcoming-doses routes -- neither accepts a
+client-supplied body (schedule generation derives everything from the
+medication's own fields; upcoming-doses is a pure read).
+
+Phase 9 addition: `MedicationDoseMarkRequest` is the request body for
+`POST /doses/{id}/mark`. `status` is required (one of the three
+`dose_status_enum` values); `actual_time` is optional -- if omitted, the
+endpoint applies `now()` when marking "taken", and leaves it null for
+"missed"/"skipped" (there's no meaningful "actual" time for a dose that
+wasn't taken). See app/api/v1/schedule.py's `mark_dose` for the full
+behavior, including the automatic missed-dose sweep.
 
 `status` is constrained via Literal to the same three values as the
-database's `dose_status_enum` (001_initial_schema.sql). It is nullable
-here (unlike symptom/condition severity/status) because a freshly
-generated dose is unmarked until Phase 9's mark endpoint sets it.
+database's `dose_status_enum` (001_initial_schema.sql). It is nullable on
+`MedicationDoseResponse` (unlike symptom/condition severity/status)
+because a freshly generated dose is unmarked until it is explicitly
+marked (or auto-marked "missed" by the sweep).
 """
 import uuid
 from datetime import datetime
@@ -25,7 +34,7 @@ DoseStatus = Literal["taken", "missed", "skipped"]
 
 
 class MedicationDoseResponse(BaseModel):
-    """A single generated dose, returned by POST /medications/{id}/schedule."""
+    """A single dose, returned by schedule generation, upcoming-doses, and mark."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -54,3 +63,10 @@ class UpcomingDoseResponse(BaseModel):
     scheduled_time: datetime
     drug_name: str
     dose: str | None
+
+
+class MedicationDoseMarkRequest(BaseModel):
+    """Request body for POST /doses/{id}/mark (Phase 9)."""
+
+    status: DoseStatus
+    actual_time: datetime | None = None
