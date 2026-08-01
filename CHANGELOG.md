@@ -191,7 +191,7 @@ All notable changes to this project will be documented here.
       nothing).
     - `symptoms.py`: `symptom_reported` on every symptom creation.
     - `dose_taken`/`dose_missed`/`dose_skipped` (Phase 9) and
-      `analysis_run` (Phase 12+) are intentionally not wired yet, since
+      `analysis_run` (Phase 14) are intentionally not wired yet, since
       neither dose marking nor analysis runs exist yet at this point.
   - Ownership enforcement via the parent patient, mirroring
     `conditions.py`/`medications.py`/`symptoms.py`: a patient not owned
@@ -355,7 +355,7 @@ All notable changes to this project will be documented here.
       returning the single most severe result among a list of findings
       (`mild` < `moderate` < `severe`), or `None` for an empty list.
       Explicitly documented as distinct from the Safety Score Engine
-      (Phase 12), which will compute a composite score/risk_level from
+      (Phase 12), which computes a composite score/risk_level from
       this plus ADR and adherence findings.
     - `DrugInteractionFinding` — a frozen dataclass carrying the
       matched rule's id, both drug ids/names, severity, mechanism,
@@ -432,6 +432,94 @@ All notable changes to this project will be documented here.
   - No dedicated cleanup fixture needed — reuses the existing
     `created_patient_ids` fixture from `conftest.py`; the engine performs
     no writes of its own.
+
+- **Phase 12 — Safety Score Engine:**
+  - New module `app/analysis/adherence_engine.py`, added to the existing
+    `app/analysis/` package (no new package needed):
+    - `analyze_adherence(patient_id, db)` — returns one `AdherenceFinding`
+      (pure counts: `taken`, `missed`, `skipped`, `due`,
+      `adherence_rate`) per active medication with at least one due dose.
+      Performs **no** severity classification — see design rationale
+      below.
+    - "Due" and "missed" doses are computed independently of whether
+      Phase 9's lazy missed-dose sweep has run for the patient: a due,
+      unmarked dose (`status IS NULL`, `scheduled_time <= now`) counts
+      toward `missed` for measurement purposes without mutating
+      `medication_doses.status` or invoking/duplicating the sweep. This
+      avoids adherence measurements silently depending on incidental API
+      call ordering.
+    - Scope decision (mirrors Phase 10/11): only `status == "active"`
+      medications are evaluated.
+  - New module `app/analysis/safety_score_engine.py`:
+    - `calculate_safety_score(patient_id, db)` — composes
+      `detect_drug_interactions()` (Phase 10), `detect_adrs()` (Phase
+      11), and `analyze_adherence()` (Phase 12) into a single composite
+      `safety_score` (0-100, floored at 0) and `risk_level`
+      (`low`/`moderate`/`high`), per spec section 5/8's
+      `analysis_runs.safety_score`/`risk_level` and the LangGraph "Safety
+      Score Engine" node description.
+    - Sole owner of all thresholds and weights in the system: `BASE_SCORE`
+      (100), `MIN_SCORE` (0), `INTERACTION_PENALTY_POINTS`/
+      `ADR_PENALTY_POINTS` (mild=5, moderate=15, severe=30),
+      `ADHERENCE_ADEQUATE_THRESHOLD`/`ADHERENCE_MODERATE_THRESHOLD`/
+      `ADHERENCE_SEVERE_THRESHOLD` (0.80/0.50/0.25) with
+      `ADHERENCE_PENALTY_POINTS` (mild=5, moderate=10, severe=20), and
+      `RISK_LEVEL_LOW_THRESHOLD`/`RISK_LEVEL_MODERATE_THRESHOLD`
+      (70/40) — every value is a named, individually-commented
+      module-level constant explicitly documented as an implementation
+      default rather than a clinical citation (only the 80% adherence
+      cutoff has any external basis, per medication-adherence outcomes
+      research; the rest were confirmed with the project owner as a
+      starting point pending clinical review).
+    - `_classify_adherence_severity()` is the single place in the
+      codebase that turns an adherence rate into a mild/moderate/severe
+      judgment — kept out of `adherence_engine.py` deliberately, since
+      unlike `interaction_rules`/`adr_rules` there is no authoritative
+      severity reference table for adherence, making that classification
+      a scoring *policy* choice rather than a lookup.
+    - `SafetyScoreResult` exposes `safety_score`, `risk_level`,
+      `starting_score`, `total_points_deducted`, all three raw finding
+      lists (`interaction_findings`, `adr_findings`,
+      `adherence_findings`), and a full `penalties: list[PenaltyEntry]`
+      audit trail — each `PenaltyEntry` carries its category, a
+      human-readable description, assigned severity, point cost, and a
+      direct reference to the originating finding object, so a later
+      phase (Evidence Retrieval, the LLM explanation node, or a report
+      view) can explain exactly how the score was produced without
+      recomputing anything.
+  - Deliberately **not** exposed via any HTTP route in this phase, and
+    nothing is persisted to `analysis_runs` yet — both happen in Phase 14
+    (LangGraph)'s Persist Node, same as Phases 10/11's deferred wiring.
+  - `timeline_engine.py` (also listed in the spec's section 6 folder
+    structure) was explicitly **not** built in this phase — confirmed
+    with the project owner that nothing in Phase 12's description
+    requires timeline findings; its need, if any, is deferred until a
+    later phase makes it clear.
+  - New test file `tests/test_adherence_engine.py`: live-DB integration
+    tests calling `analyze_adherence()` directly. Covers no-active-
+    medications (empty), a medication with no due doses yet (excluded
+    entirely), full-miss adherence computed without the sweep having run,
+    a mixed taken/missed/skipped medication, fully-adherent medication
+    (rate == 1.0), exclusion of discontinued medications, multiple active
+    medications each producing their own finding, and patient scoping.
+  - New test file `tests/test_safety_score_engine.py`: two layers of
+    coverage —
+    - Isolated, DB-free unit tests for `_classify_adherence_severity()`
+      and `_risk_level_for_score()`, pinning down every threshold
+      boundary precisely (e.g. exactly 0.80 adherence lands on the
+      "adequate" side, exactly 0.50 lands on "mild," exactly the
+      `RISK_LEVEL_LOW_THRESHOLD` score lands on "low").
+    - Live-DB integration tests for `calculate_safety_score()`: a clean
+      patient (perfect score of 100), an isolated interaction penalty, a
+      hand-computed combined interaction+ADR scenario (Warfarin+Aspirin
+      → 75 points deducted, score 25, risk_level "high"), an
+      adherence-only penalty scenario, confirmation that adequate
+      adherence produces no penalty (while still appearing in
+      `adherence_findings`), and confirmation that each `PenaltyEntry`'s
+      `source` is the real originating finding object.
+  - No dedicated cleanup fixture needed for either new test file —
+    reuses the existing `created_patient_ids` fixture; neither engine
+    performs any writes of its own.
 
 ### Changed
 

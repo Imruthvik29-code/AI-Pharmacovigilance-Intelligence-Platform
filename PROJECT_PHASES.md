@@ -4,7 +4,7 @@
 
 **Current Milestone:** Milestone 3 - Medication Intelligence
 
-**Current Phase:** Phase 12 - Safety Score Engine
+**Current Phase:** Phase 13 - Evidence Retrieval
 
 **Last Updated:** 2026-08-01
 
@@ -76,7 +76,7 @@
 
 ---
 
-## 🟠 Milestone 3 - Medication Intelligence
+## 🟢 Milestone 3 - Medication Intelligence
 
 - [x] Phase 10 - Drug Interaction Engine
     - [x] Interaction Detection
@@ -88,10 +88,10 @@
     - [x] Severity Matching *(see note below — scope confirmed)*
     - [x] ADR Testing
 
-- [ ] Phase 12 - Safety Score Engine
-    - [ ] Score Calculation
-    - [ ] Risk Level
-    - [ ] Safety Score Testing
+- [x] Phase 12 - Safety Score Engine
+    - [x] Score Calculation
+    - [x] Risk Level
+    - [x] Safety Score Testing
 
 - [ ] Phase 13 - Evidence Retrieval
     - [ ] Medical Knowledge Retrieval
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 11 complete and approved, awaiting the start of Phase 12 (Safety Score Engine).
+None — Phase 12 complete and approved, awaiting the start of Phase 13 (Evidence Retrieval).
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 12 - Safety Score Engine (Score Calculation, Risk Level, Safety Score Testing).
+Start Phase 13 - Evidence Retrieval (Medical Knowledge Retrieval, Patient History Retrieval, Retrieval Testing).
 
 ---
 
@@ -203,7 +203,7 @@ Start Phase 12 - Safety Score Engine (Score Calculation, Risk Level, Safety Scor
   `default current_date`, but this is applied in the application layer
   (`date.today()` if omitted by the client) rather than relied upon as a
   DB-side default reaching the ORM — consistent with how other date/time
-  defaults (e.g. `created_at`) are handled throughout this codebase.
+  defaults are handled throughout this codebase.
 - **Phase 7 scope note:** per the frozen spec (section 7), the timeline
   only exposes `GET /patients/{id}/timeline` — read-only, no
   POST/PUT/DELETE, since events are never created directly by a client.
@@ -215,8 +215,9 @@ Start Phase 12 - Safety Score Engine (Score Calculation, Risk Level, Safety Scor
   (Phase 4/7), `condition_status_changed` (Phase 5/7), `symptom_reported`
   (Phase 6/7), and `dose_taken`/`dose_missed`/`dose_skipped` (Phase 9,
   including auto-detected misses from the lazy sweep). `analysis_run`
-  remains deferred to Phase 12+ (Safety Score Engine), since analysis
-  runs don't exist yet.
+  remains deferred to Phase 14 (LangGraph's Persist Node), since no
+  analysis run is persisted to `analysis_runs` yet even though Phase 12
+  now computes a score in-memory.
 - **Phase 7 architecture note:** a new `app/services/timeline_writer.py`
   was added (`log_timeline_event` helper) — not explicitly named in the
   spec's section 6 folder listing, but an additive fit consistent with
@@ -280,13 +281,11 @@ Start Phase 12 - Safety Score Engine (Score Calculation, Risk Level, Safety Scor
   the project owner as an acceptable substitute for a true background
   job, given the frozen tech stack has no scheduler.
 - **Phase 9 "Adherence Statistics" clarification:** adherence statistics
-  (e.g. taken/missed/skipped counts, an adherence percentage) are **not**
-  part of the frozen section 7 API contract, and are explicitly deferred
-  — that aggregation will feed the Safety Score Engine (Phase 12+)
-  instead of being exposed as its own endpoint now. The subtask checkbox
-  is marked complete in the sense that this scope decision was made and
-  confirmed, not because a standalone statistics endpoint exists — the
-  same pattern used for Phase 3's "Delete Patient" note.
+  (e.g. taken/missed/skipped counts, an adherence percentage) were
+  explicitly out of scope for Phase 9's own API surface — not part of
+  the frozen section 7 API contract. This aggregation is now built as of
+  Phase 12's `adherence_engine.py`, but purely as an internal input to
+  the Safety Score Engine, not as a standalone endpoint.
 - **Phase 9 note:** dose marking is intentionally immutable once set —
   there is no "unmark" or "correct a mark" endpoint, consistent with how
   Phase 8 treats schedule generation (409 on regeneration) rather than
@@ -312,8 +311,8 @@ Start Phase 12 - Safety Score Engine (Score Calculation, Risk Level, Safety Scor
   row's own `severity` value as-is — no new severity is computed or
   invented. A small `highest_severity()` convenience utility reports the
   single worst severity across a set of findings; it is explicitly **not**
-  the Safety Score Engine (Phase 12), which will combine this with ADR
-  and adherence findings into a composite score/risk_level.
+  the Safety Score Engine (Phase 12), which combines this with ADR and
+  adherence findings into a composite score/risk_level.
 - **Phase 10 direction-independence note:** `interaction_rules` rows
   store a fixed `drug_a_id`/`drug_b_id` direction, but detection matches
   a rule whenever both ids are present among the patient's active drug
@@ -351,6 +350,64 @@ Start Phase 12 - Safety Score Engine (Score Calculation, Risk Level, Safety Scor
   `adr_rules.drug_id IN (patient's active drug ids)` membership query,
   with no directionality concerns (unlike `interaction_rules`'
   drug_a/drug_b pairing).
+- **Phase 12 spec-gap note (raised and resolved during planning):** the
+  frozen spec's folder structure (section 6) lists `adherence_engine.py`
+  alongside `safety_score_engine.py` under `analysis/`, but
+  PROJECT_PHASES.md's Milestone 3 had no standalone "Adherence Engine"
+  phase. Resolved by treating Phase 12 as necessarily including a small
+  `adherence_engine.py` (confirmed with the project owner) — since spec
+  section 5/8/10 all describe the Safety Score Engine as merging
+  interaction + ADR + **adherence** findings, Phase 12 could not be
+  completed without some adherence analysis feeding it. `timeline_engine.py`
+  (also listed in section 6) was deliberately **not** built in this
+  phase, since nothing in Phase 12's description requires timeline
+  findings, and its need (if any) is deferred until Phase 13/15 make that
+  clear.
+- **Phase 12 "separation of measurement and interpretation" note
+  (confirmed during planning):** `adherence_engine.py` returns **only**
+  raw counts/rates (`taken`, `missed`, `skipped`, `due`,
+  `adherence_rate`) via `analyze_adherence()` — it performs no severity
+  classification. Unlike `interaction_rules`/`adr_rules`, there is no
+  authoritative "adherence severity" reference table in the schema, so
+  classifying a rate as mild/moderate/severe is a scoring *policy*
+  choice, not a lookup — and that responsibility belongs entirely in
+  `safety_score_engine.py`. All thresholds, penalty weights, and
+  risk-level cutoffs are consolidated there as named, individually
+  commented module-level constants (`BASE_SCORE`, `MIN_SCORE`,
+  `INTERACTION_PENALTY_POINTS`, `ADR_PENALTY_POINTS`,
+  `ADHERENCE_ADEQUATE_THRESHOLD`/`ADHERENCE_MODERATE_THRESHOLD`/
+  `ADHERENCE_SEVERE_THRESHOLD`, `ADHERENCE_PENALTY_POINTS`,
+  `RISK_LEVEL_LOW_THRESHOLD`/`RISK_LEVEL_MODERATE_THRESHOLD`), each
+  explicitly documented as an implementation default rather than a
+  clinical guideline or spec requirement — only the 80% adherence cutoff
+  has any cited external basis (a common rule-of-thumb in
+  medication-adherence outcomes research); the rest were confirmed with
+  the project owner as a reasonable starting point pending future
+  clinical review.
+- **Phase 12 "due dose" note:** `analyze_adherence()` computes "due" and
+  "missed" independently of whether Phase 9's lazy missed-dose sweep has
+  run for a given patient — an overdue, unmarked dose counts as missed
+  for measurement purposes regardless of its persisted `status` value.
+  This avoids a correctness bug where adherence measurements would
+  silently depend on incidental API call ordering (whether
+  `GET /patients/{id}/doses/upcoming` or `POST /doses/{id}/mark` happened
+  to run recently). It performs no writes and does not duplicate or
+  invoke the Phase 9 sweep — the persisted `medication_doses.status`
+  values and the sweep's own behavior are unchanged.
+- **Phase 12 "audit trail" note (confirmed during planning):**
+  `calculate_safety_score()` returns a `SafetyScoreResult` exposing not
+  just `safety_score`/`risk_level` but also `starting_score`,
+  `total_points_deducted`, all three raw finding lists, and a full
+  `penalties: list[PenaltyEntry]` breakdown — each entry carrying its
+  category, a human-readable description, assigned severity, point cost,
+  and a direct reference to the originating finding object. This was a
+  deliberate requirement so a later phase (Evidence Retrieval, the LLM
+  explanation node, or a report view) can explain exactly how a score
+  was produced without recomputing anything.
+- **Phase 12 scope note:** like Phases 10/11, `safety_score_engine.py`
+  is **not** exposed via any HTTP route in this phase, and nothing here
+  is persisted to `analysis_runs` yet — both happen in Phase 14
+  (LangGraph)'s Persist Node.
 
 ## Repository Convention
 
