@@ -219,8 +219,9 @@ All notable changes to this project will be documented here.
 - **Phase 8 — Dose Scheduling:**
   - Schedule endpoints (`app/api/v1/schedule.py`):
     `POST /medications/{id}/schedule`, `GET /patients/{id}/doses/upcoming`.
-    `POST /doses/{id}/mark` is intentionally **not** implemented here — it
-    is explicitly scoped to Phase 9 (Adherence) per spec section 10.
+    `POST /doses/{id}/mark` was intentionally **not** implemented in
+    Phase 8 — it was explicitly scoped to Phase 9 (Adherence) per spec
+    section 10 (now implemented; see Phase 9 below).
   - `POST /medications/{id}/schedule` generates the full dose schedule for
     a medication in one call, requiring `duration_days` and **at least
     one** of (`times_per_day`, `interval_hours`) to already be set (400
@@ -263,13 +264,11 @@ All notable changes to this project will be documented here.
     (400), duplicate schedule generation (409), exceeding
     `MAX_GENERATED_DOSES` (400), nonexistent/cross-user medication (404),
     upcoming-doses ordering/enrichment, exclusion of inactive medications,
-    patient scoping, cross-user isolation, and confirmation that
-    `POST /doses/{id}/mark` is unregistered (404, not 405). Refinement
-    coverage: `interval_hours`-only dose count and spacing, flooring of a
-    partial final dose (non-integer `duration_days * 24 / interval_hours`),
-    the new "at least one of `times_per_day`/`interval_hours`" 400 error,
-    and `MAX_GENERATED_DOSES` enforcement in the `interval_hours`-only
-    shape.
+    patient scoping, cross-user isolation. Refinement coverage:
+    `interval_hours`-only dose count and spacing, flooring of a partial
+    final dose (non-integer `duration_days * 24 / interval_hours`), the
+    "at least one of `times_per_day`/`interval_hours`" 400 error, and
+    `MAX_GENERATED_DOSES` enforcement in the `interval_hours`-only shape.
   - No dedicated cleanup fixture needed for generated
     `medication_schedule`/`medication_doses` rows — both cascade away via
     existing `ON DELETE CASCADE` constraints (`001_initial_schema.sql`)
@@ -285,18 +284,22 @@ All notable changes to this project will be documented here.
   - Missed-dose background check (spec section 10) implemented as a
     lazy, query-time sweep (`_sweep_missed_doses`) rather than a true
     background job, since the tech stack has no scheduler/cron
-    component. Runs at the top of both `GET /patients/{id}/doses/upcoming`
-    and `POST /doses/{id}/mark`, flipping any overdue unmarked dose for
-    the relevant patient to `missed` and logging a `dose_missed`
-    timeline event. Applies regardless of the parent medication's
-    status.
+    component — confirmed with the project owner during Phase 9
+    planning as the preferred approach (over a dedicated on-demand sweep
+    endpoint, or deferring entirely). Runs at the top of both
+    `GET /patients/{id}/doses/upcoming` and `POST /doses/{id}/mark`,
+    flipping any overdue unmarked dose for the relevant patient to
+    `missed` and logging a `dose_missed` timeline event. Applies
+    regardless of the parent medication's status.
   - Automatic timeline event logging completed: `dose_taken`,
     `dose_missed`, `dose_skipped` (deferred since Phase 7) now wired up
     via `app/services/timeline_writer.py`, in the same transaction as
     the dose write.
   - Adherence statistics (taken/missed/skipped counts, adherence
-    percentage) explicitly deferred — not part of the frozen section 7
-    API contract; will feed the Safety Score Engine in Phase 12+.
+    percentage) explicitly deferred — confirmed with the project owner
+    during Phase 9 planning as out of scope, since it is not part of the
+    frozen section 7 API contract; will feed the Safety Score Engine in
+    Phase 12+.
   - Pydantic schema addition (`app/schemas/schedule.py`):
     `MedicationDoseMarkRequest` (request body for the mark endpoint).
   - Integration tests (`tests/test_schedule_api.py`, Phase 9 section):
@@ -305,7 +308,9 @@ All notable changes to this project will be documented here.
     statuses, double-mark 409, nonexistent-dose 404, cross-user
     isolation, invalid-status 422, sweep-via-`upcoming` and
     sweep-via-`mark` behavior, and confirmation that a future dose is
-    unaffected by the sweep and remains explicitly markable.
+    unaffected by the sweep and remains explicitly markable. The prior
+    Phase 8 placeholder test asserting the mark route was unregistered
+    was removed, since the route now exists.
   - No dedicated cleanup fixture needed — dose/timeline rows affected by
     marking or the sweep already cascade away via existing
     `ON DELETE CASCADE` constraints when a test's `created_patient_ids`

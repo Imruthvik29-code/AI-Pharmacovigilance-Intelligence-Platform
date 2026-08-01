@@ -279,14 +279,17 @@ Start Phase 10 - Drug Interaction Engine (Interaction Detection, Severity Calcul
   to date. The sweep applies regardless of the parent medication's status
   (active/paused/discontinued/etc.) — a dose that was due is either taken
   or missed in reality, independent of the medication's current
-  lifecycle state.
+  lifecycle state. This design (lazy sweep vs. a dedicated endpoint or
+  deferring entirely) was confirmed with the project owner during Phase 9
+  planning.
 - **Phase 9 — Adherence Statistics clarification:** adherence statistics
   (e.g. taken/missed/skipped counts or an adherence percentage) are
   explicitly deferred — not part of the frozen section 7 API contract,
-  and confirmed out of scope for this phase. That data will feed the
-  Safety Score Engine (Phase 12+) instead. The subtask checkbox above is
-  marked complete in the sense that the scope decision was made and
-  verified, not because a statistics endpoint exists.
+  and confirmed out of scope for this phase (project owner decision made
+  during Phase 9 planning). That data will feed the Safety Score Engine
+  (Phase 12+) instead. The subtask checkbox above is marked complete in
+  the sense that the scope decision was made and verified, not because a
+  statistics endpoint exists.
 - **Phase 9 — Automatic Event Logging update:** `dose_taken`,
   `dose_missed`, and `dose_skipped` timeline events (deferred since
   Phase 7) are now wired up via `POST /doses/{id}/mark` and the missed-
