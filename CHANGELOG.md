@@ -285,8 +285,7 @@ All notable changes to this project will be documented here.
     lazy, query-time sweep (`_sweep_missed_doses`) rather than a true
     background job, since the tech stack has no scheduler/cron
     component — confirmed with the project owner during Phase 9
-    planning as the preferred approach (over a dedicated on-demand sweep
-    endpoint, or deferring entirely). Runs at the top of both
+    planning as the preferred approach. Runs at the top of both
     `GET /patients/{id}/doses/upcoming` and `POST /doses/{id}/mark`,
     flipping any overdue unmarked dose for the relevant patient to
     `missed` and logging a `dose_missed` timeline event. Applies
@@ -315,6 +314,50 @@ All notable changes to this project will be documented here.
     marking or the sweep already cascade away via existing
     `ON DELETE CASCADE` constraints when a test's `created_patient_ids`
     cleanup deletes the patient.
+
+- **Phase 10 — Drug Interaction Engine:**
+  - New package `app/analysis/` (per spec section 6's folder structure),
+    with `drug_interaction_engine.py`:
+    - `detect_drug_interactions(patient_id, db)` — queries the patient's
+      distinct `status == "active"` medication drug ids, then matches
+      them against `interaction_rules` where both `drug_a_id` and
+      `drug_b_id` are present in that active set. This is a pure
+      set-membership check, so it is inherently direction-independent
+      (does not depend on which of the rule's two drugs the patient's
+      medication history matches, or the order medications were
+      created in).
+    - `highest_severity(findings)` — a small convenience utility
+      returning the single most severe result among a list of findings
+      (`mild` < `moderate` < `severe`), or `None` for an empty list.
+      Explicitly documented as distinct from the Safety Score Engine
+      (Phase 12), which will compute a composite score/risk_level from
+      this plus ADR and adherence findings.
+    - `DrugInteractionFinding` — a frozen dataclass carrying the
+      matched rule's id, both drug ids/names, severity, mechanism,
+      recommendation, and source.
+  - Deliberately **not** exposed via any HTTP route in this phase —
+    `api/v1/analysis.py` and the `/patients/{id}/analyze` /
+    `/patients/{id}/analysis` endpoints are wired only in Phase 14
+    (LangGraph), which will call into this engine as an analysis node.
+  - Scope decisions confirmed with the project owner during Phase 10
+    planning: (1) only `status == "active"` medications count as "the
+    patient's drugs" for detection; (2) severity is surfaced per-match
+    from the seeded rule as-is, with no new severity computed beyond the
+    `highest_severity()` convenience helper.
+  - New test file (`tests/test_drug_interaction_engine.py`): calls the
+    engine directly against a live DB session (no endpoint exists yet to
+    exercise). Covers no-active-medications and single-active-medication
+    (both empty), a known severe interaction (Warfarin+Aspirin),
+    direction-independence (Omeprazole+Warfarin, created in the reverse
+    order from the rule's own storage direction), a true negative
+    (Metformin+Levothyroxine, no seeded rule), exclusion of a
+    discontinued medication, multiple simultaneous interactions
+    (Warfarin+Aspirin+Ibuprofen surfacing two findings), patient
+    scoping, and `highest_severity()` in isolation (empty, single,
+    mixed-order, tied severities).
+  - No dedicated cleanup fixture needed — reuses the existing
+    `created_patient_ids` fixture from `conftest.py`; the engine performs
+    no writes of its own.
 
 ### Changed
 

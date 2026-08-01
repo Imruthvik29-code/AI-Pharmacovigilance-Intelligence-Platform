@@ -4,9 +4,9 @@
 
 **Current Milestone:** Milestone 3 - Medication Intelligence
 
-**Current Phase:** Phase 10 - Drug Interaction Engine
+**Current Phase:** Phase 11 - ADR Engine
 
-**Last Updated:** 2026-07-31
+**Last Updated:** 2026-08-01
 
 ---
 
@@ -78,10 +78,10 @@
 
 ## 🟡 Milestone 3 - Medication Intelligence
 
-- [ ] Phase 10 - Drug Interaction Engine
-    - [ ] Interaction Detection
-    - [ ] Severity Calculation
-    - [ ] Interaction Testing
+- [x] Phase 10 - Drug Interaction Engine
+    - [x] Interaction Detection
+    - [x] Severity Calculation *(see note below — scope confirmed)*
+    - [x] Interaction Testing
 
 - [ ] Phase 11 - ADR Engine
     - [ ] ADR Detection
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 9 complete and approved, awaiting the start of Phase 10 (Drug Interaction Engine).
+None — Phase 10 complete and approved, awaiting the start of Phase 11 (ADR Engine).
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 10 - Drug Interaction Engine (Interaction Detection, Severity Calculation, Interaction Testing).
+Start Phase 11 - ADR Engine (ADR Detection, Severity Matching, ADR Testing).
 
 ---
 
@@ -214,8 +214,7 @@ Start Phase 10 - Drug Interaction Engine (Interaction Detection, Severity Calcul
   `dose_missed`/`dose_skipped` and `analysis_run` were, at the time of
   Phase 7, deferred to Phase 9 (Adherence) and Phase 12+ (Safety Score
   Engine) respectively. `dose_taken`/`dose_missed`/`dose_skipped` are now
-  wired up as of Phase 9 (see Phase 9 note below); `analysis_run` remains
-  deferred to Phase 12+.
+  wired up as of Phase 9; `analysis_run` remains deferred to Phase 12+.
 - **Phase 7 architecture note:** a new `app/services/timeline_writer.py`
   was added (`log_timeline_event` helper) — not explicitly named in the
   spec's section 6 folder listing, but an additive fit consistent with
@@ -252,7 +251,7 @@ Start Phase 10 - Drug Interaction Engine (Interaction Detection, Severity Calcul
   paused/discontinued/completed medications are excluded. Results are
   enriched with `drug_name`/`dose` via a join, ordered ascending by
   `scheduled_time`. As of Phase 9, this route also runs the missed-dose
-  sweep (see below) before querying.
+  sweep before querying.
 - **Phase 8 cleanup note:** no dedicated `created_*_ids` fixture is used
   for generated `medication_schedule`/`medication_doses` rows — both
   tables cascade away via existing `ON DELETE CASCADE` constraints
@@ -260,9 +259,9 @@ Start Phase 10 - Drug Interaction Engine (Interaction Detection, Severity Calcul
   deletes the patient (cascading through medications).
 - **Phase 9 — `POST /doses/{id}/mark` implementation note:** a dose's
   `status` is set exactly once. If the dose is already marked (whether by
-  a prior explicit mark or by the automatic sweep, see below), the
-  request is rejected with 409 — the spec defines no "correct a mark"
-  flow, so marking is treated as immutable once set, consistent with the
+  a prior explicit mark or by the automatic sweep), the request is
+  rejected with 409 — the spec defines no "correct a mark" flow, so
+  marking is treated as immutable once set, consistent with the
   "schedule already exists" 409 precedent from Phase 8. `actual_time`
   defaults to `now()` when marking "taken" if omitted, and stays null for
   "missed"/"skipped".
@@ -274,33 +273,53 @@ Start Phase 10 - Drug Interaction Engine (Interaction Detection, Severity Calcul
   relevant patient whose `scheduled_time` has passed and is still
   unmarked to `missed`, logging a `dose_missed` timeline event per
   affected dose. It runs (and commits) at the start of both
-  `GET /patients/{id}/doses/upcoming` and `POST /doses/{id}/mark`, so any
-  read or write touching a patient's doses first brings overdue doses up
-  to date. The sweep applies regardless of the parent medication's status
-  (active/paused/discontinued/etc.) — a dose that was due is either taken
-  or missed in reality, independent of the medication's current
-  lifecycle state. This design (lazy sweep vs. a dedicated endpoint or
-  deferring entirely) was confirmed with the project owner during Phase 9
-  planning.
+  `GET /patients/{id}/doses/upcoming` and `POST /doses/{id}/mark`. The
+  sweep applies regardless of the parent medication's status. This
+  design was confirmed with the project owner during Phase 9 planning.
 - **Phase 9 — Adherence Statistics clarification:** adherence statistics
-  (e.g. taken/missed/skipped counts or an adherence percentage) are
-  explicitly deferred — not part of the frozen section 7 API contract,
-  and confirmed out of scope for this phase (project owner decision made
-  during Phase 9 planning). That data will feed the Safety Score Engine
-  (Phase 12+) instead. The subtask checkbox above is marked complete in
-  the sense that the scope decision was made and verified, not because a
-  statistics endpoint exists.
+  are explicitly deferred — confirmed with the project owner during
+  Phase 9 planning as out of scope, since it is not part of the frozen
+  section 7 API contract; will feed the Safety Score Engine in Phase
+  12+.
 - **Phase 9 — Automatic Event Logging update:** `dose_taken`,
   `dose_missed`, and `dose_skipped` timeline events (deferred since
   Phase 7) are now wired up via `POST /doses/{id}/mark` and the missed-
-  dose sweep, using the existing `app/services/timeline_writer.py`
-  helper, in the same transaction as the dose write. `analysis_run`
-  remains deferred to Phase 12+.
+  dose sweep. `analysis_run` remains deferred to Phase 12+.
 - **Phase 9 cleanup note:** no dedicated `created_*_ids` fixture is
   needed for dose-mark timeline events or sweep-generated status
-  changes — they modify existing `medication_doses`/`timeline_events`
-  rows that already cascade away via `ON DELETE CASCADE` when a test's
+  changes — they cascade away via `ON DELETE CASCADE` when a test's
   `created_patient_ids` cleanup deletes the patient.
+- **Phase 10 architecture note:** a new `app/analysis/` package was
+  created (`drug_interaction_engine.py`), per the spec's section 6
+  folder structure. This engine is a pure, internal, deterministic
+  service — it is **not** exposed via any HTTP route in this phase.
+  `api/v1/analysis.py` and the `POST /patients/{id}/analyze` /
+  `GET /patients/{id}/analysis` routes are wired only in Phase 14
+  (LangGraph), which will call into this engine (and the ADR/adherence/
+  safety-score engines from later phases) as analysis nodes. Phase 10's
+  tests therefore call the engine directly against a live DB session
+  rather than through any endpoint.
+- **Phase 10 scope note (confirmed during planning):** only medications
+  with `status == "active"` count as "the patient's drugs" for
+  interaction detection — a paused/completed/discontinued medication is
+  not currently being taken, so it cannot be interacting with anything
+  right now. This mirrors the same `status == "active"` filter already
+  used by `GET /patients/{id}/doses/upcoming` (Phase 8).
+- **Phase 10 "Severity Calculation" clarification (confirmed during
+  planning):** each finding simply surfaces its matched `interaction_rules`
+  row's own `severity` value as-is — no new severity is computed or
+  invented. A small `highest_severity()` convenience utility reports the
+  single worst severity across a set of findings; it is explicitly **not**
+  the Safety Score Engine (Phase 12), which will combine this with ADR
+  and adherence findings into a composite score/risk_level.
+- **Phase 10 direction-independence note:** `interaction_rules` rows
+  store a fixed `drug_a_id`/`drug_b_id` direction, but detection matches
+  a rule whenever both ids are present among the patient's active drug
+  ids (pure set membership) — clinically, an interaction is symmetric
+  regardless of which drug is stored as "a" vs "b," and regardless of
+  the order the patient's medications were created in. Verified by a
+  dedicated test using the Omeprazole/Warfarin rule (stored in the
+  opposite order from the test's medication-creation order).
 
 ## Repository Convention
 
