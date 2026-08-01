@@ -521,6 +521,54 @@ All notable changes to this project will be documented here.
     reuses the existing `created_patient_ids` fixture; neither engine
     performs any writes of its own.
 
+- **Phase 13 — Evidence Retrieval:**
+  - New module `app/services/evidence_retrieval.py` — an application
+    service (per spec section 6's `services/` convention), not another
+    `app/analysis/` engine:
+    - `retrieve_evidence(patient_id, db, safety_score_result)` — takes
+      Phase 12's `SafetyScoreResult` directly and builds an
+      `EvidenceBundle` grouping evidence by finding, mirroring spec
+      section 8's LangGraph diagram (the Evidence Retrieval Node runs
+      immediately after the Safety Score Engine merge).
+    - **Medical evidence** is structured directly from
+      `DrugInteractionFinding`/`ADRFinding`'s already-fetched fields
+      (`mechanism`, `recommendation`, `reaction_description`,
+      `frequency_class`, `source`) — no second query against
+      `interaction_rules`/`adr_rules`, since Phase 10/11 already joined
+      against them. Adherence findings get no medical evidence (no rules
+      table backs an adherence "fact").
+    - **Personal evidence** is one targeted, patient-scoped
+      `timeline_events` query per finding, matched to exactly the
+      medication(s) involved (via `ref_id` for
+      `medication_started`/`medication_discontinued`, or
+      `payload.medication_id` for `dose_taken`/`dose_missed`/
+      `dose_skipped`/`symptom_reported` events) plus any condition that
+      medication is linked to (`condition_status_changed` via the
+      condition's `ref_id`) — never the patient's full timeline.
+    - `EvidenceItem` (`kind`, `statement`, `source`, `occurred_at`) and
+      `FindingEvidence` (`category`, the original finding object,
+      `medical_evidence`, `personal_evidence`) are immutable dataclasses;
+      `FindingEvidence.finding` mirrors Phase 12's
+      `PenaltyEntry.source` traceability pattern, so a later phase (the
+      Phase 15 LLM explanation node, or a report view) can explain one
+      finding at a time with its supporting evidence without
+      recomputation.
+  - Deliberately **not** exposed via any HTTP route in this phase, same
+    as Phases 10-12 — wired into Phase 14 (LangGraph) as the Evidence
+    Retrieval Node.
+  - New test file `tests/test_evidence_retrieval.py`: an empty/clean
+    patient (empty bundle), interaction medical evidence (mechanism +
+    recommendation, 2 items, correct source), ADR medical evidence
+    (reaction description + frequency folded into one statement),
+    adherence findings having zero medical evidence, personal evidence
+    picking up `medication_started` events, dose-mark events, a linked
+    symptom, and a linked condition's status change, plus a dedicated
+    scoping test confirming an unrelated third active medication's
+    events do not leak into a finding that doesn't involve it.
+  - No dedicated cleanup fixture needed — reuses existing
+    `created_patient_ids`/`created_condition_ids` fixtures; this service
+    performs no writes of its own.
+
 ### Changed
 
 None

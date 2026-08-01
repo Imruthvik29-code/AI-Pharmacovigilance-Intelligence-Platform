@@ -2,9 +2,9 @@
 
 **Project Status:** 🟢 In Development
 
-**Current Milestone:** Milestone 3 - Medication Intelligence
+**Current Milestone:** Milestone 4 - AI Explanation Layer
 
-**Current Phase:** Phase 13 - Evidence Retrieval
+**Current Phase:** Phase 14 - LangGraph Workflow
 
 **Last Updated:** 2026-08-01
 
@@ -93,10 +93,10 @@
     - [x] Risk Level
     - [x] Safety Score Testing
 
-- [ ] Phase 13 - Evidence Retrieval
-    - [ ] Medical Knowledge Retrieval
-    - [ ] Patient History Retrieval
-    - [ ] Retrieval Testing
+- [x] Phase 13 - Evidence Retrieval
+    - [x] Medical Knowledge Retrieval *(see note below — structured from existing findings, no duplicate query)*
+    - [x] Patient History Retrieval *(see note below — scoped per finding)*
+    - [x] Retrieval Testing
 
 ---
 
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 12 complete and approved, awaiting the start of Phase 13 (Evidence Retrieval).
+None — Phase 13 complete and approved, awaiting the start of Phase 14 (LangGraph Workflow).
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 13 - Evidence Retrieval (Medical Knowledge Retrieval, Patient History Retrieval, Retrieval Testing).
+Start Phase 14 - LangGraph Workflow (Graph Nodes, Workflow Integration, LangGraph Testing).
 
 ---
 
@@ -216,8 +216,8 @@ Start Phase 13 - Evidence Retrieval (Medical Knowledge Retrieval, Patient Histor
   (Phase 6/7), and `dose_taken`/`dose_missed`/`dose_skipped` (Phase 9,
   including auto-detected misses from the lazy sweep). `analysis_run`
   remains deferred to Phase 14 (LangGraph's Persist Node), since no
-  analysis run is persisted to `analysis_runs` yet even though Phase 12
-  now computes a score in-memory.
+  analysis run is persisted to `analysis_runs` yet even though Phases
+  12-13 now compute a score and gather evidence in-memory.
 - **Phase 7 architecture note:** a new `app/services/timeline_writer.py`
   was added (`log_timeline_event` helper) — not explicitly named in the
   spec's section 6 folder listing, but an additive fit consistent with
@@ -297,9 +297,9 @@ Start Phase 13 - Evidence Retrieval (Medical Knowledge Retrieval, Patient Histor
   `api/v1/analysis.py` and the `POST /patients/{id}/analyze` /
   `GET /patients/{id}/analysis` routes are wired only in Phase 14
   (LangGraph), which will call into this engine (and the ADR/adherence/
-  safety-score engines from later phases) as analysis nodes. Phase 10's
-  tests therefore call the engine directly against a live DB session
-  rather than through any endpoint.
+  safety-score/evidence services from later phases) as analysis/workflow
+  nodes. Phase 10's tests therefore call the engine directly against a
+  live DB session rather than through any endpoint.
 - **Phase 10 scope note (confirmed during planning):** only medications
   with `status == "active"` count as "the patient's drugs" for
   interaction detection — a paused/completed/discontinued medication is
@@ -359,10 +359,8 @@ Start Phase 13 - Evidence Retrieval (Medical Knowledge Retrieval, Patient Histor
   section 5/8/10 all describe the Safety Score Engine as merging
   interaction + ADR + **adherence** findings, Phase 12 could not be
   completed without some adherence analysis feeding it. `timeline_engine.py`
-  (also listed in section 6) was deliberately **not** built in this
-  phase, since nothing in Phase 12's description requires timeline
-  findings, and its need (if any) is deferred until Phase 13/15 make that
-  clear.
+  (also listed in section 6) was deliberately **not** built in Phase 12,
+  since nothing in that phase's description required timeline findings.
 - **Phase 12 "separation of measurement and interpretation" note
   (confirmed during planning):** `adherence_engine.py` returns **only**
   raw counts/rates (`taken`, `missed`, `skipped`, `due`,
@@ -389,11 +387,8 @@ Start Phase 13 - Evidence Retrieval (Medical Knowledge Retrieval, Patient Histor
   run for a given patient — an overdue, unmarked dose counts as missed
   for measurement purposes regardless of its persisted `status` value.
   This avoids a correctness bug where adherence measurements would
-  silently depend on incidental API call ordering (whether
-  `GET /patients/{id}/doses/upcoming` or `POST /doses/{id}/mark` happened
-  to run recently). It performs no writes and does not duplicate or
-  invoke the Phase 9 sweep — the persisted `medication_doses.status`
-  values and the sweep's own behavior are unchanged.
+  silently depend on incidental API call ordering. It performs no writes
+  and does not duplicate or invoke the Phase 9 sweep.
 - **Phase 12 "audit trail" note (confirmed during planning):**
   `calculate_safety_score()` returns a `SafetyScoreResult` exposing not
   just `safety_score`/`risk_level` but also `starting_score`,
@@ -403,11 +398,50 @@ Start Phase 13 - Evidence Retrieval (Medical Knowledge Retrieval, Patient Histor
   and a direct reference to the originating finding object. This was a
   deliberate requirement so a later phase (Evidence Retrieval, the LLM
   explanation node, or a report view) can explain exactly how a score
-  was produced without recomputing anything.
+  was produced without recomputing anything — and Phase 13 confirms this
+  worked as intended (see below).
 - **Phase 12 scope note:** like Phases 10/11, `safety_score_engine.py`
   is **not** exposed via any HTTP route in this phase, and nothing here
   is persisted to `analysis_runs` yet — both happen in Phase 14
   (LangGraph)'s Persist Node.
+- **Phase 13 architecture note (confirmed during planning):**
+  `app/services/evidence_retrieval.py` is an **application service**, not
+  an `app/analysis/` engine — its job is to retrieve/structure supporting
+  evidence for the future LLM explanation layer (Phase 15), not to detect
+  findings or compute a score. This placement mirrors spec section 6's
+  `services/` listing (`patient_context_builder.py`, `llm_service.py`,
+  `langgraph_workflow.py`), even though `evidence_retrieval.py` itself
+  isn't explicitly named there.
+- **Phase 13 "medical evidence, no duplicate retrieval" note (confirmed
+  during planning):** medical evidence is structured directly from
+  `DrugInteractionFinding`/`ADRFinding`'s already-fetched fields
+  (`mechanism`, `recommendation`, `reaction_description`,
+  `frequency_class`, `source`) — Phase 13 does **not** re-query
+  `interaction_rules`/`adr_rules`, since Phase 10/11 already joined
+  against them. Adherence findings get no medical evidence at all — no
+  rules table backs an adherence "fact," the same reasoning Phase 12
+  used to keep severity classification out of `adherence_engine.py`.
+- **Phase 13 "personal evidence, scoped per finding" note (confirmed
+  during planning):** personal evidence is retrieved via a single,
+  targeted `timeline_events` query per finding, scoped to exactly the
+  medication(s) (via `ref_id` for medication_started/discontinued, or
+  `payload.medication_id` for dose/symptom events) and any condition that
+  medication is linked to (`condition_status_changed` via the condition's
+  `ref_id`) — never the patient's full timeline. Verified by a dedicated
+  test confirming an unrelated third active medication's events do not
+  leak into a finding that doesn't involve it.
+- **Phase 13 "traceability" note:** each `FindingEvidence` carries the
+  original finding object directly (not just an id), mirroring Phase
+  12's `PenaltyEntry.source` pattern — `EvidenceItem` additionally
+  carries an `occurred_at` timestamp (populated for personal evidence
+  from `timeline_events.event_time`, `None` for medical evidence), added
+  as a reasonable extension beyond the literal request to preserve
+  *when* a personal-history fact happened.
+- **Phase 13 scope note:** like Phases 10-12, `evidence_retrieval.py` is
+  **not** exposed via any HTTP route in this phase — wiring happens in
+  Phase 14 (LangGraph), which will call `retrieve_evidence()` as the
+  Evidence Retrieval Node immediately after the Safety Score Engine
+  merge.
 
 ## Repository Convention
 
