@@ -192,7 +192,7 @@ All notable changes to this project will be documented here.
     - `symptoms.py`: `symptom_reported` on every symptom creation.
     - `dose_taken`/`dose_missed`/`dose_skipped` (Phase 9) and
       `analysis_run` (Phase 12+) are intentionally not wired yet, since
-      neither dose marking nor analysis runs exist in the codebase yet.
+      neither dose marking nor analysis runs exist yet at this point.
   - Ownership enforcement via the parent patient, mirroring
     `conditions.py`/`medications.py`/`symptoms.py`: a patient not owned
     by the caller (or not existing) returns 404, never 403.
@@ -219,9 +219,8 @@ All notable changes to this project will be documented here.
 - **Phase 8 — Dose Scheduling:**
   - Schedule endpoints (`app/api/v1/schedule.py`):
     `POST /medications/{id}/schedule`, `GET /patients/{id}/doses/upcoming`.
-    `POST /doses/{id}/mark` was intentionally **not** implemented in
-    Phase 8 — it was explicitly scoped to Phase 9 (Adherence) per spec
-    section 10 (now implemented; see Phase 9 below).
+    `POST /doses/{id}/mark` is intentionally **not** implemented here — it
+    is explicitly scoped to Phase 9 (Adherence) per spec section 10.
   - `POST /medications/{id}/schedule` generates the full dose schedule for
     a medication in one call, requiring `duration_days` and **at least
     one** of (`times_per_day`, `interval_hours`) to already be set (400
@@ -264,11 +263,13 @@ All notable changes to this project will be documented here.
     (400), duplicate schedule generation (409), exceeding
     `MAX_GENERATED_DOSES` (400), nonexistent/cross-user medication (404),
     upcoming-doses ordering/enrichment, exclusion of inactive medications,
-    patient scoping, cross-user isolation. Refinement coverage:
-    `interval_hours`-only dose count and spacing, flooring of a partial
-    final dose (non-integer `duration_days * 24 / interval_hours`), the
-    "at least one of `times_per_day`/`interval_hours`" 400 error, and
-    `MAX_GENERATED_DOSES` enforcement in the `interval_hours`-only shape.
+    patient scoping, cross-user isolation, and confirmation that
+    `POST /doses/{id}/mark` is unregistered (404, not 405). Refinement
+    coverage: `interval_hours`-only dose count and spacing, flooring of a
+    partial final dose (non-integer `duration_days * 24 / interval_hours`),
+    the new "at least one of `times_per_day`/`interval_hours`" 400 error,
+    and `MAX_GENERATED_DOSES` enforcement in the `interval_hours`-only
+    shape.
   - No dedicated cleanup fixture needed for generated
     `medication_schedule`/`medication_doses` rows — both cascade away via
     existing `ON DELETE CASCADE` constraints (`001_initial_schema.sql`)
@@ -276,44 +277,68 @@ All notable changes to this project will be documented here.
 
 - **Phase 9 — Adherence:**
   - New endpoint (`app/api/v1/schedule.py`): `POST /doses/{id}/mark` —
-    marks a dose as `taken`, `missed`, or `skipped`. A dose can only be
-    marked once; a second attempt (explicit or sweep-applied) returns
-    409, since the spec defines no "correct a mark" flow.
-  - `actual_time` defaults to `now()` when marking `taken` if omitted by
-    the client, and is left `null` for `missed`/`skipped`.
-  - Missed-dose background check (spec section 10) implemented as a
-    lazy, query-time sweep (`_sweep_missed_doses`) rather than a true
-    background job, since the tech stack has no scheduler/cron
-    component — confirmed with the project owner during Phase 9
-    planning as the preferred approach. Runs at the top of both
-    `GET /patients/{id}/doses/upcoming` and `POST /doses/{id}/mark`,
-    flipping any overdue unmarked dose for the relevant patient to
-    `missed` and logging a `dose_missed` timeline event. Applies
-    regardless of the parent medication's status.
-  - Automatic timeline event logging completed: `dose_taken`,
-    `dose_missed`, `dose_skipped` (deferred since Phase 7) now wired up
-    via `app/services/timeline_writer.py`, in the same transaction as
-    the dose write.
+    the third and final route in the frozen section 7 API contract for
+    dose scheduling/adherence, completing the surface `schedule.py`
+    started in Phase 8.
+  - `mark_dose` sets a dose's `status` to `taken`, `missed`, or `skipped`
+    exactly once. A dose that is already marked (via a prior explicit
+    call or via the automatic sweep, see below) is rejected with 409 —
+    there is no spec-defined "correct a mark" flow, mirroring the
+    "schedule already exists" 409 precedent from Phase 8's
+    `POST /medications/{id}/schedule`.
+  - `actual_time` defaults to `now()` when marking `taken` if the client
+    omits it, and is left `null` for `missed`/`skipped` (there is no
+    meaningful "actual" time for a dose that was not taken).
+  - New reusable helper `_sweep_missed_doses()` (`app/api/v1/schedule.py`)
+    implements the spec's "missed-dose background check" (section 10) as
+    a **lazy, query-time sweep** rather than a true scheduled job, since
+    the frozen tech stack (spec section 4) has no job scheduler/cron
+    component. It flips any unmarked dose whose `scheduled_time` has
+    already passed to `missed` and logs a `dose_missed` timeline event
+    (`payload.auto_detected = true`) per affected dose. It runs at the
+    top of both `GET /patients/{id}/doses/upcoming` and
+    `POST /doses/{id}/mark`, committing alongside whatever else that
+    request does, so any dose-related read or write for a patient first
+    brings their overdue doses up to date.
+  - Automatic event logging completes the canonical `event_type` list
+    from spec section 5: `dose_taken`, `dose_missed`, and `dose_skipped`
+    are now logged via the existing `app/services/timeline_writer.py`
+    helper (unchanged from Phase 7), in the same transaction as the dose
+    update. `dose_missed` events distinguish explicit marks from
+    sweep-detected misses via `payload.auto_detected`.
+  - Ownership enforcement for the new route follows the same pattern as
+    prior phases: a dose is resolved through its medication's parent
+    patient, and a dose not owned by the caller (or not existing) returns
+    404, never 403.
+  - New Pydantic request schema (`app/schemas/schedule.py`):
+    `MedicationDoseMarkRequest` (`status`, optional `actual_time`).
+    `status` is constrained via `Literal` to the same three values as the
+    database's `dose_status_enum`, matching the precedent set for other
+    enum-backed fields throughout the codebase.
   - Adherence statistics (taken/missed/skipped counts, adherence
-    percentage) explicitly deferred — confirmed with the project owner
-    during Phase 9 planning as out of scope, since it is not part of the
-    frozen section 7 API contract; will feed the Safety Score Engine in
-    Phase 12+.
-  - Pydantic schema addition (`app/schemas/schedule.py`):
-    `MedicationDoseMarkRequest` (request body for the mark endpoint).
+    percentage) are explicitly **out of scope** for this phase — not
+    part of the frozen section 7 API contract; that aggregation is
+    deferred to feed the Safety Score Engine (Phase 12+) instead of being
+    exposed as a standalone endpoint now.
+  - `app/main.py` unchanged — `POST /doses/{id}/mark` is registered on
+    the existing `schedule.router`, which was already included in Phase 8.
   - Integration tests (`tests/test_schedule_api.py`, Phase 9 section):
-    mark taken (default and explicit `actual_time`), mark missed/skipped
-    (`actual_time` stays null), timeline event logging for all three
-    statuses, double-mark 409, nonexistent-dose 404, cross-user
-    isolation, invalid-status 422, sweep-via-`upcoming` and
-    sweep-via-`mark` behavior, and confirmation that a future dose is
-    unaffected by the sweep and remains explicitly markable. The prior
-    Phase 8 placeholder test asserting the mark route was unregistered
-    was removed, since the route now exists.
-  - No dedicated cleanup fixture needed — dose/timeline rows affected by
-    marking or the sweep already cascade away via existing
-    `ON DELETE CASCADE` constraints when a test's `created_patient_ids`
-    cleanup deletes the patient.
+    marking `taken` (default and explicit `actual_time`), marking
+    `missed`/`skipped` (confirming `actual_time` stays `null`),
+    corresponding timeline event logging for all three statuses
+    (parametrized), double-mark 409, nonexistent/cross-user dose 404,
+    invalid `status` value 422, the lazy sweep triggered via
+    `GET /patients/{id}/doses/upcoming` (including timeline verification
+    and confirming subsequent explicit marks on swept doses 409 as
+    "already marked as 'missed'"), the sweep triggered directly via
+    `POST /doses/{id}/mark` on an overdue dose without a prior
+    `GET .../upcoming` call, and confirmation that a genuinely future
+    dose remains unmarked and markable after a sweep-triggering call.
+    The Phase 8 placeholder test asserting `POST /doses/{id}/mark` was
+    unregistered has been removed and replaced with this real coverage.
+  - No dedicated cleanup fixture needed — dose rows continue to cascade
+    away via the existing `ON DELETE CASCADE` constraints from
+    `001_initial_schema.sql`, same as Phase 8.
 
 - **Phase 10 — Drug Interaction Engine:**
   - New package `app/analysis/` (per spec section 6's folder structure),
@@ -355,6 +380,55 @@ All notable changes to this project will be documented here.
     (Warfarin+Aspirin+Ibuprofen surfacing two findings), patient
     scoping, and `highest_severity()` in isolation (empty, single,
     mixed-order, tied severities).
+  - No dedicated cleanup fixture needed — reuses the existing
+    `created_patient_ids` fixture from `conftest.py`; the engine performs
+    no writes of its own.
+
+- **Phase 11 — ADR Engine:**
+  - New module `app/analysis/adr_engine.py`, added to the existing
+    `app/analysis/` package created in Phase 10 (no new package needed):
+    - `detect_adrs(patient_id, db)` — queries the patient's distinct
+      `status == "active"` medication drug ids, then matches them against
+      `adr_rules` on `drug_id` membership. Unlike drug interactions
+      (which need a *pair* of active drugs), an ADR is a property of a
+      single drug, so a single active medication can surface more than
+      one finding if it has multiple seeded ADR rules (e.g. Lisinopril →
+      "Dry cough" and "Hyperkalemia," both returned as separate
+      findings).
+    - `highest_severity(findings)` — a small convenience utility
+      returning the single most severe result among a list of findings
+      (`mild` < `moderate` < `severe`), or `None` for an empty list.
+      Re-implemented locally rather than imported from
+      `drug_interaction_engine.py`, matching this codebase's existing
+      convention of keeping small per-module helpers private to their
+      own file. Explicitly documented as distinct from the Safety Score
+      Engine (Phase 12).
+    - `ADRFinding` — a frozen dataclass carrying the matched rule's id,
+      drug id/name, reaction description, severity, frequency_class, and
+      source.
+  - Deliberately **not** exposed via any HTTP route in this phase —
+    same as Phase 10's `drug_interaction_engine.py`; `api/v1/analysis.py`
+    and the `/patients/{id}/analyze` / `/patients/{id}/analysis`
+    endpoints are wired only in Phase 14 (LangGraph), which will call
+    into this engine as an additional analysis node alongside the drug
+    interaction engine.
+  - Scope decisions confirmed with the project owner during Phase 11
+    planning, mirroring Phase 10 exactly: (1) only `status == "active"`
+    medications count as "the patient's drugs" for ADR detection; (2)
+    severity (and frequency_class) is surfaced per-match from the seeded
+    rule as-is, with no new severity computed beyond the
+    `highest_severity()` convenience helper.
+  - New test file `tests/test_adr_engine.py`: calls the engine directly
+    against a live DB session (no endpoint exists yet to exercise, same
+    approach as Phase 10). Covers no-active-medications (empty), a
+    single drug with a single seeded ADR rule (Warfarin), a single drug
+    with multiple seeded ADR rules returned as separate findings
+    (Lisinopril → Dry cough + Hyperkalemia), a drug with no seeded ADR
+    rules (Levothyroxine, empty), exclusion of a discontinued medication,
+    combined findings across multiple simultaneously active drugs
+    (Warfarin + Simvastatin → 3 findings), patient scoping, and
+    `highest_severity()` in isolation (empty, single, mixed-order, tied
+    severities).
   - No dedicated cleanup fixture needed — reuses the existing
     `created_patient_ids` fixture from `conftest.py`; the engine performs
     no writes of its own.
