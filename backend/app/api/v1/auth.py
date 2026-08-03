@@ -47,7 +47,10 @@ def _to_auth_response(data: dict) -> AuthResponse:
         access_token=data["access_token"],
         refresh_token=data.get("refresh_token"),
         expires_in=data.get("expires_in"),
-        user=AuthUser(id=user.get("id"), email=user.get("email")),
+        user=AuthUser(
+            id=str(user.get("id", "")),
+            email=str(user.get("email", "")),
+        )
     )
 
 

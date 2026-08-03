@@ -319,9 +319,13 @@ async def generate_schedule(
         )
 
     anchor = datetime.combine(medication.start_date, DEFAULT_FIRST_DOSE_TIME)
-
     now = datetime.now(timezone.utc)
-    created_doses: list[MedicationDose] = []
+
+    # ----------------------------
+    # Pass 1: Create Schedule rows
+    # ----------------------------
+    schedule_rows: list[MedicationSchedule] = []
+
     for i in range(total_doses):
         scheduled_time = anchor + timedelta(hours=interval_hours * i)
 
@@ -331,22 +335,35 @@ async def generate_schedule(
             scheduled_time=scheduled_time,
             created_at=now,
         )
-        db.add(schedule_row)
 
+        db.add(schedule_row)
+        schedule_rows.append(schedule_row)
+
+    # Persist all parent rows first
+    await db.flush()
+
+    # ----------------------------
+    # Pass 2: Create Dose rows
+    # ----------------------------
+    created_doses: list[MedicationDose] = []
+
+    for schedule_row in schedule_rows:
         dose_row = MedicationDose(
             id=uuid.uuid4(),
             medication_id=medication_id,
             schedule_id=schedule_row.id,
-            scheduled_time=scheduled_time,
+            scheduled_time=schedule_row.scheduled_time,
             status=None,
             actual_time=None,
             created_at=now,
             updated_at=now,
         )
+
         db.add(dose_row)
         created_doses.append(dose_row)
 
     await db.commit()
+
     for dose_row in created_doses:
         await db.refresh(dose_row)
 
@@ -358,6 +375,7 @@ async def generate_schedule(
             "user_id": current_user.id,
         },
     )
+
     return created_doses
 
 
