@@ -26,10 +26,11 @@ for any deployment that hasn't updated its `.env` yet. Safe to leave
 set or to omit; either way it is now inert.
 """
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
+BASE_DIR = Path(__file__).resolve().parents[2]
 class Settings(BaseSettings):
     database_url: str
     supabase_url: str = ""
@@ -42,7 +43,7 @@ class Settings(BaseSettings):
     #: reference this field in any new code.
     supabase_jwt_secret: str = ""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_file_encoding="utf-8",)
 
     @property
     def supabase_jwks_url(self) -> str:
