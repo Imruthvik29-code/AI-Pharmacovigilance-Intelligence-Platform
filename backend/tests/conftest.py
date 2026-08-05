@@ -40,6 +40,7 @@ is needed here either -- symptoms' optional condition_id/medication_id
 references are created directly via the conditions/medications APIs
 within each test that needs them.
 """
+import asyncio
 import uuid
 
 import pytest
@@ -51,6 +52,14 @@ from app.db.session import AsyncSessionLocal
 @pytest.fixture
 async def existing_auth_user_id():
     async with AsyncSessionLocal() as session:
+        try:
+            loop_id = id(asyncio.get_running_loop())
+        except RuntimeError:
+            loop_id = None
+        print(
+            f"[TEST INSTR] existing_auth_user_id start session_id={id(session)} "
+            f"engine_id={id(session.bind)} loop_id={loop_id}"
+        )
         result = await session.execute(text("SELECT id FROM auth.users LIMIT 1"))
         row = result.first()
     if row is None:
@@ -64,6 +73,14 @@ async def existing_auth_user_id():
 @pytest.fixture
 async def existing_drug_id():
     async with AsyncSessionLocal() as session:
+        try:
+            loop_id = id(asyncio.get_running_loop())
+        except RuntimeError:
+            loop_id = None
+        print(
+            f"[TEST INSTR] existing_drug_id start session_id={id(session)} "
+            f"engine_id={id(session.bind)} loop_id={loop_id}"
+        )
         result = await session.execute(text("SELECT id FROM reference_drugs LIMIT 1"))
         row = result.first()
     if row is None:

@@ -1,0 +1,1838 @@
+C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\pytest_asyncio\plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+[DB INSTR] AsyncEngine created id=2203634106496
+[TEST INSTR] existing_auth_user_id start session_id=2203669861072 engine_id=2203634106496 loop_id=2203669859488
+[DB INSTR] connection checkout raw_conn_id=2203669939776 record_id=2203670006560 loop_id=2203669859488
+[DB INSTR] connection checkin raw_conn_id=2203669939776 record_id=2203670006560 loop_id=2203669859488
+[DB INSTR] get_db enter session_id=2203669871824 engine_id=2203634106496 bind_id=2203636200448 loop_id=2203669867552
+[DB INSTR] before_commit session_id=2203669871968 bind_id=2203636200448 loop_id=2203669867552
+[DB INSTR] connection checkin raw_conn_id=140730132965368 record_id=2203670006560 loop_id=2203669867552
+[DB INSTR] get_db exit session_id=2203669871824 loop_id=2203669867552
+FException ignored in: <function _SSLProtocolTransport.__del__ at 0x000002010E4D6950>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 321, in __del__
+    self.close()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 316, in close
+    self._ssl_protocol._start_shutdown()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 599, in _start_shutdown
+    self._write_appdata(b'')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 604, in _write_appdata
+    self._process_write_backlog()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 712, in _process_write_backlog
+    self._fatal_error(exc, 'Fatal error on SSL transport')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 726, in _fatal_error
+    self._transport._force_close(exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\proactor_events.py", line 152, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[TEST INSTR] existing_auth_user_id start session_id=2203690241472 engine_id=2203634106496 loop_id=2203690242528
+[DB INSTR] connection checkout raw_conn_id=2203690174528 record_id=2203670006560 loop_id=2203690242528
+[DB INSTR] connection checkin raw_conn_id=2203690174528 record_id=2203670006560 loop_id=2203690242528
+[TEST INSTR] existing_drug_id start session_id=2203690241376 engine_id=2203634106496 loop_id=2203690242528
+[DB INSTR] connection checkout raw_conn_id=2203690174528 record_id=2203670006560 loop_id=2203690242528
+[DB INSTR] connection checkin raw_conn_id=2203690174528 record_id=2203670006560 loop_id=2203690242528
+[DB INSTR] get_db enter session_id=2203690254144 engine_id=2203634106496 bind_id=2203636200448 loop_id=2203690245840
+[DB INSTR] before_commit session_id=2203690254000 bind_id=2203636200448 loop_id=2203690245840
+[DB INSTR] connection checkin raw_conn_id=140730132965368 record_id=2203670006560 loop_id=2203690245840
+[DB INSTR] get_db exit session_id=2203690254144 loop_id=2203690245840
+FException ignored in: <function _SSLProtocolTransport.__del__ at 0x000002010E4D6950>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 321, in __del__
+    self.close()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 316, in close
+    self._ssl_protocol._start_shutdown()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 599, in _start_shutdown
+    self._write_appdata(b'')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 604, in _write_appdata
+    self._process_write_backlog()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 712, in _process_write_backlog
+    self._fatal_error(exc, 'Fatal error on SSL transport')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 726, in _fatal_error
+    self._transport._force_close(exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\proactor_events.py", line 152, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[TEST INSTR] existing_auth_user_id start session_id=2203687637328 engine_id=2203634106496 loop_id=2203687637712
+[DB INSTR] connection checkout raw_conn_id=2203688652736 record_id=2203670006560 loop_id=2203687637712
+[DB INSTR] connection checkin raw_conn_id=2203688652736 record_id=2203670006560 loop_id=2203687637712
+[TEST INSTR] existing_drug_id start session_id=2203687636080 engine_id=2203634106496 loop_id=2203687637712
+[DB INSTR] connection checkout raw_conn_id=2203688652736 record_id=2203670006560 loop_id=2203687637712
+[DB INSTR] connection checkin raw_conn_id=2203688652736 record_id=2203670006560 loop_id=2203687637712
+[DB INSTR] get_db enter session_id=2203687649232 engine_id=2203634106496 bind_id=2203636200448 loop_id=2203687640928
+[DB INSTR] before_commit session_id=2203687648080 bind_id=2203636200448 loop_id=2203687640928
+[DB INSTR] connection checkin raw_conn_id=140730132965368 record_id=2203670006560 loop_id=2203687640928
+[DB INSTR] get_db exit session_id=2203687649232 loop_id=2203687640928
+FException ignored in: <function _SSLProtocolTransport.__del__ at 0x000002010E4D6950>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 321, in __del__
+    self.close()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 316, in close
+    self._ssl_protocol._start_shutdown()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 599, in _start_shutdown
+    self._write_appdata(b'')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 604, in _write_appdata
+    self._process_write_backlog()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 712, in _process_write_backlog
+    self._fatal_error(exc, 'Fatal error on SSL transport')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 726, in _fatal_error
+    self._transport._force_close(exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\proactor_events.py", line 152, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[TEST INSTR] existing_auth_user_id start session_id=2203691560592 engine_id=2203634106496 loop_id=2203691560112
+[DB INSTR] connection checkout raw_conn_id=2203672858944 record_id=2203670006560 loop_id=2203691560112
+[DB INSTR] connection checkin raw_conn_id=2203672858944 record_id=2203670006560 loop_id=2203691560112
+[TEST INSTR] existing_drug_id start session_id=2203691560784 engine_id=2203634106496 loop_id=2203691560112
+[DB INSTR] connection checkout raw_conn_id=2203672858944 record_id=2203670006560 loop_id=2203691560112
+[DB INSTR] connection checkin raw_conn_id=2203672858944 record_id=2203670006560 loop_id=2203691560112
+[DB INSTR] get_db enter session_id=2203691554304 engine_id=2203634106496 bind_id=2203636200448 loop_id=2203691551664
+[DB INSTR] before_commit session_id=2203691554736 bind_id=2203636200448 loop_id=2203691551664
+[DB INSTR] connection checkin raw_conn_id=140730132965368 record_id=2203670006560 loop_id=2203691551664
+[DB INSTR] get_db exit session_id=2203691554304 loop_id=2203691551664
+FException ignored in: <function _SSLProtocolTransport.__del__ at 0x000002010E4D6950>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 321, in __del__
+    self.close()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 316, in close
+    self._ssl_protocol._start_shutdown()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 599, in _start_shutdown
+    self._write_appdata(b'')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 604, in _write_appdata
+    self._process_write_backlog()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 712, in _process_write_backlog
+    self._fatal_error(exc, 'Fatal error on SSL transport')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 726, in _fatal_error
+    self._transport._force_close(exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\proactor_events.py", line 152, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[TEST INSTR] existing_auth_user_id start session_id=2203692783056 engine_id=2203634106496 loop_id=2203692785216
+[DB INSTR] connection checkout raw_conn_id=2203683504960 record_id=2203670006560 loop_id=2203692785216
+[DB INSTR] connection checkin raw_conn_id=2203683504960 record_id=2203670006560 loop_id=2203692785216
+[TEST INSTR] existing_drug_id start session_id=2203692782528 engine_id=2203634106496 loop_id=2203692785216
+[DB INSTR] connection checkout raw_conn_id=2203683504960 record_id=2203670006560 loop_id=2203692785216
+[DB INSTR] connection checkin raw_conn_id=2203683504960 record_id=2203670006560 loop_id=2203692785216
+[DB INSTR] get_db enter session_id=2203692792176 engine_id=2203634106496 bind_id=2203636200448 loop_id=2203692793568
+[DB INSTR] before_commit session_id=2203692791888 bind_id=2203636200448 loop_id=2203692793568
+[DB INSTR] connection checkin raw_conn_id=140730132965368 record_id=2203670006560 loop_id=2203692793568
+[DB INSTR] get_db exit session_id=2203692792176 loop_id=2203692793568
+FException ignored in: <function _SSLProtocolTransport.__del__ at 0x000002010E4D6950>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 321, in __del__
+    self.close()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 316, in close
+    self._ssl_protocol._start_shutdown()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 599, in _start_shutdown
+    self._write_appdata(b'')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 604, in _write_appdata
+    self._process_write_backlog()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 712, in _process_write_backlog
+    self._fatal_error(exc, 'Fatal error on SSL transport')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 726, in _fatal_error
+    self._transport._force_close(exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\proactor_events.py", line 152, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[TEST INSTR] existing_auth_user_id start session_id=2203695148208 engine_id=2203634106496 loop_id=2203695147056
+[DB INSTR] connection checkout raw_conn_id=2203676942272 record_id=2203670006560 loop_id=2203695147056
+[DB INSTR] connection checkin raw_conn_id=2203676942272 record_id=2203670006560 loop_id=2203695147056
+[TEST INSTR] existing_drug_id start session_id=2203695148928 engine_id=2203634106496 loop_id=2203695147056
+[DB INSTR] connection checkout raw_conn_id=2203676942272 record_id=2203670006560 loop_id=2203695147056
+[DB INSTR] connection checkin raw_conn_id=2203676942272 record_id=2203670006560 loop_id=2203695147056
+[DB INSTR] get_db enter session_id=2203695139616 engine_id=2203634106496 bind_id=2203636200448 loop_id=2203695142976
+[DB INSTR] before_commit session_id=2203695139040 bind_id=2203636200448 loop_id=2203695142976
+[DB INSTR] connection checkin raw_conn_id=140730132965368 record_id=2203670006560 loop_id=2203695142976
+[DB INSTR] get_db exit session_id=2203695139616 loop_id=2203695142976
+FException ignored in: <function _SSLProtocolTransport.__del__ at 0x000002010E4D6950>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 321, in __del__
+    self.close()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 316, in close
+    self._ssl_protocol._start_shutdown()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 599, in _start_shutdown
+    self._write_appdata(b'')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 604, in _write_appdata
+    self._process_write_backlog()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 712, in _process_write_backlog
+    self._fatal_error(exc, 'Fatal error on SSL transport')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 726, in _fatal_error
+    self._transport._force_close(exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\proactor_events.py", line 152, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[TEST INSTR] existing_auth_user_id start session_id=2203692722848 engine_id=2203634106496 loop_id=2203692721696
+[DB INSTR] connection checkout raw_conn_id=2203692703296 record_id=2203670006560 loop_id=2203692721696
+[DB INSTR] connection checkin raw_conn_id=2203692703296 record_id=2203670006560 loop_id=2203692721696
+[TEST INSTR] existing_drug_id start session_id=2203692723568 engine_id=2203634106496 loop_id=2203692721696
+[DB INSTR] connection checkout raw_conn_id=2203692703296 record_id=2203670006560 loop_id=2203692721696
+[DB INSTR] connection checkin raw_conn_id=2203692703296 record_id=2203670006560 loop_id=2203692721696
+[DB INSTR] get_db enter session_id=2203692712384 engine_id=2203634106496 bind_id=2203636200448 loop_id=2203692717568
+[DB INSTR] before_commit session_id=2203692713584 bind_id=2203636200448 loop_id=2203692717568
+[DB INSTR] connection checkin raw_conn_id=140730132965368 record_id=2203670006560 loop_id=2203692717568
+[DB INSTR] get_db exit session_id=2203692712384 loop_id=2203692717568
+FException ignored in: <function _SSLProtocolTransport.__del__ at 0x000002010E4D6950>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 321, in __del__
+    self.close()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 316, in close
+    self._ssl_protocol._start_shutdown()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 599, in _start_shutdown
+    self._write_appdata(b'')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 604, in _write_appdata
+    self._process_write_backlog()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 712, in _process_write_backlog
+    self._fatal_error(exc, 'Fatal error on SSL transport')
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\sslproto.py", line 726, in _fatal_error
+    self._transport._force_close(exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\proactor_events.py", line 152, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\asyncio\base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[TEST INSTR] existing_auth_user_id start session_id=2203694884960 engine_id=2203634106496 loop_id=2203694883808
+[DB INSTR] connection checkout raw_conn_id=2203692709312 record_id=2203670006560 loop_id=2203694883808
+[DB INSTR] connection checkin raw_conn_id=2203692709312 record_id=2203670006560 loop_id=2203694883808
+[TEST INSTR] existing_drug_id start session_id=2203694885680 engine_id=2203634106496 loop_id=2203694883808
+[DB INSTR] connection checkout raw_conn_id=2203692709312 record_id=2203670006560 loop_id=2203694883808
+[DB INSTR] connection checkin raw_conn_id=2203692709312 record_id=2203670006560 loop_id=2203694883808
+[DB INSTR] get_db enter session_id=2203694876032 engine_id=2203634106496 bind_id=2203636200448 loop_id=2203694879824
+[DB INSTR] before_commit session_id=2203694877568 bind_id=2203636200448 loop_id=2203694879824
+[DB INSTR] connection checkin raw_conn_id=140730132965368 record_id=2203670006560 loop_id=2203694879824
+[DB INSTR] get_db exit session_id=2203694876032 loop_id=2203694879824
+F
+================================== FAILURES ===================================
+__________________ test_no_active_medications_returns_empty ___________________
+
+existing_auth_user_id = UUID('83ec9452-752d-4dfa-80dc-126721c77b78')
+created_patient_ids = []
+
+    @pytest.mark.asyncio
+    async def test_no_active_medications_returns_empty(
+        existing_auth_user_id, created_patient_ids
+    ):
+        app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    
+>       patient = _create_patient("No Medications Adherence Patient")
+
+backend\tests\test_adherence_engine.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+backend\tests\test_adherence_engine.py:59: in _create_patient
+    resp = client.post("/api/v1/patients", json={"name": name})
+.venv\lib\site-packages\starlette\testclient.py:597: in post
+    return super().post(
+.venv\lib\site-packages\httpx\_client.py:1157: in post
+    return self.request(
+.venv\lib\site-packages\starlette\testclient.py:488: in request
+    return super().request(
+.venv\lib\site-packages\httpx\_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv\lib\site-packages\httpx\_client.py:926: in send
+    response = self._send_handling_auth(
+.venv\lib\site-packages\httpx\_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv\lib\site-packages\httpx\_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+.venv\lib\site-packages\httpx\_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+.venv\lib\site-packages\starlette\testclient.py:381: in handle_request
+    raise exc
+.venv\lib\site-packages\starlette\testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv\lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:458: in result
+    return self.__get_result()
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:403: in __get_result
+    raise self._exception
+.venv\lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+.venv\lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv\lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+.venv\lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+.venv\lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:735: in app
+    await route.handle(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+.venv\lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+.venv\lib\site-packages\fastapi\routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+backend\app\api\v1\patients.py:84: in create_patient
+    await db.commit()
+.venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py:1009: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+.venv\lib\site-packages\sqlalchemy\orm\session.py:2028: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1313: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1288: in _prepare_impl
+    self.session.flush()
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4352: in flush
+    self._flush(objects)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4487: in _flush
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4448: in _flush
+    flush_context.execute()
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:466: in execute
+    rec.execute(self)
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:60: in save_obj
+    for (
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:223: in _organize_states_for_save
+    for state, dict_, mapper, connection in _connections_for_states(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:1753: in _connections_for_states
+    connection = uowtransaction.transaction.connection(base_mapper)
+<string>:2: in connection
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1039: in connection
+    return self._connection_for_bind(bind, execution_options)
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1175: in _connection_for_bind
+    conn = self._parent._connection_for_bind(
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3278: in connect
+    return self._connection_cls(self)
+.venv\lib\site-packages\sqlalchemy\engine\base.py:146: in __init__
+    self._dbapi_connection = engine.raw_connection()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3302: in raw_connection
+    return self.pool.connect()
+.venv\lib\site-packages\sqlalchemy\pool\base.py:449: in connect
+    return _ConnectionFairy._checkout(self)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1362: in _checkout
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1300: in _checkout
+    result = pool._dialect._do_ping_w_event(
+.venv\lib\site-packages\sqlalchemy\engine\default.py:716: in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:1154: in do_ping
+    dbapi_connection.ping()
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:805: in ping
+    self._handle_exception(error)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:786: in _handle_exception
+    raise error
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:803: in ping
+    _ = self.await_(self._async_ping())
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:812: in _async_ping
+    await tr.start()
+.venv\lib\site-packages\asyncpg\transaction.py:146: in start
+    await self._connection.execute(query)
+.venv\lib\site-packages\asyncpg\connection.py:350: in execute
+    result = await self._protocol.query(query, timeout)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending cb=[Protocol._on_waiter_completed()]> attached to a different loop
+
+asyncpg\protocol\protocol.pyx:374: RuntimeError
+------------------------------ Captured log call ------------------------------
+ERROR    sqlalchemy.pool.impl.AsyncAdaptedQueuePool:base.py:378 Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000020113DA9B70>>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\pool\base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 1121, in do_terminate
+    dbapi_connection.terminate()
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 899, in terminate
+    self.await_(self._connection.close(timeout=2))
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\asyncpg\connection.py", line 1467, in close
+    await self._protocol.close(timeout)
+  File "asyncpg\protocol\protocol.pyx", line 627, in close
+RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending> attached to a different loop
+---------------------------- Captured log teardown ----------------------------
+ERROR    asyncio:base_events.py:1758 Future exception was never retrieved
+future: <Future finished exception=InternalClientError('got result for unknown protocol state 3')>
+Traceback (most recent call last):
+  File "asyncpg\protocol\protocol.pyx", line 902, in asyncpg.protocol.protocol.BaseProtocol._dispatch_result
+asyncpg.exceptions._base.InternalClientError: got result for unknown protocol state 3
+________________ test_medication_with_no_due_doses_is_excluded ________________
+
+existing_auth_user_id = UUID('83ec9452-752d-4dfa-80dc-126721c77b78')
+existing_drug_id = UUID('964e2c13-cfbe-458f-b486-114c59702211')
+created_patient_ids = []
+
+    @pytest.mark.asyncio
+    async def test_medication_with_no_due_doses_is_excluded(
+        existing_auth_user_id, existing_drug_id, created_patient_ids
+    ):
+        """
+        A medication starting tomorrow has doses generated, but none of them
+        are due yet -- it must be entirely absent from the results (not
+        present with due=0), since there's nothing to measure yet.
+        """
+        app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    
+>       patient = _create_patient("No Due Doses Patient")
+
+backend\tests\test_adherence_engine.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+backend\tests\test_adherence_engine.py:59: in _create_patient
+    resp = client.post("/api/v1/patients", json={"name": name})
+.venv\lib\site-packages\starlette\testclient.py:597: in post
+    return super().post(
+.venv\lib\site-packages\httpx\_client.py:1157: in post
+    return self.request(
+.venv\lib\site-packages\starlette\testclient.py:488: in request
+    return super().request(
+.venv\lib\site-packages\httpx\_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv\lib\site-packages\httpx\_client.py:926: in send
+    response = self._send_handling_auth(
+.venv\lib\site-packages\httpx\_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv\lib\site-packages\httpx\_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+.venv\lib\site-packages\httpx\_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+.venv\lib\site-packages\starlette\testclient.py:381: in handle_request
+    raise exc
+.venv\lib\site-packages\starlette\testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv\lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:458: in result
+    return self.__get_result()
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:403: in __get_result
+    raise self._exception
+.venv\lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+.venv\lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv\lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+.venv\lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+.venv\lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:735: in app
+    await route.handle(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+.venv\lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+.venv\lib\site-packages\fastapi\routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+backend\app\api\v1\patients.py:84: in create_patient
+    await db.commit()
+.venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py:1009: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+.venv\lib\site-packages\sqlalchemy\orm\session.py:2028: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1313: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1288: in _prepare_impl
+    self.session.flush()
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4352: in flush
+    self._flush(objects)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4487: in _flush
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4448: in _flush
+    flush_context.execute()
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:466: in execute
+    rec.execute(self)
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:60: in save_obj
+    for (
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:223: in _organize_states_for_save
+    for state, dict_, mapper, connection in _connections_for_states(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:1753: in _connections_for_states
+    connection = uowtransaction.transaction.connection(base_mapper)
+<string>:2: in connection
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1039: in connection
+    return self._connection_for_bind(bind, execution_options)
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1175: in _connection_for_bind
+    conn = self._parent._connection_for_bind(
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3278: in connect
+    return self._connection_cls(self)
+.venv\lib\site-packages\sqlalchemy\engine\base.py:146: in __init__
+    self._dbapi_connection = engine.raw_connection()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3302: in raw_connection
+    return self.pool.connect()
+.venv\lib\site-packages\sqlalchemy\pool\base.py:449: in connect
+    return _ConnectionFairy._checkout(self)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1362: in _checkout
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1300: in _checkout
+    result = pool._dialect._do_ping_w_event(
+.venv\lib\site-packages\sqlalchemy\engine\default.py:716: in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:1154: in do_ping
+    dbapi_connection.ping()
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:805: in ping
+    self._handle_exception(error)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:786: in _handle_exception
+    raise error
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:803: in ping
+    _ = self.await_(self._async_ping())
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:812: in _async_ping
+    await tr.start()
+.venv\lib\site-packages\asyncpg\transaction.py:146: in start
+    await self._connection.execute(query)
+.venv\lib\site-packages\asyncpg\connection.py:350: in execute
+    result = await self._protocol.query(query, timeout)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending cb=[Protocol._on_waiter_completed()]> attached to a different loop
+
+asyncpg\protocol\protocol.pyx:374: RuntimeError
+------------------------------ Captured log call ------------------------------
+ERROR    sqlalchemy.pool.impl.AsyncAdaptedQueuePool:base.py:378 Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x00000201151535B0>>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\pool\base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 1121, in do_terminate
+    dbapi_connection.terminate()
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 899, in terminate
+    self.await_(self._connection.close(timeout=2))
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\asyncpg\connection.py", line 1467, in close
+    await self._protocol.close(timeout)
+  File "asyncpg\protocol\protocol.pyx", line 627, in close
+RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending> attached to a different loop
+---------------------------- Captured log teardown ----------------------------
+ERROR    asyncio:base_events.py:1758 Future exception was never retrieved
+future: <Future finished exception=InternalClientError('got result for unknown protocol state 3')>
+Traceback (most recent call last):
+  File "asyncpg\protocol\protocol.pyx", line 902, in asyncpg.protocol.protocol.BaseProtocol._dispatch_result
+asyncpg.exceptions._base.InternalClientError: got result for unknown protocol state 3
+_____________ test_all_due_doses_unmarked_counts_as_fully_missed ______________
+
+existing_auth_user_id = UUID('83ec9452-752d-4dfa-80dc-126721c77b78')
+existing_drug_id = UUID('964e2c13-cfbe-458f-b486-114c59702211')
+created_patient_ids = []
+
+    @pytest.mark.asyncio
+    async def test_all_due_doses_unmarked_counts_as_fully_missed(
+        existing_auth_user_id, existing_drug_id, created_patient_ids
+    ):
+        """
+        Doses scheduled well in the past, never explicitly marked and never
+        swept (no call to GET .../doses/upcoming or POST .../mark first),
+        must still be counted as missed -- confirming analyze_adherence()
+        does not depend on the Phase 9 lazy sweep having run.
+        """
+        app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    
+>       patient = _create_patient("Fully Missed Patient")
+
+backend\tests\test_adherence_engine.py:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+backend\tests\test_adherence_engine.py:59: in _create_patient
+    resp = client.post("/api/v1/patients", json={"name": name})
+.venv\lib\site-packages\starlette\testclient.py:597: in post
+    return super().post(
+.venv\lib\site-packages\httpx\_client.py:1157: in post
+    return self.request(
+.venv\lib\site-packages\starlette\testclient.py:488: in request
+    return super().request(
+.venv\lib\site-packages\httpx\_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv\lib\site-packages\httpx\_client.py:926: in send
+    response = self._send_handling_auth(
+.venv\lib\site-packages\httpx\_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv\lib\site-packages\httpx\_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+.venv\lib\site-packages\httpx\_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+.venv\lib\site-packages\starlette\testclient.py:381: in handle_request
+    raise exc
+.venv\lib\site-packages\starlette\testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv\lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:458: in result
+    return self.__get_result()
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:403: in __get_result
+    raise self._exception
+.venv\lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+.venv\lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv\lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+.venv\lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+.venv\lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:735: in app
+    await route.handle(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+.venv\lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+.venv\lib\site-packages\fastapi\routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+backend\app\api\v1\patients.py:84: in create_patient
+    await db.commit()
+.venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py:1009: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+.venv\lib\site-packages\sqlalchemy\orm\session.py:2028: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1313: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1288: in _prepare_impl
+    self.session.flush()
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4352: in flush
+    self._flush(objects)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4487: in _flush
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4448: in _flush
+    flush_context.execute()
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:466: in execute
+    rec.execute(self)
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:60: in save_obj
+    for (
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:223: in _organize_states_for_save
+    for state, dict_, mapper, connection in _connections_for_states(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:1753: in _connections_for_states
+    connection = uowtransaction.transaction.connection(base_mapper)
+<string>:2: in connection
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1039: in connection
+    return self._connection_for_bind(bind, execution_options)
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1175: in _connection_for_bind
+    conn = self._parent._connection_for_bind(
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3278: in connect
+    return self._connection_cls(self)
+.venv\lib\site-packages\sqlalchemy\engine\base.py:146: in __init__
+    self._dbapi_connection = engine.raw_connection()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3302: in raw_connection
+    return self.pool.connect()
+.venv\lib\site-packages\sqlalchemy\pool\base.py:449: in connect
+    return _ConnectionFairy._checkout(self)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1362: in _checkout
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1300: in _checkout
+    result = pool._dialect._do_ping_w_event(
+.venv\lib\site-packages\sqlalchemy\engine\default.py:716: in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:1154: in do_ping
+    dbapi_connection.ping()
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:805: in ping
+    self._handle_exception(error)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:786: in _handle_exception
+    raise error
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:803: in ping
+    _ = self.await_(self._async_ping())
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:812: in _async_ping
+    await tr.start()
+.venv\lib\site-packages\asyncpg\transaction.py:146: in start
+    await self._connection.execute(query)
+.venv\lib\site-packages\asyncpg\connection.py:350: in execute
+    result = await self._protocol.query(query, timeout)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending cb=[Protocol._on_waiter_completed()]> attached to a different loop
+
+asyncpg\protocol\protocol.pyx:374: RuntimeError
+------------------------------ Captured log call ------------------------------
+ERROR    sqlalchemy.pool.impl.AsyncAdaptedQueuePool:base.py:378 Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000020113DA9B70>>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\pool\base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 1121, in do_terminate
+    dbapi_connection.terminate()
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 899, in terminate
+    self.await_(self._connection.close(timeout=2))
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\asyncpg\connection.py", line 1467, in close
+    await self._protocol.close(timeout)
+  File "asyncpg\protocol\protocol.pyx", line 627, in close
+RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending> attached to a different loop
+---------------------------- Captured log teardown ----------------------------
+ERROR    asyncio:base_events.py:1758 Future exception was never retrieved
+future: <Future finished exception=InternalClientError('got result for unknown protocol state 3')>
+Traceback (most recent call last):
+  File "asyncpg\protocol\protocol.pyx", line 902, in asyncpg.protocol.protocol.BaseProtocol._dispatch_result
+asyncpg.exceptions._base.InternalClientError: got result for unknown protocol state 3
+______________ test_mixed_taken_missed_skipped_counts_correctly _______________
+
+existing_auth_user_id = UUID('83ec9452-752d-4dfa-80dc-126721c77b78')
+existing_drug_id = UUID('964e2c13-cfbe-458f-b486-114c59702211')
+created_patient_ids = []
+
+    @pytest.mark.asyncio
+    async def test_mixed_taken_missed_skipped_counts_correctly(
+        existing_auth_user_id, existing_drug_id, created_patient_ids
+    ):
+        app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    
+>       patient = _create_patient("Mixed Adherence Patient")
+
+backend\tests\test_adherence_engine.py:181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+backend\tests\test_adherence_engine.py:59: in _create_patient
+    resp = client.post("/api/v1/patients", json={"name": name})
+.venv\lib\site-packages\starlette\testclient.py:597: in post
+    return super().post(
+.venv\lib\site-packages\httpx\_client.py:1157: in post
+    return self.request(
+.venv\lib\site-packages\starlette\testclient.py:488: in request
+    return super().request(
+.venv\lib\site-packages\httpx\_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv\lib\site-packages\httpx\_client.py:926: in send
+    response = self._send_handling_auth(
+.venv\lib\site-packages\httpx\_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv\lib\site-packages\httpx\_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+.venv\lib\site-packages\httpx\_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+.venv\lib\site-packages\starlette\testclient.py:381: in handle_request
+    raise exc
+.venv\lib\site-packages\starlette\testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv\lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:458: in result
+    return self.__get_result()
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:403: in __get_result
+    raise self._exception
+.venv\lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+.venv\lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv\lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+.venv\lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+.venv\lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:735: in app
+    await route.handle(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+.venv\lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+.venv\lib\site-packages\fastapi\routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+backend\app\api\v1\patients.py:84: in create_patient
+    await db.commit()
+.venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py:1009: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+.venv\lib\site-packages\sqlalchemy\orm\session.py:2028: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1313: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1288: in _prepare_impl
+    self.session.flush()
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4352: in flush
+    self._flush(objects)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4487: in _flush
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4448: in _flush
+    flush_context.execute()
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:466: in execute
+    rec.execute(self)
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:60: in save_obj
+    for (
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:223: in _organize_states_for_save
+    for state, dict_, mapper, connection in _connections_for_states(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:1753: in _connections_for_states
+    connection = uowtransaction.transaction.connection(base_mapper)
+<string>:2: in connection
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1039: in connection
+    return self._connection_for_bind(bind, execution_options)
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1175: in _connection_for_bind
+    conn = self._parent._connection_for_bind(
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3278: in connect
+    return self._connection_cls(self)
+.venv\lib\site-packages\sqlalchemy\engine\base.py:146: in __init__
+    self._dbapi_connection = engine.raw_connection()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3302: in raw_connection
+    return self.pool.connect()
+.venv\lib\site-packages\sqlalchemy\pool\base.py:449: in connect
+    return _ConnectionFairy._checkout(self)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1362: in _checkout
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1300: in _checkout
+    result = pool._dialect._do_ping_w_event(
+.venv\lib\site-packages\sqlalchemy\engine\default.py:716: in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:1154: in do_ping
+    dbapi_connection.ping()
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:805: in ping
+    self._handle_exception(error)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:786: in _handle_exception
+    raise error
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:803: in ping
+    _ = self.await_(self._async_ping())
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:812: in _async_ping
+    await tr.start()
+.venv\lib\site-packages\asyncpg\transaction.py:146: in start
+    await self._connection.execute(query)
+.venv\lib\site-packages\asyncpg\connection.py:350: in execute
+    result = await self._protocol.query(query, timeout)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending cb=[Protocol._on_waiter_completed()]> attached to a different loop
+
+asyncpg\protocol\protocol.pyx:374: RuntimeError
+------------------------------ Captured log call ------------------------------
+ERROR    sqlalchemy.pool.impl.AsyncAdaptedQueuePool:base.py:378 Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000020115153C40>>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\pool\base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 1121, in do_terminate
+    dbapi_connection.terminate()
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 899, in terminate
+    self.await_(self._connection.close(timeout=2))
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\asyncpg\connection.py", line 1467, in close
+    await self._protocol.close(timeout)
+  File "asyncpg\protocol\protocol.pyx", line 627, in close
+RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending> attached to a different loop
+---------------------------- Captured log teardown ----------------------------
+ERROR    asyncio:base_events.py:1758 Future exception was never retrieved
+future: <Future finished exception=InternalClientError('got result for unknown protocol state 3')>
+Traceback (most recent call last):
+  File "asyncpg\protocol\protocol.pyx", line 902, in asyncpg.protocol.protocol.BaseProtocol._dispatch_result
+asyncpg.exceptions._base.InternalClientError: got result for unknown protocol state 3
+_________________ test_fully_adherent_medication_rate_is_one __________________
+
+existing_auth_user_id = UUID('83ec9452-752d-4dfa-80dc-126721c77b78')
+existing_drug_id = UUID('964e2c13-cfbe-458f-b486-114c59702211')
+created_patient_ids = []
+
+    @pytest.mark.asyncio
+    async def test_fully_adherent_medication_rate_is_one(
+        existing_auth_user_id, existing_drug_id, created_patient_ids
+    ):
+        app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    
+>       patient = _create_patient("Fully Adherent Patient")
+
+backend\tests\test_adherence_engine.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+backend\tests\test_adherence_engine.py:59: in _create_patient
+    resp = client.post("/api/v1/patients", json={"name": name})
+.venv\lib\site-packages\starlette\testclient.py:597: in post
+    return super().post(
+.venv\lib\site-packages\httpx\_client.py:1157: in post
+    return self.request(
+.venv\lib\site-packages\starlette\testclient.py:488: in request
+    return super().request(
+.venv\lib\site-packages\httpx\_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv\lib\site-packages\httpx\_client.py:926: in send
+    response = self._send_handling_auth(
+.venv\lib\site-packages\httpx\_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv\lib\site-packages\httpx\_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+.venv\lib\site-packages\httpx\_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+.venv\lib\site-packages\starlette\testclient.py:381: in handle_request
+    raise exc
+.venv\lib\site-packages\starlette\testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv\lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:458: in result
+    return self.__get_result()
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:403: in __get_result
+    raise self._exception
+.venv\lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+.venv\lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv\lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+.venv\lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+.venv\lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:735: in app
+    await route.handle(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+.venv\lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+.venv\lib\site-packages\fastapi\routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+backend\app\api\v1\patients.py:84: in create_patient
+    await db.commit()
+.venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py:1009: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+.venv\lib\site-packages\sqlalchemy\orm\session.py:2028: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1313: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1288: in _prepare_impl
+    self.session.flush()
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4352: in flush
+    self._flush(objects)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4487: in _flush
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4448: in _flush
+    flush_context.execute()
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:466: in execute
+    rec.execute(self)
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:60: in save_obj
+    for (
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:223: in _organize_states_for_save
+    for state, dict_, mapper, connection in _connections_for_states(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:1753: in _connections_for_states
+    connection = uowtransaction.transaction.connection(base_mapper)
+<string>:2: in connection
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1039: in connection
+    return self._connection_for_bind(bind, execution_options)
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1175: in _connection_for_bind
+    conn = self._parent._connection_for_bind(
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3278: in connect
+    return self._connection_cls(self)
+.venv\lib\site-packages\sqlalchemy\engine\base.py:146: in __init__
+    self._dbapi_connection = engine.raw_connection()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3302: in raw_connection
+    return self.pool.connect()
+.venv\lib\site-packages\sqlalchemy\pool\base.py:449: in connect
+    return _ConnectionFairy._checkout(self)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1362: in _checkout
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1300: in _checkout
+    result = pool._dialect._do_ping_w_event(
+.venv\lib\site-packages\sqlalchemy\engine\default.py:716: in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:1154: in do_ping
+    dbapi_connection.ping()
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:805: in ping
+    self._handle_exception(error)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:786: in _handle_exception
+    raise error
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:803: in ping
+    _ = self.await_(self._async_ping())
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:812: in _async_ping
+    await tr.start()
+.venv\lib\site-packages\asyncpg\transaction.py:146: in start
+    await self._connection.execute(query)
+.venv\lib\site-packages\asyncpg\connection.py:350: in execute
+    result = await self._protocol.query(query, timeout)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending cb=[Protocol._on_waiter_completed()]> attached to a different loop
+
+asyncpg\protocol\protocol.pyx:374: RuntimeError
+------------------------------ Captured log call ------------------------------
+ERROR    sqlalchemy.pool.impl.AsyncAdaptedQueuePool:base.py:378 Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000020113DA9B70>>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\pool\base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 1121, in do_terminate
+    dbapi_connection.terminate()
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 899, in terminate
+    self.await_(self._connection.close(timeout=2))
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\asyncpg\connection.py", line 1467, in close
+    await self._protocol.close(timeout)
+  File "asyncpg\protocol\protocol.pyx", line 627, in close
+RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending> attached to a different loop
+---------------------------- Captured log teardown ----------------------------
+ERROR    asyncio:base_events.py:1758 Future exception was never retrieved
+future: <Future finished exception=InternalClientError('got result for unknown protocol state 3')>
+Traceback (most recent call last):
+  File "asyncpg\protocol\protocol.pyx", line 902, in asyncpg.protocol.protocol.BaseProtocol._dispatch_result
+asyncpg.exceptions._base.InternalClientError: got result for unknown protocol state 3
+____________________ test_excludes_non_active_medications _____________________
+
+existing_auth_user_id = UUID('83ec9452-752d-4dfa-80dc-126721c77b78')
+existing_drug_id = UUID('964e2c13-cfbe-458f-b486-114c59702211')
+created_patient_ids = []
+
+    @pytest.mark.asyncio
+    async def test_excludes_non_active_medications(
+        existing_auth_user_id, existing_drug_id, created_patient_ids
+    ):
+        """
+        A discontinued medication's dose history must not be considered "the
+        patient's current adherence picture" -- mirrors Phase 10/11's same
+        status == "active" scope decision.
+        """
+        app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    
+>       patient = _create_patient("Discontinued Excluded Adherence Patient")
+
+backend\tests\test_adherence_engine.py:254: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+backend\tests\test_adherence_engine.py:59: in _create_patient
+    resp = client.post("/api/v1/patients", json={"name": name})
+.venv\lib\site-packages\starlette\testclient.py:597: in post
+    return super().post(
+.venv\lib\site-packages\httpx\_client.py:1157: in post
+    return self.request(
+.venv\lib\site-packages\starlette\testclient.py:488: in request
+    return super().request(
+.venv\lib\site-packages\httpx\_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv\lib\site-packages\httpx\_client.py:926: in send
+    response = self._send_handling_auth(
+.venv\lib\site-packages\httpx\_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv\lib\site-packages\httpx\_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+.venv\lib\site-packages\httpx\_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+.venv\lib\site-packages\starlette\testclient.py:381: in handle_request
+    raise exc
+.venv\lib\site-packages\starlette\testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv\lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:458: in result
+    return self.__get_result()
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:403: in __get_result
+    raise self._exception
+.venv\lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+.venv\lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv\lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+.venv\lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+.venv\lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:735: in app
+    await route.handle(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+.venv\lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+.venv\lib\site-packages\fastapi\routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+backend\app\api\v1\patients.py:84: in create_patient
+    await db.commit()
+.venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py:1009: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+.venv\lib\site-packages\sqlalchemy\orm\session.py:2028: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1313: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1288: in _prepare_impl
+    self.session.flush()
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4352: in flush
+    self._flush(objects)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4487: in _flush
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4448: in _flush
+    flush_context.execute()
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:466: in execute
+    rec.execute(self)
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:60: in save_obj
+    for (
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:223: in _organize_states_for_save
+    for state, dict_, mapper, connection in _connections_for_states(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:1753: in _connections_for_states
+    connection = uowtransaction.transaction.connection(base_mapper)
+<string>:2: in connection
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1039: in connection
+    return self._connection_for_bind(bind, execution_options)
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1175: in _connection_for_bind
+    conn = self._parent._connection_for_bind(
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3278: in connect
+    return self._connection_cls(self)
+.venv\lib\site-packages\sqlalchemy\engine\base.py:146: in __init__
+    self._dbapi_connection = engine.raw_connection()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3302: in raw_connection
+    return self.pool.connect()
+.venv\lib\site-packages\sqlalchemy\pool\base.py:449: in connect
+    return _ConnectionFairy._checkout(self)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1362: in _checkout
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1300: in _checkout
+    result = pool._dialect._do_ping_w_event(
+.venv\lib\site-packages\sqlalchemy\engine\default.py:716: in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:1154: in do_ping
+    dbapi_connection.ping()
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:805: in ping
+    self._handle_exception(error)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:786: in _handle_exception
+    raise error
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:803: in ping
+    _ = self.await_(self._async_ping())
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:812: in _async_ping
+    await tr.start()
+.venv\lib\site-packages\asyncpg\transaction.py:146: in start
+    await self._connection.execute(query)
+.venv\lib\site-packages\asyncpg\connection.py:350: in execute
+    result = await self._protocol.query(query, timeout)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending cb=[Protocol._on_waiter_completed()]> attached to a different loop
+
+asyncpg\protocol\protocol.pyx:374: RuntimeError
+------------------------------ Captured log call ------------------------------
+ERROR    sqlalchemy.pool.impl.AsyncAdaptedQueuePool:base.py:378 Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000020115153D30>>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\pool\base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 1121, in do_terminate
+    dbapi_connection.terminate()
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 899, in terminate
+    self.await_(self._connection.close(timeout=2))
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\asyncpg\connection.py", line 1467, in close
+    await self._protocol.close(timeout)
+  File "asyncpg\protocol\protocol.pyx", line 627, in close
+RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending> attached to a different loop
+---------------------------- Captured log teardown ----------------------------
+ERROR    asyncio:base_events.py:1758 Future exception was never retrieved
+future: <Future finished exception=InternalClientError('got result for unknown protocol state 3')>
+Traceback (most recent call last):
+  File "asyncpg\protocol\protocol.pyx", line 902, in asyncpg.protocol.protocol.BaseProtocol._dispatch_result
+asyncpg.exceptions._base.InternalClientError: got result for unknown protocol state 3
+____________ test_multiple_active_medications_each_get_own_finding ____________
+
+existing_auth_user_id = UUID('83ec9452-752d-4dfa-80dc-126721c77b78')
+existing_drug_id = UUID('964e2c13-cfbe-458f-b486-114c59702211')
+created_patient_ids = []
+
+    @pytest.mark.asyncio
+    async def test_multiple_active_medications_each_get_own_finding(
+        existing_auth_user_id, existing_drug_id, created_patient_ids
+    ):
+        app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    
+>       patient = _create_patient("Multiple Medications Adherence Patient")
+
+backend\tests\test_adherence_engine.py:281: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+backend\tests\test_adherence_engine.py:59: in _create_patient
+    resp = client.post("/api/v1/patients", json={"name": name})
+.venv\lib\site-packages\starlette\testclient.py:597: in post
+    return super().post(
+.venv\lib\site-packages\httpx\_client.py:1157: in post
+    return self.request(
+.venv\lib\site-packages\starlette\testclient.py:488: in request
+    return super().request(
+.venv\lib\site-packages\httpx\_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv\lib\site-packages\httpx\_client.py:926: in send
+    response = self._send_handling_auth(
+.venv\lib\site-packages\httpx\_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv\lib\site-packages\httpx\_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+.venv\lib\site-packages\httpx\_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+.venv\lib\site-packages\starlette\testclient.py:381: in handle_request
+    raise exc
+.venv\lib\site-packages\starlette\testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv\lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:458: in result
+    return self.__get_result()
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:403: in __get_result
+    raise self._exception
+.venv\lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+.venv\lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv\lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+.venv\lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+.venv\lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:735: in app
+    await route.handle(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+.venv\lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+.venv\lib\site-packages\fastapi\routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+backend\app\api\v1\patients.py:84: in create_patient
+    await db.commit()
+.venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py:1009: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+.venv\lib\site-packages\sqlalchemy\orm\session.py:2028: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1313: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1288: in _prepare_impl
+    self.session.flush()
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4352: in flush
+    self._flush(objects)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4487: in _flush
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4448: in _flush
+    flush_context.execute()
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:466: in execute
+    rec.execute(self)
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:60: in save_obj
+    for (
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:223: in _organize_states_for_save
+    for state, dict_, mapper, connection in _connections_for_states(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:1753: in _connections_for_states
+    connection = uowtransaction.transaction.connection(base_mapper)
+<string>:2: in connection
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1039: in connection
+    return self._connection_for_bind(bind, execution_options)
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1175: in _connection_for_bind
+    conn = self._parent._connection_for_bind(
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3278: in connect
+    return self._connection_cls(self)
+.venv\lib\site-packages\sqlalchemy\engine\base.py:146: in __init__
+    self._dbapi_connection = engine.raw_connection()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3302: in raw_connection
+    return self.pool.connect()
+.venv\lib\site-packages\sqlalchemy\pool\base.py:449: in connect
+    return _ConnectionFairy._checkout(self)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1362: in _checkout
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1300: in _checkout
+    result = pool._dialect._do_ping_w_event(
+.venv\lib\site-packages\sqlalchemy\engine\default.py:716: in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:1154: in do_ping
+    dbapi_connection.ping()
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:805: in ping
+    self._handle_exception(error)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:786: in _handle_exception
+    raise error
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:803: in ping
+    _ = self.await_(self._async_ping())
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:812: in _async_ping
+    await tr.start()
+.venv\lib\site-packages\asyncpg\transaction.py:146: in start
+    await self._connection.execute(query)
+.venv\lib\site-packages\asyncpg\connection.py:350: in execute
+    result = await self._protocol.query(query, timeout)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending cb=[Protocol._on_waiter_completed()]> attached to a different loop
+
+asyncpg\protocol\protocol.pyx:374: RuntimeError
+------------------------------ Captured log call ------------------------------
+ERROR    sqlalchemy.pool.impl.AsyncAdaptedQueuePool:base.py:378 Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000020113DA9B70>>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\pool\base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 1121, in do_terminate
+    dbapi_connection.terminate()
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 899, in terminate
+    self.await_(self._connection.close(timeout=2))
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\asyncpg\connection.py", line 1467, in close
+    await self._protocol.close(timeout)
+  File "asyncpg\protocol\protocol.pyx", line 627, in close
+RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending> attached to a different loop
+---------------------------- Captured log teardown ----------------------------
+ERROR    asyncio:base_events.py:1758 Future exception was never retrieved
+future: <Future finished exception=InternalClientError('got result for unknown protocol state 3')>
+Traceback (most recent call last):
+  File "asyncpg\protocol\protocol.pyx", line 902, in asyncpg.protocol.protocol.BaseProtocol._dispatch_result
+asyncpg.exceptions._base.InternalClientError: got result for unknown protocol state 3
+______________________ test_adherence_scoped_to_patient _______________________
+
+existing_auth_user_id = UUID('83ec9452-752d-4dfa-80dc-126721c77b78')
+existing_drug_id = UUID('964e2c13-cfbe-458f-b486-114c59702211')
+created_patient_ids = []
+
+    @pytest.mark.asyncio
+    async def test_adherence_scoped_to_patient(
+        existing_auth_user_id, existing_drug_id, created_patient_ids
+    ):
+        app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    
+>       patient_a = _create_patient("Adherence Scoped Patient A")
+
+backend\tests\test_adherence_engine.py:327: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+backend\tests\test_adherence_engine.py:59: in _create_patient
+    resp = client.post("/api/v1/patients", json={"name": name})
+.venv\lib\site-packages\starlette\testclient.py:597: in post
+    return super().post(
+.venv\lib\site-packages\httpx\_client.py:1157: in post
+    return self.request(
+.venv\lib\site-packages\starlette\testclient.py:488: in request
+    return super().request(
+.venv\lib\site-packages\httpx\_client.py:837: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+.venv\lib\site-packages\httpx\_client.py:926: in send
+    response = self._send_handling_auth(
+.venv\lib\site-packages\httpx\_client.py:954: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv\lib\site-packages\httpx\_client.py:991: in _send_handling_redirects
+    response = self._send_single_request(request)
+.venv\lib\site-packages\httpx\_client.py:1027: in _send_single_request
+    response = transport.handle_request(request)
+.venv\lib\site-packages\starlette\testclient.py:381: in handle_request
+    raise exc
+.venv\lib\site-packages\starlette\testclient.py:378: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv\lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:458: in result
+    return self.__get_result()
+C:\Users\bhavy\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\_base.py:403: in __get_result
+    raise self._exception
+.venv\lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+.venv\lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+.venv\lib\site-packages\starlette\applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+.venv\lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+.venv\lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:715: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:735: in app
+    await route.handle(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+.venv\lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\lib\site-packages\starlette\_exception_handler.py:62: in wrapped_app
+    raise exc
+.venv\lib\site-packages\starlette\_exception_handler.py:51: in wrapped_app
+    await app(scope, receive, sender)
+.venv\lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+.venv\lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+.venv\lib\site-packages\fastapi\routing.py:212: in run_endpoint_function
+    return await dependant.call(**values)
+backend\app\api\v1\patients.py:84: in create_patient
+    await db.commit()
+.venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py:1009: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+.venv\lib\site-packages\sqlalchemy\orm\session.py:2028: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1313: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1288: in _prepare_impl
+    self.session.flush()
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4352: in flush
+    self._flush(objects)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4487: in _flush
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:4448: in _flush
+    flush_context.execute()
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:466: in execute
+    rec.execute(self)
+.venv\lib\site-packages\sqlalchemy\orm\unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:60: in save_obj
+    for (
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:223: in _organize_states_for_save
+    for state, dict_, mapper, connection in _connections_for_states(
+.venv\lib\site-packages\sqlalchemy\orm\persistence.py:1753: in _connections_for_states
+    connection = uowtransaction.transaction.connection(base_mapper)
+<string>:2: in connection
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1039: in connection
+    return self._connection_for_bind(bind, execution_options)
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1175: in _connection_for_bind
+    conn = self._parent._connection_for_bind(
+<string>:2: in _connection_for_bind
+    ???
+.venv\lib\site-packages\sqlalchemy\orm\state_changes.py:139: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv\lib\site-packages\sqlalchemy\orm\session.py:1189: in _connection_for_bind
+    conn = bind.connect()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3278: in connect
+    return self._connection_cls(self)
+.venv\lib\site-packages\sqlalchemy\engine\base.py:146: in __init__
+    self._dbapi_connection = engine.raw_connection()
+.venv\lib\site-packages\sqlalchemy\engine\base.py:3302: in raw_connection
+    return self.pool.connect()
+.venv\lib\site-packages\sqlalchemy\pool\base.py:449: in connect
+    return _ConnectionFairy._checkout(self)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1362: in _checkout
+    with util.safe_reraise():
+.venv\lib\site-packages\sqlalchemy\util\langhelpers.py:146: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv\lib\site-packages\sqlalchemy\pool\base.py:1300: in _checkout
+    result = pool._dialect._do_ping_w_event(
+.venv\lib\site-packages\sqlalchemy\engine\default.py:716: in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:1154: in do_ping
+    dbapi_connection.ping()
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:805: in ping
+    self._handle_exception(error)
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:786: in _handle_exception
+    raise error
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:803: in ping
+    _ = self.await_(self._async_ping())
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py:812: in _async_ping
+    await tr.start()
+.venv\lib\site-packages\asyncpg\transaction.py:146: in start
+    await self._connection.execute(query)
+.venv\lib\site-packages\asyncpg\connection.py:350: in execute
+    result = await self._protocol.query(query, timeout)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending cb=[Protocol._on_waiter_completed()]> attached to a different loop
+
+asyncpg\protocol\protocol.pyx:374: RuntimeError
+------------------------------ Captured log call ------------------------------
+ERROR    sqlalchemy.pool.impl.AsyncAdaptedQueuePool:base.py:378 Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x0000020115153100>>
+Traceback (most recent call last):
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\pool\base.py", line 374, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 1121, in do_terminate
+    dbapi_connection.terminate()
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\dialects\postgresql\asyncpg.py", line 899, in terminate
+    self.await_(self._connection.close(timeout=2))
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\asyncpg\connection.py", line 1467, in close
+    await self._protocol.close(timeout)
+  File "asyncpg\protocol\protocol.pyx", line 627, in close
+RuntimeError: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_core\_tasks.py:275> cb=[TaskGroup._spawn.<locals>.task_done() at C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\anyio\_backends\_asyncio.py:836]> got Future <Future pending> attached to a different loop
+---------------------------- Captured log teardown ----------------------------
+ERROR    asyncio:base_events.py:1758 Future exception was never retrieved
+future: <Future finished exception=InternalClientError('got result for unknown protocol state 3')>
+Traceback (most recent call last):
+  File "asyncpg\protocol\protocol.pyx", line 902, in asyncpg.protocol.protocol.BaseProtocol._dispatch_result
+asyncpg.exceptions._base.InternalClientError: got result for unknown protocol state 3
+============================== warnings summary ===============================
+.venv\lib\site-packages\langgraph\checkpoint\base\__init__.py:18
+  C:\Users\bhavy\OneDrive\Documents\Desktop\pharma\AI-Pharmacovigilance-Intelligence-Platform\.venv\lib\site-packages\langgraph\checkpoint\base\__init__.py:18: LangChainPendingDeprecationWarning: The default value of `allowed_objects` will change in a future version. Pass an explicit value (e.g., allowed_objects='messages' or allowed_objects='core') to suppress this warning.
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED backend/tests/test_adherence_engine.py::test_no_active_medications_returns_empty
+FAILED backend/tests/test_adherence_engine.py::test_medication_with_no_due_doses_is_excluded
+FAILED backend/tests/test_adherence_engine.py::test_all_due_doses_unmarked_counts_as_fully_missed
+FAILED backend/tests/test_adherence_engine.py::test_mixed_taken_missed_skipped_counts_correctly
+FAILED backend/tests/test_adherence_engine.py::test_fully_adherent_medication_rate_is_one
+FAILED backend/tests/test_adherence_engine.py::test_excludes_non_active_medications
+FAILED backend/tests/test_adherence_engine.py::test_multiple_active_medications_each_get_own_finding
+FAILED backend/tests/test_adherence_engine.py::test_adherence_scoped_to_patient
+8 failed, 1 warning in 48.93s
