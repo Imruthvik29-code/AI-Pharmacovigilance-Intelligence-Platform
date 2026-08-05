@@ -40,17 +40,26 @@ is needed here either -- symptoms' optional condition_id/medication_id
 references are created directly via the conditions/medications APIs
 within each test that needs them.
 """
+import asyncio
 import uuid
 
 import pytest
 from sqlalchemy import bindparam, text
 
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, engine
 
 
 @pytest.fixture
 async def existing_auth_user_id():
+    loop = asyncio.get_running_loop()
+    print(
+        f"TRACE existing_auth_user_id loop={id(loop)} engine={id(engine)} pool={id(engine.pool)}"
+    )
     async with AsyncSessionLocal() as session:
+        print(
+            f"TRACE existing_auth_user_id session={id(session)} "
+            f"session_bind={id(session.sync_session.bind)}"
+        )
         result = await session.execute(text("SELECT id FROM auth.users LIMIT 1"))
         row = result.first()
     if row is None:
@@ -63,7 +72,13 @@ async def existing_auth_user_id():
 
 @pytest.fixture
 async def existing_drug_id():
+    loop = asyncio.get_running_loop()
+    print(f"TRACE existing_drug_id loop={id(loop)} engine={id(engine)} pool={id(engine.pool)}")
     async with AsyncSessionLocal() as session:
+        print(
+            f"TRACE existing_drug_id session={id(session)} "
+            f"session_bind={id(session.sync_session.bind)}"
+        )
         result = await session.execute(text("SELECT id FROM reference_drugs LIMIT 1"))
         row = result.first()
     if row is None:
