@@ -87,7 +87,7 @@ at `http://localhost:8000/docs`. `GET /health` is a basic liveness check.
 | `DATABASE_URL` | Yes | Async Postgres connection string (`postgresql+asyncpg://...`), from Supabase project settings → Database → Connection string. |
 | `SUPABASE_URL` | Yes (Phase 2+) | Your Supabase project URL, e.g. `https://xxxxxxxx.supabase.co`. |
 | `SUPABASE_ANON_KEY` | Yes (Phase 2+) | Supabase anon/public API key, from Settings → API. |
-| `SUPABASE_JWT_SECRET` | Yes (Phase 2+) | Shared HMAC secret used to verify Supabase-issued JWTs, from Settings → API → JWT Settings. |
+| `SUPABASE_JWT_SECRET` | Deprecated; backward compatibility only | Retained only for compatibility with older setup docs. It is no longer used after the JWKS migration. |
 | `HTTP_TIMEOUT_SECONDS` | No (default `10.0`) | Timeout for outbound calls to Supabase Auth. |
 
 See `backend/.env.example` for a ready-to-copy template.

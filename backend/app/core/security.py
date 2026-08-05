@@ -163,4 +163,15 @@ async def get_current_user(
             detail="Token missing subject claim.",
         )
 
-    return CurrentUser(id=uuid.UUID(sub), email=payload.get("email"))
+    try:
+        user_id = uuid.UUID(sub)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid access token.",
+        )
+
+    return CurrentUser(
+        id=user_id,
+        email=payload.get("email"),
+    )

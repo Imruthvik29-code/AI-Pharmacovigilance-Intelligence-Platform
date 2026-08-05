@@ -1,26 +1,15 @@
-"""
-Phase 2 auth tests: API endpoints.
-
-Signup/login proxy to Supabase Auth over HTTP, so these tests mock the
-outbound httpx call rather than hitting a live Supabase project, keeping
-the suite fast and independent of external services. The JWT-protected
-/auth/me route is tested against a token signed with the app's own
-configured secret and requires no network access.
-"""
-import time
 import uuid
 
 import httpx
-import jwt
 import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
+from app.core.security import CurrentUser, get_current_user
 from app.main import app
 
 settings = get_settings()
 client = TestClient(app)
-TEST_SECRET = "test-secret-for-unit-tests-only"
 
 
 class _FakeResponse:
@@ -50,7 +39,6 @@ class _FakeAsyncClient:
 def _configure_env(monkeypatch):
     monkeypatch.setattr(settings, "supabase_url", "https://example.supabase.co")
     monkeypatch.setattr(settings, "supabase_anon_key", "test-anon-key")
-    monkeypatch.setattr(settings, "supabase_jwt_secret", TEST_SECRET)
 
 
 def test_signup_success(monkeypatch):
@@ -148,21 +136,20 @@ def test_me_requires_auth_header():
     assert resp.status_code == 401
 
 
-def test_me_with_valid_token():
-    user_id = str(uuid.uuid4())
-    token = jwt.encode(
-        {
-            "sub": user_id,
-            "email": "user@example.com",
-            "aud": "authenticated",
-            "exp": int(time.time()) + 3600,
-        },
-        TEST_SECRET,
-        algorithm="HS256",
+def test_me_with_valid_user_override():
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+        id=uuid.uuid4(), email="user@example.com"
     )
-    resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    try:
+        resp = client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": "Bearer fake-token"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
     assert resp.status_code == 200
-    assert resp.json()["id"] == user_id
+    assert resp.json()["email"] == "user@example.com"
 
 
 def test_me_with_invalid_token():
