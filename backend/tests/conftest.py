@@ -46,19 +46,28 @@ import uuid
 import pytest
 from sqlalchemy import bindparam, text
 
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, engine
 
 
 @pytest.fixture
 async def existing_auth_user_id():
+    loop = asyncio.get_running_loop()
+    print(
+        f"TRACE existing_auth_user_id loop={id(loop)} engine={id(engine)} pool={id(engine.pool)}"
+    )
     async with AsyncSessionLocal() as session:
-        try:
-            loop_id = id(asyncio.get_running_loop())
-        except RuntimeError:
-            loop_id = None
-        print(
-            f"[TEST INSTR] existing_auth_user_id start session_id={id(session)} "
-            f"engine_id={id(session.bind)} loop_id={loop_id}"
+try:
+    loop_id = id(asyncio.get_running_loop())
+except RuntimeError:
+    loop_id = None
+session_bind_id = id(session.bind) if getattr(session, "bind", None) is not None else None
+sync_bind_id = None
+if getattr(session, "sync_session", None) is not None and getattr(session.sync_session, "bind", None) is not None:
+    sync_bind_id = id(session.sync_session.bind)
+print(
+    f"[TEST INSTR] existing_auth_user_id start session_id={id(session)} "
+    f"engine_id={session_bind_id} session_bind={sync_bind_id} loop_id={loop_id}"
+)
         )
         result = await session.execute(text("SELECT id FROM auth.users LIMIT 1"))
         row = result.first()
@@ -72,14 +81,21 @@ async def existing_auth_user_id():
 
 @pytest.fixture
 async def existing_drug_id():
+    loop = asyncio.get_running_loop()
+    print(f"TRACE existing_drug_id loop={id(loop)} engine={id(engine)} pool={id(engine.pool)}")
     async with AsyncSessionLocal() as session:
-        try:
-            loop_id = id(asyncio.get_running_loop())
-        except RuntimeError:
-            loop_id = None
-        print(
-            f"[TEST INSTR] existing_drug_id start session_id={id(session)} "
-            f"engine_id={id(session.bind)} loop_id={loop_id}"
+try:
+    loop_id = id(asyncio.get_running_loop())
+except RuntimeError:
+    loop_id = None
+session_bind_id = id(session.bind) if getattr(session, "bind", None) is not None else None
+sync_bind_id = None
+if getattr(session, "sync_session", None) is not None and getattr(session.sync_session, "bind", None) is not None:
+    sync_bind_id = id(session.sync_session.bind)
+print(
+    f"[TEST INSTR] existing_drug_id start session_id={id(session)} "
+    f"engine_id={session_bind_id} session_bind={sync_bind_id} loop_id={loop_id}"
+)
         )
         result = await session.execute(text("SELECT id FROM reference_drugs LIMIT 1"))
         row = result.first()

@@ -20,6 +20,33 @@ settings = get_settings()
 engine = create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)
 print(f"[DB INSTR] AsyncEngine created id={id(engine)}")
 
+
+@event.listens_for(engine.sync_engine, "connect")
+def _trace_connect(dbapi_connection, connection_record) -> None:
+    try:
+        loop_id = id(asyncio.get_running_loop())
+    except RuntimeError:
+        loop_id = None
+    print(
+        "TRACE engine connect "
+        f"loop={loop_id} engine={id(engine)} pool={id(engine.pool)} "
+        f"dbapi_connection={id(dbapi_connection)} connection_record={id(connection_record)}"
+    )
+
+
+@event.listens_for(engine.sync_engine, "checkout")
+def _trace_checkout(dbapi_connection, connection_record, connection_proxy) -> None:
+    try:
+        loop_id = id(asyncio.get_running_loop())
+    except RuntimeError:
+        loop_id = None
+    print(
+        "TRACE engine checkout "
+        f"loop={loop_id} engine={id(engine)} pool={id(engine.pool)} "
+        f"dbapi_connection={id(dbapi_connection)} connection_record={id(connection_record)} "
+        f"connection_proxy={id(connection_proxy)}"
+    )
+
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -70,6 +97,11 @@ def _log_before_commit(session):
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency: yields a DB session and ensures cleanup."""
     async with AsyncSessionLocal() as session:
+        loop = asyncio.get_running_loop()
+        print(
+            f"TRACE get_db loop={id(loop)} engine={id(engine)} pool={id(engine.pool)} "
+            f"session={id(session)} session_bind={id(session.sync_session.bind)}"
+        )
         try:
             try:
                 loop_id = id(asyncio.get_running_loop())

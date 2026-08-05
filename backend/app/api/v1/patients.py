@@ -15,6 +15,7 @@ from the request body. Every lookup filters by (id, user_id) together, so
 a patient owned by another user returns 404 rather than 403 -- this avoids
 confirming to a caller that a given patient id exists at all.
 """
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -81,6 +82,18 @@ async def create_patient(
         updated_at=now,
     )
     db.add(patient)
+    loop = asyncio.get_running_loop()
+    connection = await db.connection()
+    logger.info(
+        "TRACE create_patient before_commit",
+        extra={
+            "loop_id": id(loop),
+            "db_id": id(db),
+            "connection_id": id(connection),
+            "sync_connection_id": id(connection.sync_connection),
+            "engine_id": id(db.sync_session.bind),
+        },
+    )
     await db.commit()
     await db.refresh(patient)
 
