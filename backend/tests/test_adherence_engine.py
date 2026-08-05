@@ -29,17 +29,24 @@ Requires:  at least one row in auth.users (see conftest.py) and the
            seeded reference_drugs from 002_seed_data.sql.
 """
 import uuid
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
+from httpx import ASGITransport, AsyncClient
 import pytest
-from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.analysis.adherence_engine import AdherenceFinding, analyze_adherence
 from app.core.security import CurrentUser, get_current_user
+from app.db.models import ReferenceDrug
 from app.db.session import AsyncSessionLocal
 from app.main import app
 
-client = TestClient(app)
+
+@pytest.fixture
+async def async_client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
 
 
 def _override_current_user(user_id):
@@ -55,29 +62,29 @@ def _clear_dependency_overrides():
     app.dependency_overrides.clear()
 
 
-def _create_patient(name: str = "Adherence Test Patient") -> dict:
-    resp = client.post("/api/v1/patients", json={"name": name})
+async def _create_patient(client: AsyncClient, name: str = "Adherence Test Patient") -> dict:
+    resp = await client.post("/api/v1/patients", json={"name": name})
     assert resp.status_code == 201
     return resp.json()
 
 
-def _create_medication(patient_id: str, drug_id: str, **kwargs) -> dict:
-    resp = client.post(
+async def _create_medication(client: AsyncClient, patient_id: str, drug_id: str, **kwargs) -> dict:
+    resp = await client.post(
         f"/api/v1/patients/{patient_id}/medications",
-        json={"drug_id": drug_id, "start_date": str(date.today()), **kwargs},
+        json={"drug_id": drug_id, "start_date": str(datetime.now(timezone.utc).date()), **kwargs},
     )
     assert resp.status_code == 201
     return resp.json()
 
 
-def _generate_schedule(medication_id: str) -> list[dict]:
-    resp = client.post(f"/api/v1/medications/{medication_id}/schedule")
+async def _generate_schedule(client: AsyncClient, medication_id: str) -> list[dict]:
+    resp = await client.post(f"/api/v1/medications/{medication_id}/schedule")
     assert resp.status_code == 201
     return resp.json()
 
 
-def _mark_dose(dose_id: str, status: str) -> dict:
-    resp = client.post(f"/api/v1/doses/{dose_id}/mark", json={"status": status})
+async def _mark_dose(client: AsyncClient, dose_id: str, status: str) -> dict:
+    resp = await client.post(f"/api/v1/doses/{dose_id}/mark", json={"status": status})
     assert resp.status_code == 200
     return resp.json()
 
@@ -89,11 +96,11 @@ def _mark_dose(dose_id: str, status: str) -> dict:
 
 @pytest.mark.asyncio
 async def test_no_active_medications_returns_empty(
-    existing_auth_user_id, created_patient_ids
+    async_client, existing_auth_user_id, created_patient_ids
 ):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    patient = _create_patient("No Medications Adherence Patient")
+    patient = await _create_patient(async_client, "No Medications Adherence Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
     async with AsyncSessionLocal() as session:
@@ -104,7 +111,7 @@ async def test_no_active_medications_returns_empty(
 
 @pytest.mark.asyncio
 async def test_medication_with_no_due_doses_is_excluded(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    async_client, existing_auth_user_id, existing_drug_id, created_patient_ids
 ):
     """
     A medication starting tomorrow has doses generated, but none of them
@@ -113,18 +120,19 @@ async def test_medication_with_no_due_doses_is_excluded(
     """
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    patient = _create_patient("No Due Doses Patient")
+    patient = await _create_patient(async_client, "No Due Doses Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
-    tomorrow = date.today() + timedelta(days=1)
-    medication = _create_medication(
+    tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
+    medication = await _create_medication(
+        async_client,
         patient["id"],
         str(existing_drug_id),
         start_date=str(tomorrow),
         times_per_day=2,
         duration_days=2,
     )
-    _generate_schedule(medication["id"])
+    await _generate_schedule(async_client, medication["id"])
 
     async with AsyncSessionLocal() as session:
         findings = await analyze_adherence(uuid.UUID(patient["id"]), session)
@@ -134,7 +142,7 @@ async def test_medication_with_no_due_doses_is_excluded(
 
 @pytest.mark.asyncio
 async def test_all_due_doses_unmarked_counts_as_fully_missed(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    async_client, existing_auth_user_id, existing_drug_id, created_patient_ids
 ):
     """
     Doses scheduled well in the past, never explicitly marked and never
@@ -144,18 +152,19 @@ async def test_all_due_doses_unmarked_counts_as_fully_missed(
     """
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    patient = _create_patient("Fully Missed Patient")
+    patient = await _create_patient(async_client, "Fully Missed Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
-    past_start = date.today() - timedelta(days=3)
-    medication = _create_medication(
+    past_start = datetime.now(timezone.utc).date() - timedelta(days=3)
+    medication = await _create_medication(
+        async_client,
         patient["id"],
         str(existing_drug_id),
         start_date=str(past_start),
         times_per_day=2,
         duration_days=1,
     )
-    doses = _generate_schedule(medication["id"])
+    doses = await _generate_schedule(async_client, medication["id"])
     assert all(d["status"] is None for d in doses)  # confirm still unswept
 
     async with AsyncSessionLocal() as session:
@@ -174,27 +183,31 @@ async def test_all_due_doses_unmarked_counts_as_fully_missed(
 
 @pytest.mark.asyncio
 async def test_mixed_taken_missed_skipped_counts_correctly(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    async_client, existing_auth_user_id, existing_drug_id, created_patient_ids
 ):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    patient = _create_patient("Mixed Adherence Patient")
+    patient = await _create_patient(async_client, "Mixed Adherence Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
-    past_start = date.today() - timedelta(days=2)
-    medication = _create_medication(
+    past_start = datetime.now(timezone.utc).date() - timedelta(days=2)
+    medication = await _create_medication(
+        async_client,
         patient["id"],
         str(existing_drug_id),
         start_date=str(past_start),
         times_per_day=3,
         duration_days=1,
     )
-    doses = sorted(_generate_schedule(medication["id"]), key=lambda d: d["scheduled_time"])
+    doses = sorted(
+        await _generate_schedule(async_client, medication["id"]),
+        key=lambda d: d["scheduled_time"],
+    )
     assert len(doses) == 3
 
-    _mark_dose(doses[0]["id"], "taken")
-    _mark_dose(doses[1]["id"], "missed")
-    _mark_dose(doses[2]["id"], "skipped")
+    await _mark_dose(async_client, doses[0]["id"], "taken")
+    await _mark_dose(async_client, doses[1]["id"], "missed")
+    await _mark_dose(async_client, doses[2]["id"], "skipped")
 
     async with AsyncSessionLocal() as session:
         findings = await analyze_adherence(uuid.UUID(patient["id"]), session)
@@ -210,24 +223,25 @@ async def test_mixed_taken_missed_skipped_counts_correctly(
 
 @pytest.mark.asyncio
 async def test_fully_adherent_medication_rate_is_one(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    async_client, existing_auth_user_id, existing_drug_id, created_patient_ids
 ):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    patient = _create_patient("Fully Adherent Patient")
+    patient = await _create_patient(async_client, "Fully Adherent Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
-    past_start = date.today() - timedelta(days=1)
-    medication = _create_medication(
+    past_start = datetime.now(timezone.utc).date() - timedelta(days=1)
+    medication = await _create_medication(
+        async_client,
         patient["id"],
         str(existing_drug_id),
         start_date=str(past_start),
         times_per_day=2,
         duration_days=1,
     )
-    doses = _generate_schedule(medication["id"])
+    doses = await _generate_schedule(async_client, medication["id"])
     for dose in doses:
-        _mark_dose(dose["id"], "taken")
+        await _mark_dose(async_client, dose["id"], "taken")
 
     async with AsyncSessionLocal() as session:
         findings = await analyze_adherence(uuid.UUID(patient["id"]), session)
@@ -242,7 +256,7 @@ async def test_fully_adherent_medication_rate_is_one(
 
 @pytest.mark.asyncio
 async def test_excludes_non_active_medications(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    async_client, existing_auth_user_id, existing_drug_id, created_patient_ids
 ):
     """
     A discontinued medication's dose history must not be considered "the
@@ -251,20 +265,21 @@ async def test_excludes_non_active_medications(
     """
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    patient = _create_patient("Discontinued Excluded Adherence Patient")
+    patient = await _create_patient(async_client, "Discontinued Excluded Adherence Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
-    past_start = date.today() - timedelta(days=2)
-    medication = _create_medication(
+    past_start = datetime.now(timezone.utc).date() - timedelta(days=2)
+    medication = await _create_medication(
+        async_client,
         patient["id"],
         str(existing_drug_id),
         start_date=str(past_start),
         times_per_day=1,
         duration_days=1,
     )
-    _generate_schedule(medication["id"])
+    await _generate_schedule(async_client, medication["id"])
 
-    client.put(f"/api/v1/medications/{medication['id']}", json={"status": "discontinued"})
+    await async_client.put(f"/api/v1/medications/{medication['id']}", json={"status": "discontinued"})
 
     async with AsyncSessionLocal() as session:
         findings = await analyze_adherence(uuid.UUID(patient["id"]), session)
@@ -274,20 +289,16 @@ async def test_excludes_non_active_medications(
 
 @pytest.mark.asyncio
 async def test_multiple_active_medications_each_get_own_finding(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    async_client, existing_auth_user_id, existing_drug_id, created_patient_ids
 ):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    patient = _create_patient("Multiple Medications Adherence Patient")
+    patient = await _create_patient(async_client, "Multiple Medications Adherence Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
-    past_start = date.today() - timedelta(days=2)
+    past_start = datetime.now(timezone.utc).date() - timedelta(days=2)
 
     # Need a second distinct seeded drug for the second medication.
-    from sqlalchemy import select
-
-    from app.db.models import ReferenceDrug
-
     async def _second_drug_id():
         async with AsyncSessionLocal() as session:
             result = await session.execute(
@@ -297,16 +308,18 @@ async def test_multiple_active_medications_each_get_own_finding(
 
     second_drug_id = await _second_drug_id()
 
-    med_a = _create_medication(
+    med_a = await _create_medication(
+        async_client,
         patient["id"], str(existing_drug_id), start_date=str(past_start),
         times_per_day=1, duration_days=1,
     )
-    med_b = _create_medication(
+    med_b = await _create_medication(
+        async_client,
         patient["id"], str(second_drug_id), start_date=str(past_start),
         times_per_day=2, duration_days=1,
     )
-    _generate_schedule(med_a["id"])
-    _generate_schedule(med_b["id"])
+    await _generate_schedule(async_client, med_a["id"])
+    await _generate_schedule(async_client, med_b["id"])
 
     async with AsyncSessionLocal() as session:
         findings = await analyze_adherence(uuid.UUID(patient["id"]), session)
@@ -320,27 +333,29 @@ async def test_multiple_active_medications_each_get_own_finding(
 
 @pytest.mark.asyncio
 async def test_adherence_scoped_to_patient(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    async_client, existing_auth_user_id, existing_drug_id, created_patient_ids
 ):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    patient_a = _create_patient("Adherence Scoped Patient A")
+    patient_a = await _create_patient(async_client, "Adherence Scoped Patient A")
     created_patient_ids.append(uuid.UUID(patient_a["id"]))
-    patient_b = _create_patient("Adherence Scoped Patient B")
+    patient_b = await _create_patient(async_client, "Adherence Scoped Patient B")
     created_patient_ids.append(uuid.UUID(patient_b["id"]))
 
-    past_start = date.today() - timedelta(days=1)
+    past_start = datetime.now(timezone.utc).date() - timedelta(days=1)
 
-    med_a = _create_medication(
+    med_a = await _create_medication(
+        async_client,
         patient_a["id"], str(existing_drug_id), start_date=str(past_start),
         times_per_day=1, duration_days=1,
     )
-    med_b = _create_medication(
+    med_b = await _create_medication(
+        async_client,
         patient_b["id"], str(existing_drug_id), start_date=str(past_start),
         times_per_day=1, duration_days=1,
     )
-    _generate_schedule(med_a["id"])
-    _generate_schedule(med_b["id"])
+    await _generate_schedule(async_client, med_a["id"])
+    await _generate_schedule(async_client, med_b["id"])
 
     async with AsyncSessionLocal() as session:
         findings_a = await analyze_adherence(uuid.UUID(patient_a["id"]), session)
