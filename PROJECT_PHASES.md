@@ -4,9 +4,9 @@
 
 **Current Milestone:** Milestone 4 - AI Explanation Layer
 
-**Current Phase:** Phase 14 - LangGraph Workflow
+**Current Phase:** Phase 15 - Gemini Integration
 
-**Last Updated:** 2026-08-01
+**Last Updated:** 2026-08-07
 
 ---
 
@@ -102,10 +102,10 @@
 
 ## 🔵 Milestone 4 - AI Explanation Layer
 
-- [ ] Phase 14 - LangGraph Workflow
-    - [ ] Graph Nodes
-    - [ ] Workflow Integration
-    - [ ] LangGraph Testing
+- [x] Phase 14 - LangGraph Workflow
+    - [x] Graph Nodes *(6 nodes: patient_context_builder, safety_score_engine, evidence_retrieval, timeline_engine, llm_explanation, persist)*
+    - [x] Workflow Integration *(POST /patients/{id}/analyze, GET /patients/{id}/analysis wired to run_analysis)*
+    - [x] LangGraph Testing
 
 - [ ] Phase 15 - Gemini Integration
     - [ ] Prompt Engineering
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 13 complete and approved, awaiting the start of Phase 14 (LangGraph Workflow).
+None — Phase 14 complete and approved, awaiting the start of Phase 15 (Gemini Integration).
 
 ---
 
@@ -147,7 +147,7 @@ None
 
 # Next Task
 
-Start Phase 14 - LangGraph Workflow (Graph Nodes, Workflow Integration, LangGraph Testing).
+Start Phase 15 - Gemini Integration (Prompt Engineering, Summary Generation, Recommendation Generation, AI Testing).
 
 ---
 
@@ -214,10 +214,9 @@ Start Phase 14 - LangGraph Workflow (Graph Nodes, Workflow Integration, LangGrap
   up as of Phase 9: `medication_started`, `medication_discontinued`
   (Phase 4/7), `condition_status_changed` (Phase 5/7), `symptom_reported`
   (Phase 6/7), and `dose_taken`/`dose_missed`/`dose_skipped` (Phase 9,
-  including auto-detected misses from the lazy sweep). `analysis_run`
-  remains deferred to Phase 14 (LangGraph's Persist Node), since no
-  analysis run is persisted to `analysis_runs` yet even though Phases
-  12-13 now compute a score and gather evidence in-memory.
+  including auto-detected misses from the lazy sweep). `analysis_run` was
+  the last remaining event type and is now wired in Phase 14's Persist
+  Node (see Phase 14 note below).
 - **Phase 7 architecture note:** a new `app/services/timeline_writer.py`
   was added (`log_timeline_event` helper) — not explicitly named in the
   spec's section 6 folder listing, but an additive fit consistent with
@@ -293,10 +292,10 @@ Start Phase 14 - LangGraph Workflow (Graph Nodes, Workflow Integration, LangGrap
 - **Phase 10 architecture note:** a new `app/analysis/` package was
   created (`drug_interaction_engine.py`), per the spec's section 6
   folder structure. This engine is a pure, internal, deterministic
-  service — it is **not** exposed via any HTTP route in this phase.
+  service — it was **not** exposed via any HTTP route in Phase 10.
   `api/v1/analysis.py` and the `POST /patients/{id}/analyze` /
-  `GET /patients/{id}/analysis` routes are wired only in Phase 14
-  (LangGraph), which will call into this engine (and the ADR/adherence/
+  `GET /patients/{id}/analysis` routes were wired in Phase 14
+  (LangGraph), which calls into this engine (and the ADR/adherence/
   safety-score/evidence services from later phases) as analysis/workflow
   nodes. Phase 10's tests therefore call the engine directly against a
   live DB session rather than through any endpoint.
@@ -325,10 +324,10 @@ Start Phase 14 - LangGraph Workflow (Graph Nodes, Workflow Integration, LangGrap
   was added alongside Phase 10's `drug_interaction_engine.py`, in the
   same `app/analysis/` package created in Phase 10 (no new package
   needed). Like the interaction engine, this is a pure, internal,
-  deterministic service — **not** exposed via any HTTP route in this
-  phase; it will be wired in as another analysis node in Phase 14
-  (LangGraph). Phase 11's tests call the engine directly against a live
-  DB session, mirroring Phase 10's testing approach exactly.
+  deterministic service — was **not** exposed via any HTTP route until
+  Phase 14; wired in as an analysis node in the Safety Score Engine.
+  Phase 11's tests call the engine directly against a live DB session,
+  mirroring Phase 10's testing approach exactly.
 - **Phase 11 scope note (confirmed during planning, consistent with
   Phase 10):** only medications with `status == "active"` count as "the
   patient's drugs" for ADR detection — the same reasoning as Phase 10's
@@ -360,7 +359,8 @@ Start Phase 14 - LangGraph Workflow (Graph Nodes, Workflow Integration, LangGrap
   interaction + ADR + **adherence** findings, Phase 12 could not be
   completed without some adherence analysis feeding it. `timeline_engine.py`
   (also listed in section 6) was deliberately **not** built in Phase 12,
-  since nothing in that phase's description required timeline findings.
+  since nothing in that phase's description required timeline findings —
+  it was subsequently built in Phase 14 (see Phase 14 note below).
 - **Phase 12 "separation of measurement and interpretation" note
   (confirmed during planning):** `adherence_engine.py` returns **only**
   raw counts/rates (`taken`, `missed`, `skipped`, `due`,
@@ -398,17 +398,16 @@ Start Phase 14 - LangGraph Workflow (Graph Nodes, Workflow Integration, LangGrap
   and a direct reference to the originating finding object. This was a
   deliberate requirement so a later phase (Evidence Retrieval, the LLM
   explanation node, or a report view) can explain exactly how a score
-  was produced without recomputing anything — and Phase 13 confirms this
-  worked as intended (see below).
-- **Phase 12 scope note:** like Phases 10/11, `safety_score_engine.py`
-  is **not** exposed via any HTTP route in this phase, and nothing here
-  is persisted to `analysis_runs` yet — both happen in Phase 14
-  (LangGraph)'s Persist Node.
+  was produced without recomputing anything — and Phase 13 confirmed
+  this worked as intended, and Phase 14 now persists it end-to-end.
+- **Phase 12 scope note:** like Phase 11, `safety_score_engine.py`
+  was **not** exposed via any HTTP route until Phase 14, when it became
+  the Safety Score Node in the LangGraph workflow.
 - **Phase 13 architecture note (confirmed during planning):**
   `app/services/evidence_retrieval.py` is an **application service**, not
   an `app/analysis/` engine — its job is to retrieve/structure supporting
-  evidence for the future LLM explanation layer (Phase 15), not to detect
-  findings or compute a score. This placement mirrors spec section 6's
+  evidence for the LLM explanation layer, not to detect findings or
+  compute a score. This placement mirrors spec section 6's
   `services/` listing (`patient_context_builder.py`, `llm_service.py`,
   `langgraph_workflow.py`), even though `evidence_retrieval.py` itself
   isn't explicitly named there.
@@ -437,11 +436,78 @@ Start Phase 14 - LangGraph Workflow (Graph Nodes, Workflow Integration, LangGrap
   from `timeline_events.event_time`, `None` for medical evidence), added
   as a reasonable extension beyond the literal request to preserve
   *when* a personal-history fact happened.
-- **Phase 13 scope note:** like Phases 10-12, `evidence_retrieval.py` is
-  **not** exposed via any HTTP route in this phase — wiring happens in
-  Phase 14 (LangGraph), which will call `retrieve_evidence()` as the
-  Evidence Retrieval Node immediately after the Safety Score Engine
-  merge.
+- **Phase 13 scope note:** like Phases 10-12, `evidence_retrieval.py`
+  was **not** exposed via any HTTP route until Phase 14, which calls
+  `retrieve_evidence()` as the Evidence Retrieval Node immediately after
+  the Safety Score Engine merge.
+- **Phase 14 architecture note:** `app/services/langgraph_workflow.py`
+  implements the full spec section 8 pipeline as a `langgraph.graph.
+  StateGraph` with six nodes: `patient_context_builder` →
+  `safety_score_engine` → `evidence_retrieval` → `timeline_engine` →
+  `llm_explanation` → `persist`. The Safety Score node stands in for
+  spec section 8's whole "Deterministic Analysis Layer" box (Drug
+  Interaction / ADR / Adherence engines), since `calculate_safety_score()`
+  already internally calls all three and exposes their raw findings —
+  calling them again separately in the graph would duplicate work. A new
+  `app/analysis/timeline_engine.py` (`build_timeline_context`) was added
+  in this phase, per spec section 6's folder listing, structuring the
+  patient's full timeline chronologically ascending as narrative context
+  for the LLM step — deliberately placed *after* Evidence Retrieval in
+  the graph, since it's explanatory context, not a scoring input.
+- **Phase 14 "why not three separate engine calls" note:** confirmed
+  with the project owner — the Safety Score node's internal reuse of
+  Phase 12's already-composed `SafetyScoreResult` (rather than
+  re-invoking `detect_drug_interactions`/`detect_adrs`/
+  `analyze_adherence` directly in the graph) is intentional, not a
+  scope-narrowing shortcut.
+- **Phase 14 persistence scope note (confirmed during planning):** the
+  Persist Node writes only deterministic findings/penalties/score/
+  risk_level to `analysis_runs.deterministic_result` (via
+  `_serialize_safety_score_result`) — `timeline_context` is deliberately
+  **excluded** from that JSONB blob, since `timeline_events` is already
+  the single source of truth for timeline data and a denormalized copy
+  would create a second one. `timeline_context` exists only in-memory,
+  as an LLM Explanation Node input. Verified by a dedicated test
+  (`test_deterministic_result_contains_expected_findings_and_excludes_timeline`)
+  asserting `"timeline_context" not in det`.
+- **Phase 14 "analysis_run" event note:** the Persist Node logs an
+  `analysis_run` timeline event (`event_title` includes risk level and
+  score; `payload` includes `safety_score`, `risk_level`, and
+  `llm_explanation_available`) via the existing `timeline_writer.py`
+  helper — completing the last of the eight canonical `event_type`
+  values from spec section 5 that remained unwired after Phase 9.
+- **Phase 14 LLM stub handling note (intentional, confirmed scope):**
+  `app/services/llm_service.py`'s `generate_explanation()` raises
+  `NotImplementedError` by design — Phase 15's job to implement per
+  explicit project-owner direction. The `llm_explanation` node catches
+  *only* `NotImplementedError` (any other exception fails the whole
+  graph run, since that would indicate a genuine bug); on the expected
+  exception it stores `llm_result: None` and a human-readable
+  `llm_error`, and the Persist Node writes `NULL` for
+  `llm_summary`/`llm_reasoning`/`llm_recommendations`/`confidence_score`/
+  `confidence_level` rather than fabricating output. The deterministic
+  pipeline persists successfully regardless of the LLM step's status.
+- **Phase 14 API scope note:** `app/api/v1/analysis.py` implements the
+  full frozen section 7 contract for analysis — `POST
+  /patients/{id}/analyze` (runs the workflow, returns the persisted row)
+  and `GET /patients/{id}/analysis` (lists the full run history, most
+  recent first — a deliberate ordering choice confirmed with the project
+  owner, since the spec doesn't define ordering). Ownership enforcement
+  (404 for missing/non-owned patient) mirrors every other patient-scoped
+  resource in this codebase. This is also where `app/analysis/
+  drug_interaction_engine.py` (Phase 10), `adr_engine.py` (Phase 11),
+  `safety_score_engine.py`/`adherence_engine.py` (Phase 12), and
+  `evidence_retrieval.py` (Phase 13) — all previously internal-only —
+  become reachable via HTTP for the first time, through the workflow.
+- **Phase 14 testing note:** `tests/test_langgraph_workflow.py` calls
+  `run_analysis()` directly against a live DB session (graph wiring,
+  state threading, persistence, LLM-`NotImplementedError` handling,
+  repeated-run versioning), independent of the API layer.
+  `tests/test_analysis_api.py` exercises the HTTP layer separately
+  (both routes, ownership enforcement, empty history for a
+  never-analyzed patient). This mirrors the existing convention of
+  separating engine/service-level tests from API-level tests used
+  throughout Phases 10-13.
 
 ## Repository Convention
 
