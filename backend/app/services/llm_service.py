@@ -25,6 +25,23 @@ but produces unusable content is, for this purpose, no more useful than
 one that doesn't respond at all -- so both failure modes get the same
 fallback treatment.
 
+`GeminiProvider` additionally retries once, internally, for transient
+failures (HTTP 429/500/502/503/504 or a network timeout) before this
+module's fallback to OpenRouter ever comes into play -- see
+`llm_providers.py`'s module docstring for the retry rules. This module
+doesn't know or care whether a given Gemini attempt already included a
+retry; it only ever sees the final success or failure of that provider.
+
+## Logging
+
+On a successful call (provider responded AND its output passed schema
+validation), this module logs one structured, operational-only record:
+`provider_used`, `model_used`, `latency_ms`, `fallback_used`, and
+`prompt_tokens`/`completion_tokens`/`total_tokens` when the provider
+reported them (omitted entirely, not logged as null, when unavailable).
+Never logged: patient identifiers, prompts, medical history, evidence
+text, or the generated explanation itself -- only the metadata above.
+
 ## Grounding strategy
 
 Grounding is enforced at the prompt level only (the model is instructed
@@ -56,6 +73,7 @@ deterministic pipeline always persists regardless of this step's outcome.
 """
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -65,6 +83,7 @@ from app.core.config import get_settings
 from app.services.evidence_retrieval import EvidenceBundle
 from app.services.llm_providers import (
     GeminiProvider,
+    LLMCompletion,
     LLMProvider,
     LLMProviderError,
     OpenRouterProvider,
@@ -358,6 +377,38 @@ def _parse_and_validate(raw: str) -> LLMExplanationResult:
 _PROVIDERS: tuple[LLMProvider, ...] = (GeminiProvider(), OpenRouterProvider())
 
 
+def _log_successful_completion(
+    provider: LLMProvider,
+    completion: LLMCompletion,
+    *,
+    latency_ms: int,
+    fallback_used: bool,
+) -> None:
+    """
+    Log one structured, operational-only record for a successful LLM call.
+
+    Only metadata -- never the prompt, the patient snapshot/evidence that
+    fed it, the generated explanation, or any patient identifier. Token
+    usage fields are added to `extra` only when the provider actually
+    reported them, so a provider/model that omits usage data simply
+    produces a record without those keys, rather than `None` values.
+    """
+    extra: dict[str, object] = {
+        "provider_used": provider.name,
+        "model_used": provider.model,
+        "latency_ms": latency_ms,
+        "fallback_used": fallback_used,
+    }
+    if completion.prompt_tokens is not None:
+        extra["prompt_tokens"] = completion.prompt_tokens
+    if completion.completion_tokens is not None:
+        extra["completion_tokens"] = completion.completion_tokens
+    if completion.total_tokens is not None:
+        extra["total_tokens"] = completion.total_tokens
+
+    logger.info("LLM explanation generated", extra=extra)
+
+
 async def _call_providers_with_fallback(prompt: str) -> LLMExplanationResult:
     """
     Try each provider in order. A provider "counts" as failed for
@@ -368,25 +419,39 @@ async def _call_providers_with_fallback(prompt: str) -> LLMExplanationResult:
     result (approved Phase 15 design decision). Only if every provider
     fails does this raise, combining all per-provider failure messages so
     the eventual `llm_error` string is diagnostic rather than generic.
+
+    `fallback_used` (for logging) is True whenever the provider that
+    ultimately succeeds is not the first one in `_PROVIDERS` -- i.e.
+    Gemini (including its own internal retry) did not produce a usable
+    result and OpenRouter was used instead.
     """
     failures: list[str] = []
 
-    for provider in _PROVIDERS:
+    for index, provider in enumerate(_PROVIDERS):
+        started = time.monotonic()
         try:
-            raw = await provider.complete(prompt, timeout_seconds=settings.llm_timeout_seconds)
+            completion = await provider.complete(
+                prompt, timeout_seconds=settings.llm_timeout_seconds
+            )
         except LLMProviderError as exc:
             logger.warning("LLM provider call failed: %s", exc)
             failures.append(str(exc))
             continue
+        latency_ms = round((time.monotonic() - started) * 1000)
 
         try:
-            return _parse_and_validate(raw)
+            result = _parse_and_validate(completion.text)
         except LLMExplanationError as exc:
             logger.warning(
                 "LLM provider '%s' returned unusable output: %s", provider.name, exc
             )
             failures.append(f"{provider.name}: {exc}")
             continue
+
+        _log_successful_completion(
+            provider, completion, latency_ms=latency_ms, fallback_used=index > 0
+        )
+        return result
 
     raise LLMExplanationError(
         "All configured LLM providers failed: " + "; ".join(failures)

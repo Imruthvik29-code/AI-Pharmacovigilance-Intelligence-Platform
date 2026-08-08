@@ -8,6 +8,16 @@ Gemini-then-OpenRouter fallback orchestration in
 needed. This mirrors the existing convention (e.g. test_auth_api.py) of
 mocking the outermost I/O boundary rather than reaching into httpx.
 
+Phase 15 improvement additions:
+  - `_FakeProvider` now returns an `LLMCompletion` (matching the real
+    providers' updated return type) instead of a bare string.
+  - New tests cover the structured success-log record (fields present,
+    fallback_used true/false, graceful omission of token fields when a
+    provider doesn't report usage) and that no patient/prompt/medical
+    content ever appears in that log record.
+  - New tests confirm `_build_prompt` is deterministic given the same
+    (or equal-but-freshly-constructed) inputs.
+
 Run with:  pytest backend/tests/test_llm_service.py -v
 """
 import json
@@ -21,7 +31,7 @@ from app.analysis.drug_interaction_engine import DrugInteractionFinding
 from app.analysis.timeline_engine import TimelineContext, TimelineEntry
 from app.services import llm_service
 from app.services.evidence_retrieval import EvidenceBundle, EvidenceItem, FindingEvidence
-from app.services.llm_providers import LLMProviderError
+from app.services.llm_providers import LLMCompletion, LLMProviderError
 from app.services.llm_service import (
     LLMExplanationError,
     LLMExplanationResult,
@@ -37,19 +47,40 @@ from app.services.patient_context_builder import (
 
 
 class _FakeProvider:
-    """Minimal stand-in for GeminiProvider/OpenRouterProvider."""
+    """Minimal stand-in for GeminiProvider/OpenRouterProvider. Returns an
+    `LLMCompletion` (not a bare string), matching the real providers'
+    `complete()` contract."""
 
-    def __init__(self, name: str, *, raw: str | None = None, error: Exception | None = None):
+    def __init__(
+        self,
+        name: str,
+        *,
+        raw: str | None = None,
+        error: Exception | None = None,
+        model: str | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
+    ):
         self.name = name
+        self.model = model or f"fake-{name}-model"
         self._raw = raw
         self._error = error
+        self._prompt_tokens = prompt_tokens
+        self._completion_tokens = completion_tokens
+        self._total_tokens = total_tokens
         self.call_count = 0
 
-    async def complete(self, prompt: str, *, timeout_seconds: float) -> str:
+    async def complete(self, prompt: str, *, timeout_seconds: float) -> LLMCompletion:
         self.call_count += 1
         if self._error:
             raise self._error
-        return self._raw
+        return LLMCompletion(
+            text=self._raw,
+            prompt_tokens=self._prompt_tokens,
+            completion_tokens=self._completion_tokens,
+            total_tokens=self._total_tokens,
+        )
 
 
 def _empty_patient_context() -> PatientContext:
@@ -432,3 +463,205 @@ async def test_error_message_includes_both_provider_failures(monkeypatch):
     message = str(exc_info.value)
     assert "gemini" in message
     assert "openrouter" in message
+
+
+# ---------------------------------------------------------------------
+# Structured logging (Phase 15 improvement)
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_successful_call_logs_structured_metadata(monkeypatch, caplog):
+    gemini = _FakeProvider(
+        "gemini",
+        raw=VALID_JSON,
+        model="gemini-test-model",
+        prompt_tokens=100,
+        completion_tokens=20,
+        total_tokens=120,
+    )
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (gemini,))
+
+    with caplog.at_level("INFO", logger="app.llm_service"):
+        await generate_explanation(
+            _empty_patient_context(),
+            _empty_safety_score_result(),
+            _empty_evidence_bundle(),
+            _empty_timeline_context(),
+        )
+
+    records = [r for r in caplog.records if r.message == "LLM explanation generated"]
+    assert len(records) == 1
+    record = records[0]
+
+    assert record.provider_used == "gemini"
+    assert record.model_used == "gemini-test-model"
+    assert isinstance(record.latency_ms, int)
+    assert record.latency_ms >= 0
+    assert record.fallback_used is False
+    assert record.prompt_tokens == 100
+    assert record.completion_tokens == 20
+    assert record.total_tokens == 120
+
+
+@pytest.mark.asyncio
+async def test_fallback_call_logs_fallback_used_true(monkeypatch, caplog):
+    gemini = _FakeProvider("gemini", error=LLMProviderError("gemini", "unreachable"))
+    openrouter = _FakeProvider("openrouter", raw=VALID_JSON, model="openrouter-test-model")
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (gemini, openrouter))
+
+    with caplog.at_level("INFO", logger="app.llm_service"):
+        await generate_explanation(
+            _empty_patient_context(),
+            _empty_safety_score_result(),
+            _empty_evidence_bundle(),
+            _empty_timeline_context(),
+        )
+
+    records = [r for r in caplog.records if r.message == "LLM explanation generated"]
+    assert len(records) == 1
+    assert records[0].provider_used == "openrouter"
+    assert records[0].model_used == "openrouter-test-model"
+    assert records[0].fallback_used is True
+
+
+@pytest.mark.asyncio
+async def test_successful_call_log_omits_token_fields_when_unavailable(monkeypatch, caplog):
+    """Token usage fields must be entirely absent from the log record
+    (not present as None) when a provider doesn't report usage."""
+    gemini = _FakeProvider("gemini", raw=VALID_JSON)  # no token counts supplied
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (gemini,))
+
+    with caplog.at_level("INFO", logger="app.llm_service"):
+        await generate_explanation(
+            _empty_patient_context(),
+            _empty_safety_score_result(),
+            _empty_evidence_bundle(),
+            _empty_timeline_context(),
+        )
+
+    record = next(r for r in caplog.records if r.message == "LLM explanation generated")
+    assert not hasattr(record, "prompt_tokens")
+    assert not hasattr(record, "completion_tokens")
+    assert not hasattr(record, "total_tokens")
+
+
+@pytest.mark.asyncio
+async def test_no_patient_or_prompt_content_appears_in_logs(monkeypatch, caplog):
+    """
+    Only operational metadata may be logged -- never patient identifiers,
+    prompts, medical history, evidence text, or the generated explanation
+    itself. Uses a non-empty patient/finding/evidence set so there is
+    real sensitive content that would leak if the logging implementation
+    ever regresses to including it.
+    """
+    patient_context = PatientContext(
+        patient_id=uuid.uuid4(),
+        name="Sensitive Patient Name",
+        age=60,
+        sex="female",
+        weight_kg=70.0,
+        renal_flag=False,
+        hepatic_flag=False,
+        active_conditions=[],
+        active_medications=[],
+        active_symptoms=[],
+    )
+    gemini = _FakeProvider("gemini", raw=VALID_JSON)
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (gemini,))
+
+    with caplog.at_level("INFO", logger="app.llm_service"):
+        await generate_explanation(
+            patient_context,
+            _empty_safety_score_result(),
+            _empty_evidence_bundle(),
+            _empty_timeline_context(),
+        )
+
+    full_text = caplog.text
+    assert "Sensitive Patient Name" not in full_text
+    assert str(patient_context.patient_id) not in full_text
+    assert "All clear." not in full_text  # the generated summary text
+    assert "No findings were detected" not in full_text  # the generated reasoning text
+
+
+# ---------------------------------------------------------------------
+# Prompt determinism (Phase 15 improvement -- verification, per the
+# requirement that _build_prompt must be deterministic given the same
+# inputs. No code change was required here: _build_prompt and its
+# helpers only ever iterate already-ordered input lists/tuples and never
+# call datetime.now()/random/uuid -- these tests lock that in.)
+# ---------------------------------------------------------------------
+
+
+def test_build_prompt_is_deterministic_for_the_same_inputs():
+    ctx = PatientContext(
+        patient_id=uuid.uuid4(),
+        name="Determinism Patient",
+        age=45,
+        sex="female",
+        weight_kg=70.0,
+        renal_flag=False,
+        hepatic_flag=True,
+        active_conditions=[
+            ConditionSummary(
+                id=uuid.uuid4(),
+                name="Hypertension",
+                status="active",
+                reason="doctor_diagnosis",
+                diagnosed_date=date.today(),
+                resolved_date=None,
+                notes=None,
+            )
+        ],
+        active_medications=[
+            MedicationSummary(
+                id=uuid.uuid4(),
+                drug_id=uuid.uuid4(),
+                drug_name="Lisinopril",
+                condition_id=None,
+                purpose_text="BP control",
+                dose="10mg",
+                times_per_day=1,
+                interval_hours=None,
+                duration_days=None,
+                status="active",
+                start_date=date.today(),
+                end_date=None,
+            )
+        ],
+        active_symptoms=[],
+    )
+    result = _empty_safety_score_result()
+    bundle = _empty_evidence_bundle()
+    timeline = _empty_timeline_context()
+
+    prompt_1 = _build_prompt(ctx, result, bundle, timeline)
+    prompt_2 = _build_prompt(ctx, result, bundle, timeline)
+
+    assert prompt_1 == prompt_2
+
+
+def test_build_prompt_is_deterministic_across_separately_constructed_equal_inputs():
+    """
+    Same logical content, but freshly (separately) constructed input
+    objects for each call -- proves determinism isn't an artifact of
+    reusing the same object instance. `PatientContext.patient_id` and
+    `TimelineContext.patient_id` intentionally differ between the two
+    calls (fresh `uuid.uuid4()` each time in the `_empty_*` helpers)
+    since neither is ever rendered into the prompt text.
+    """
+    prompt_a = _build_prompt(
+        _empty_patient_context(),
+        _empty_safety_score_result(),
+        _empty_evidence_bundle(),
+        _empty_timeline_context(),
+    )
+    prompt_b = _build_prompt(
+        _empty_patient_context(),
+        _empty_safety_score_result(),
+        _empty_evidence_bundle(),
+        _empty_timeline_context(),
+    )
+
+    assert prompt_a == prompt_b
