@@ -65,18 +65,22 @@ deliberately NOT included in that JSONB blob. The `timeline_events`
 table is already the single source of truth for timeline data; a second,
 denormalized copy inside `deterministic_result` would create a second
 source of truth for the same facts. `timeline_context` exists only
-in-memory, as an input to the (currently unimplemented) LLM Explanation
-Node.
+in-memory, as an input to the LLM Explanation Node.
 
 ## LLM Explanation Node behavior
 
-Calls `llm_service.generate_explanation()`, which currently always
-raises `NotImplementedError` (Phase 15's job to implement). This node
-catches *only* `NotImplementedError` -- any other exception propagates
-and fails the whole graph run, since that would indicate a genuine bug
-rather than the documented "not yet implemented" state. On the expected
-`NotImplementedError`, the node stores `llm_result: None` and a
-human-readable `llm_error` message in state; nothing is fabricated.
+Calls `llm_service.generate_explanation()` (Phase 15). This node catches
+`NotImplementedError` (retained defensively; no longer raised by the
+Phase 15 implementation, but kept in case a future change to
+llm_service.py reintroduces an unimplemented path) and
+`LLMExplanationError` (Phase 15's real failure mode -- every configured
+provider either failed or returned output that failed schema
+validation). Any other, unexpected exception propagates and fails the
+whole graph run, since that would indicate a genuine bug rather than a
+documented failure mode. On either caught exception, the node stores
+`llm_result: None` and a human-readable `llm_error` message in state;
+nothing is fabricated, and the deterministic pipeline still persists via
+the Persist Node regardless of this step's outcome.
 """
 import logging
 import uuid
@@ -93,7 +97,7 @@ from app.analysis.safety_score_engine import PenaltyEntry, SafetyScoreResult, ca
 from app.analysis.timeline_engine import TimelineContext, build_timeline_context
 from app.db.models import AnalysisRun
 from app.services.evidence_retrieval import EvidenceBundle, retrieve_evidence
-from app.services.llm_service import LLMExplanationResult, generate_explanation
+from app.services.llm_service import LLMExplanationError, LLMExplanationResult, generate_explanation
 from app.services.patient_context_builder import PatientContext, build_patient_context
 from app.services.timeline_writer import log_timeline_event
 
@@ -244,9 +248,15 @@ def _llm_explanation_node(db: AsyncSession):
                 evidence_bundle=state["evidence_bundle"],
                 timeline_context=state["timeline_context"],
             )
-        except NotImplementedError as exc:
-            logger.info(
-                "LLM explanation not yet available (Phase 15 pending): %s",
+        except (NotImplementedError, LLMExplanationError) as exc:
+            # NotImplementedError: retained defensively in case a future
+            # llm_service.py change reintroduces an unimplemented path.
+            # LLMExplanationError (Phase 15): every configured provider
+            # either failed or returned output that failed schema
+            # validation. Either way, the deterministic pipeline still
+            # persists successfully -- see llm_service.py's docstring.
+            logger.warning(
+                "LLM explanation unavailable for this analysis run: %s",
                 exc,
                 extra={"patient_id": state["patient_id"]},
             )

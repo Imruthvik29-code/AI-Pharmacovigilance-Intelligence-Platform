@@ -9,15 +9,23 @@ persists a genuine `analysis_runs` row.
 No HTTP endpoint is exercised directly here (see test_analysis_api.py for
 that) -- these tests call `app.services.langgraph_workflow.run_analysis`
 directly against an `AsyncSessionLocal` session, confirming the graph
-itself (node wiring, state threading, persistence, and the documented
-LLM-NotImplementedError handling) works end-to-end before the API layer
-is exercised.
+itself (node wiring, state threading, persistence, and LLM
+success/failure handling) works end-to-end before the API layer is
+exercised.
 
 Seed data relied on (002_seed_data.sql):
   - Warfarin + Aspirin interaction -> severe (30 pts)
   - Warfarin ADR: Bleeding / bruising -> severe (30 pts)
   - Aspirin ADR: GI upset / gastritis -> moderate (15 pts)
   (Same combination already exercised by Phase 12/13's own test suites.)
+
+Phase 15 addition: `test_llm_fields_populated_when_provider_succeeds` and
+`test_llm_fields_null_when_all_providers_fail` replace the Phase 14
+placeholder `test_llm_fields_are_null_pending_phase_15` (whose premise --
+"LLM is unimplemented" -- no longer holds once Phase 15 lands). Both
+mock `app.services.langgraph_workflow.generate_explanation` directly, so
+no real network call to Gemini/OpenRouter is made and no real API key is
+required to run this file.
 
 Run with:  pytest backend/tests/test_langgraph_workflow.py -v
 Requires:  at least one row in auth.users (see conftest.py) and the
@@ -35,6 +43,7 @@ from app.core.security import CurrentUser, get_current_user
 from app.db.models import AnalysisRun, ReferenceDrug
 from app.db.session import AsyncSessionLocal
 from app.main import app
+from app.services.llm_service import LLMExplanationError, LLMExplanationResult
 from app.services.langgraph_workflow import run_analysis
 
 client = TestClient(app)
@@ -106,25 +115,83 @@ async def test_clean_patient_yields_perfect_score_run(
 
 
 @pytest.mark.asyncio
-async def test_llm_fields_are_null_pending_phase_15(
-    existing_auth_user_id, created_patient_ids
+async def test_llm_fields_populated_when_provider_succeeds(
+    existing_auth_user_id, created_patient_ids, monkeypatch
 ):
     """
-    The LLM Explanation Node must not fabricate output -- llm_service.py
-    raises NotImplementedError, which the graph catches, leaving the
-    LLM-generated columns NULL on the persisted row.
+    Phase 15: when generate_explanation() succeeds, the persisted
+    analysis_runs row must carry the real LLM output, not NULLs.
+    llm_service.generate_explanation is mocked at the module attribute
+    langgraph_workflow imported it into -- no real network call is made.
     """
+    import app.services.langgraph_workflow as workflow_module
+
+    fake_result = LLMExplanationResult(
+        summary="Fake summary.",
+        reasoning="Fake reasoning.",
+        recommendations="Fake recommendations.",
+        confidence_score=88,
+        confidence_level="high",
+    )
+
+    async def _fake_generate_explanation(**kwargs):
+        return fake_result
+
+    monkeypatch.setattr(workflow_module, "generate_explanation", _fake_generate_explanation)
+
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
-    patient = _create_patient("LLM Pending Workflow Patient")
+    patient = _create_patient("LLM Success Workflow Patient")
+    created_patient_ids.append(uuid.UUID(patient["id"]))
+
+    async with AsyncSessionLocal() as session:
+        final_state = await run_analysis(uuid.UUID(patient["id"]), session)
+
+    assert final_state["llm_result"] == fake_result
+    assert final_state["llm_error"] is None
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(AnalysisRun).where(AnalysisRun.id == final_state["analysis_run_id"])
+        )
+        run = result.scalar_one()
+
+    assert run.llm_summary == "Fake summary."
+    assert run.llm_reasoning == "Fake reasoning."
+    assert run.llm_recommendations == "Fake recommendations."
+    assert run.confidence_score == 88
+    assert run.confidence_level == "high"
+
+
+@pytest.mark.asyncio
+async def test_llm_fields_null_when_all_providers_fail(
+    existing_auth_user_id, created_patient_ids, monkeypatch
+):
+    """
+    Phase 15: when generate_explanation() raises LLMExplanationError
+    (every configured provider failed or returned unusable output), the
+    deterministic pipeline must still persist successfully with NULL LLM
+    fields -- the same graceful-degradation guarantee Phase 14 already
+    established, now exercised via the real Phase 15 failure path
+    instead of the removed NotImplementedError placeholder.
+    """
+    import app.services.langgraph_workflow as workflow_module
+
+    async def _fake_generate_explanation(**kwargs):
+        raise LLMExplanationError("all providers failed (simulated)")
+
+    monkeypatch.setattr(workflow_module, "generate_explanation", _fake_generate_explanation)
+
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    patient = _create_patient("LLM Failure Workflow Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
     async with AsyncSessionLocal() as session:
         final_state = await run_analysis(uuid.UUID(patient["id"]), session)
 
     assert final_state["llm_result"] is None
-    assert final_state["llm_error"] is not None
-    assert "Phase 15" in final_state["llm_error"]
+    assert "all providers failed" in final_state["llm_error"]
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(

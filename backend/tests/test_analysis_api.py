@@ -15,6 +15,15 @@ Per the confirmed frozen-spec scope for Phase 14, the full API contract
 `GET /patients/{id}/analysis` returns the full history, most recent
 first (confirmed with the project owner during Phase 14 planning).
 
+Phase 15 addition: `test_analyze_populates_llm_fields_when_provider_succeeds`
+mocks `app.services.langgraph_workflow.generate_explanation` so the HTTP
+layer's handling of real (non-null) llm_* fields is covered end-to-end,
+without a real network call to Gemini/OpenRouter. All other tests in this
+file are unchanged from Phase 14 -- they continue to pass unmodified
+because, with no GEMINI_API_KEY/OPENROUTER_API_KEY configured in the test
+environment, both providers fail closed on missing configuration and the
+analysis run persists with NULL llm_* fields exactly as before.
+
 Run with:  pytest backend/tests/test_analysis_api.py -v
 Requires:  at least one row in auth.users (see conftest.py).
 """
@@ -63,7 +72,8 @@ def test_analyze_creates_persisted_run(existing_auth_user_id, created_patient_id
     assert body["safety_score"] == 100
     assert body["risk_level"] == "low"
     assert body["deterministic_result"] is not None
-    # LLM fields null pending Phase 15
+    # LLM fields null -- no GEMINI_API_KEY/OPENROUTER_API_KEY configured
+    # in the test environment, so both providers fail closed.
     assert body["llm_summary"] is None
     assert body["llm_reasoning"] is None
     assert body["llm_recommendations"] is None
@@ -148,3 +158,44 @@ def test_list_analysis_runs_empty_for_patient_never_analyzed(
     resp = client.get(f"/api/v1/patients/{patient['id']}/analysis")
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_analyze_populates_llm_fields_when_provider_succeeds(
+    existing_auth_user_id, created_patient_ids, monkeypatch
+):
+    """
+    Phase 15 API-level coverage: with the LLM provider layer mocked to
+    succeed, POST /patients/{id}/analyze must persist and return real
+    llm_* fields, not NULLs -- confirms the mocking approach already
+    used at the workflow level (test_langgraph_workflow.py) also holds
+    end-to-end through the HTTP layer.
+    """
+    import app.services.langgraph_workflow as workflow_module
+    from app.services.llm_service import LLMExplanationResult
+
+    fake_result = LLMExplanationResult(
+        summary="API-level fake summary.",
+        reasoning="API-level fake reasoning.",
+        recommendations="API-level fake recommendations.",
+        confidence_score=77,
+        confidence_level="moderate",
+    )
+
+    async def _fake_generate_explanation(**kwargs):
+        return fake_result
+
+    monkeypatch.setattr(workflow_module, "generate_explanation", _fake_generate_explanation)
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    patient = _create_patient("LLM Success API Patient")
+    created_patient_ids.append(uuid.UUID(patient["id"]))
+
+    resp = client.post(f"/api/v1/patients/{patient['id']}/analyze")
+    assert resp.status_code == 201
+    body = resp.json()
+
+    assert body["llm_summary"] == "API-level fake summary."
+    assert body["llm_reasoning"] == "API-level fake reasoning."
+    assert body["llm_recommendations"] == "API-level fake recommendations."
+    assert body["confidence_score"] == 77
+    assert body["confidence_level"] == "moderate"

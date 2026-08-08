@@ -24,6 +24,17 @@ backward compatibility with existing `.env` files that still set it --
 removing the field outright would otherwise be a breaking config change
 for any deployment that hasn't updated its `.env` yet. Safe to leave
 set or to omit; either way it is now inert.
+
+Phase 15 addition: `gemini_api_key`/`gemini_model`,
+`openrouter_api_key`/`openrouter_model`, and `llm_timeout_seconds`
+configure the two LLM providers used by `app/services/llm_providers.py`
+(spec section 4: Gemini primary, OpenRouter fallback). Both API keys
+default to empty string, not a required field -- the app must still run
+(and the deterministic analysis pipeline must still persist successfully)
+with neither configured; see app/services/llm_service.py's documented
+fail-closed behavior. Model names are configurable rather than hardcoded
+since free-tier model availability changes over time; the defaults below
+are reasonable starting points, not guarantees of current availability.
 """
 from functools import lru_cache
 from pathlib import Path
@@ -42,6 +53,26 @@ class Settings(BaseSettings):
     #: files with this key set continue to load without error. Do not
     #: reference this field in any new code.
     supabase_jwt_secret: str = ""
+
+    # ── Phase 15: LLM Explanation Layer (spec section 4) ──────────────
+    #: Gemini is the primary provider. Empty string means "not
+    #: configured" -- GeminiProvider fails closed with LLMProviderError
+    #: rather than raising at settings-load time, matching the existing
+    #: "fail at call time, not import time" convention (see
+    #: api/v1/auth.py's _supabase_headers()).
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
+
+    #: OpenRouter is the fallback provider, tried only if Gemini fails
+    #: (network/HTTP error) or returns output that fails schema
+    #: validation. Same fail-closed behavior as Gemini if unconfigured.
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"
+
+    #: Shared per-request timeout for both providers' outbound HTTP
+    #: calls, mirroring the existing http_timeout_seconds pattern used
+    #: for Supabase Auth calls.
+    llm_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_file_encoding="utf-8",)
 
