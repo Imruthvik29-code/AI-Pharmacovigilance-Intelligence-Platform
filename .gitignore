@@ -1,0 +1,119 @@
+# =====================================================================
+# AI Pharmacovigilance Intelligence Platform — .gitignore
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# Environment / secrets
+# ---------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!backend/.env.example
+backend/.env
+*.pem
+*.key
+
+# ---------------------------------------------------------------------
+# Python / FastAPI backend
+# ---------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+backend/.venv/
+backend/venv/
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Test / coverage artifacts
+.pytest_cache/
+.cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+.tox/
+.nox/
+nosetests.xml
+
+# Type checkers
+.mypy_cache/
+.pyright/
+.pytype/
+
+# Ruff cache
+.ruff_cache/
+
+# Hypothesis cache (property-based testing)
+.hypothesis/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs / debug output (e.g. pytest_adherence_output.txt-style captures)
+*.log
+pytest_*_output.txt
+*_output.txt
+
+# ---------------------------------------------------------------------
+# Node.js / Next.js / TypeScript frontend
+# ---------------------------------------------------------------------
+frontend/node_modules/
+node_modules/
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+.next/
+out/
+
+# Production build
+frontend/build/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+next-env.d.ts
+
+# Package manager artifacts / logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Env files handled above already cover frontend/.env*
+
+# ---------------------------------------------------------------------
+# Editor / IDE
+# ---------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------------
+# OS files
+# ---------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---------------------------------------------------------------------
+# Misc project-local scratch / generated files
+# ---------------------------------------------------------------------
+*.bak
+*.tmp
+.local/
