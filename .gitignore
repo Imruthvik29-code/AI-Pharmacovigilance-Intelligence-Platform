@@ -117,3 +117,9 @@ Desktop.ini
 *.bak
 *.tmp
 .local/
+
+.python-version
+.idea/
+*.sqlite3
+*.db
+alembic/versions/__pycache__/
