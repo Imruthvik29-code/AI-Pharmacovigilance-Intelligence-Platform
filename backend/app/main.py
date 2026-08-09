@@ -4,6 +4,11 @@ FastAPI application entrypoint.
 Phase 14 addition: registers the analysis router alongside auth,
 patients, medications, conditions, symptoms, timeline, and schedule.
 
+Reference-drug search addition: registers the reference_drugs router
+(GET /reference-drugs/search -- read-only catalog search, supports the
+RxNorm-expanded catalog). Additive-only, same pattern as every prior
+router registration.
+
 Verified additive-only (per Phase 14 review, following the same pattern
 as every prior phase's registration): this file has never defined any
 middleware, exception handlers, or startup/shutdown events -- there was
@@ -15,7 +20,17 @@ replacing an existing one.
 """
 from fastapi import FastAPI
 
-from app.api.v1 import analysis, auth, conditions, medications, patients, schedule, symptoms, timeline
+from app.api.v1 import (
+    analysis,
+    auth,
+    conditions,
+    medications,
+    patients,
+    reference_drugs,
+    schedule,
+    symptoms,
+    timeline,
+)
 
 app = FastAPI(title="Pharmacovigilance MVP API", version="0.1.0")
 
@@ -27,6 +42,7 @@ app.include_router(symptoms.router, prefix="/api/v1")
 app.include_router(timeline.router, prefix="/api/v1")
 app.include_router(schedule.router, prefix="/api/v1")
 app.include_router(analysis.router, prefix="/api/v1")
+app.include_router(reference_drugs.router, prefix="/api/v1")
 
 
 @app.get("/health")

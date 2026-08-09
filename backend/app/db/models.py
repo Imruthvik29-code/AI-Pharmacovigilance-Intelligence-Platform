@@ -95,6 +95,12 @@ class ReferenceDrug(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     generic_name: Mapped[str | None] = mapped_column(String)
     drug_class: Mapped[str | None] = mapped_column(String)
+    # Reference-drug catalog infrastructure (003_reference_drugs_external_reference.sql):
+    # external reference / catalog-import metadata. All nullable -- existing
+    # seeded rows are unaffected until backfilled by backend/scripts/import_rxnorm.py.
+    rxcui: Mapped[str | None] = mapped_column(String, unique=True)
+    source: Mapped[str | None] = mapped_column(String)
+    source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
