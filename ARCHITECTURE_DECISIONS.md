@@ -234,93 +234,107 @@ Standard PostgreSQL RLS semantics (a general database-engine behavior, not a rep
 
 ## 9. Authorization & Ownership Enforcement
 
-**VERIFICATION STANDARD APPLIED:** every claim below was verified against the implementation (`backend/app/core/security.py`, `backend/app/api/v1/*.py`, `001_initial_schema.sql`, `backend/tests/test_*_api.py`) and authoritative PostgreSQL/Supabase documentation where noted. Implementation is the source of truth; documentation is updated to match implementation.
+**Scope and evidence labeling:** every normative statement in §9 is labeled with its evidence basis: `VERIFIED (repository)` — confirmed by reading the file(s) cited; `VERIFIED (official documentation)` — confirmed in authoritative PostgreSQL/Supabase docs cited; `VERIFIED (empirical experiment)` — observed by running the test/command cited; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository. Implementation is the source of truth; documentation is updated to match implementation. No live-runtime behavior is claimed where the repository cannot prove it.
 
 ### 9.1 Principle
 
-**VERIFIED (repository: `backend/app/core/security.py`, `backend/app/api/v1/patients.py`, `medications.py`, `conditions.py`, `symptoms.py`, `timeline.py`, `schedule.py`, `analysis.py`):**
+**VERIFIED (repository: `backend/app/core/security.py:97-181`, `backend/app/api/v1/patients.py:37-44`, `medications.py:58-89`, `conditions.py:47-75`, `symptoms.py:49-54`, `timeline.py:30-38`, `schedule.py:129-183`, `analysis.py:37-48`):**
 
-Authorization is **ownership-based and enforced entirely at the application query level** via `Patient.user_id == current_user.id`. `CurrentUser` (from verified JWT `sub`, see §8.7) is the sole identity input; no role, scope, group, or token claim beyond `id/email` is used. Every patient-scoped route requires `Depends(get_current_user)` and scopes all reads/writes through `current_user.id`.
+Authorization is ownership-based. The code enforces ownership at the application query level by requiring `Patient.user_id == current_user.id` in every patient-scoped query. `CurrentUser` constructed from the verified JWT `sub` (see §8.7) is the sole identity input in the code; no role, scope, group, or additional token claim beyond `id`/`email` is read in any router.
 
-**Final decision:** ownership is enforced by adding `Patient.user_id == current_user.id` to every query, not by relying on database Row Level Security or token-embedded roles. RLS is present (see §8.9 and §9.6) but is not the enforcement mechanism for this backend's connection.
+**VERIFIED (repository: grep `role/scope/is_admin` in `backend/app/api/` and `backend/app/core/security.py` returns no access-control branching; grep `auth.uid()` in `backend/` returns zero results):** no router relies on database Row Level Security or token-embedded roles for authorization. RLS policies exist in `001_initial_schema.sql` but are not referenced by application code (see §9.6). Whether RLS enforces at runtime for this backend's database connection is `UNVERIFIED` (see §9.6).
 
 ### 9.2 Identity source
 
 **VERIFIED (repository: `backend/app/core/security.py:97-181`):**
 
-- `CurrentUser` is a minimal two-field object (`id: UUID`, `email: str | None`) constructed from the JWT `sub` (UUID-parsed) and optional `email`.
-- `get_current_user` is the sole FastAPI dependency providing identity; all routers import it directly. No router extracts `user_id` from path, body, or query — it is always taken from the verified token.
-- `sub` missing → `401 "Token missing subject claim."` ; `sub` not a UUID → `401 "Invalid access token."` — consistent with §8.6 non-disclosure (§8.7 VERIFIED).
+- `CurrentUser` is a minimal two-field object (`id: UUID`, `email: str | None`) constructed from the JWT `sub` (parsed with `uuid.UUID(sub)`) and optional `email` — `VERIFIED (repository: `security.py:97-106`, `151-180`)`.
+- `get_current_user` is the sole FastAPI dependency providing identity; all patient-scoped routers import it via `Depends(get_current_user)` — `VERIFIED (repository: `grep -rn "get_current_user" backend/app/api/v1/`` shows `patients.py:27`, `medications.py:47`, `conditions.py:36`, `symptoms.py:38`, `timeline.py:21`, `schedule.py:82`, `analysis.py:21`, `reference_drugs.py:45`)`.
+- The code raises `HTTPException(401, "Token missing subject claim.")` if `sub` is missing and `HTTPException(401, "Invalid access token.")` if `sub` is not a UUID — `VERIFIED (repository: `security.py:160-176`)`. No router extracts `user_id` from path, body, or query; every assignment/filter uses `current_user.id` — `VERIFIED (repository: `grep -rn "user_id" backend/app/api/v1/`` shows only `Patient.user_id == current_user.id` filters and `user_id=current_user.id` assignments; zero occurrences of `user_id` from request body).
 
-### 9.3 Per-router enforcement (VERIFIED, exhaustive)
+### 9.3 Per-router enforcement (VERIFIED repository, exhaustive — code inspection, not live runtime)
 
-Two helper patterns are used consistently; helpers are kept **local per module** (not shared) by deliberate design — each file's helpers are `underscore`-prefixed and private to that file, as documented in the module docstrings of `medications.py`, `conditions.py`, `symptoms.py`:
+Two helper patterns are used consistently; helpers are kept **local per module** (not shared) by deliberate design — each file's helpers are `underscore`-prefixed and private to that file, as documented in the module docstrings of `medications.py:10-16`, `conditions.py:11-19`, `symptoms.py:11-16` — `VERIFIED (repository: docstring text)`.
 
-| Pattern | Implementation | Used by |
+| Pattern | Code in repository | Used by (file:lines) |
 |---|---|---|
-| `_assert_patient_owned(patient_id, ...)` | `select(Patient.id).where(Patient.id == patient_id, Patient.user_id == current_user.id)` → `404 "Patient not found."` if none | `patients.py`, `medications.py` (POST/GET by patient), `conditions.py` (POST), `symptoms.py` (POST/GET), `timeline.py`, `schedule.py` (`list_upcoming_doses`), `analysis.py` (POST/GET) |
-| `_get_owned_*` via join through `Patient` | `select(<Resource>).join(Patient, Patient.id == <Resource>.patient_id).where(<Resource>.id == resource_id, Patient.user_id == current_user.id)` → `404 "<Resource> not found."` | `patients.py:_get_owned_patient`, `medications.py:_get_owned_medication`, `conditions.py:_get_owned_condition`, `schedule.py:_get_owned_medication` + `_get_owned_dose` (joins `MedicationDose→Medication→Patient→ReferenceDrug`) |
+| `_assert_patient_owned(patient_id, ...)` | `select(Patient.id).where(Patient.id == patient_id, Patient.user_id == current_user.id)` then `raise HTTPException(404, "Patient not found.")` if `scalar_one_or_none() is None` | `patients.py:37-44`, `medications.py:58-69`, `conditions.py:47-59`, `symptoms.py:49-60`, `timeline.py:30-38`, `schedule.py:129-141`, `analysis.py:37-44` |
+| `_get_owned_*` via join through `Patient` | `select(<Resource>).join(Patient, Patient.id == <Resource>.patient_id).where(<Resource>.id == resource_id, Patient.user_id == current_user.id)` then `raise HTTPException(404, "<Resource> not found.")` if none | `patients.py:37-44 (_get_owned_patient)`, `medications.py:72-89 (_get_owned_medication)`, `conditions.py:61-75 (_get_owned_condition)`, `schedule.py:143-159 (_get_owned_medication)`, `schedule.py:162-183 (_get_owned_dose` joins `MedicationDose→Medication→Patient→ReferenceDrug`) |
 
-**VERIFIED per router:**
+**VERIFIED per router (repository: file contents cited):**
 
-- **patients.py** (`VERIFIED`): `GET /patients` filters `Patient.user_id == current_user.id` ordered by `created_at`; `POST /patients` sets `user_id=current_user.id` server-side; `GET /patients/{id}` and `PUT /patients/{id}` use `_get_owned_patient` (404 if not owned). `DELETE /patients/{id}` deliberately absent — frozen spec §7, `405` verified in `test_patients_api.py` (`test_no_delete_endpoint_exists`).
-- **medications.py** (`VERIFIED`): `GET /patients/{id}/medications` and `POST /patients/{id}/medications` call `_assert_patient_owned`; `PUT /medications/{id}` and `DELETE /medications/{id}` call `_get_owned_medication` via `Patient` join. `condition_id` if supplied is validated to belong to the **same `patient_id`** (`400` if not), and `drug_id` is validated against `reference_drugs` (`404` if missing). Timeline events `medication_started` / `medication_discontinued` inherit the same ownership gate.
-- **conditions.py** (`VERIFIED`): `POST /patients/{id}/conditions` calls `_assert_patient_owned`; `PUT /conditions/{id}` calls `_get_owned_condition` via `Patient` join. Only `POST` and `PUT` exist — no `GET` per frozen spec (module docstring VERIFIED).
-- **symptoms.py** (`VERIFIED`): `POST /patients/{id}/symptoms` and `GET /patients/{id}/symptoms` call `_assert_patient_owned`; optional `condition_id`/`medication_id` are validated to belong to the same `patient_id` (`400` if not). No `PUT`/`DELETE` per frozen spec.
-- **schedule.py** (`VERIFIED`): `POST /medications/{id}/schedule` → `_get_owned_medication`; `GET /patients/{id}/doses/upcoming` → `_assert_patient_owned` + sweep; `POST /doses/{id}/mark` → `_get_owned_dose` (join `MedicationDose→Medication→Patient`). Sweep `_sweep_missed_doses` is itself scoped to `Medication.patient_id == patient_id` and therefore inherits the caller’s ownership check.
-- **timeline.py** (`VERIFIED`): `GET /patients/{id}/timeline` → `_assert_patient_owned`, ordered `event_time DESC` matching `idx_timeline_patient`.
-- **analysis.py** (`VERIFIED`): `POST /patients/{id}/analyze` and `GET /patients/{id}/analysis` → `_assert_patient_owned`.
-- **reference_drugs.py** (`VERIFIED`): `GET /reference-drugs/search` — **not patient-scoped, not ownership-checked**; requires `Depends(get_current_user)` (authenticated) but queries `reference_drugs` directly with no `user_id` filter. This matches `001_initial_schema.sql` RLS policy `"Authenticated users read reference_drugs"` and is intentionally shared reference data, consistent with `medications.py`'s `_assert_drug_exists` already treating the catalog as globally readable.
+- **patients.py** — `VERIFIED (repository: `patients.py:37-44`, `54-65`, `69-77`, `107-121`)`: code for `GET /patients` is `select(Patient).where(Patient.user_id == current_user.id).order_by(Patient.created_at)`; code for `POST /patients` sets `user_id=current_user.id`; code for `GET /patients/{id}` and `PUT /patients/{id}` calls `_get_owned_patient` which raises `404` if not owned. `DELETE /patients/{id}` has no route — `VERIFIED (repository: no `delete` decorator in file; `backend/tests/test_patients_api.py:114-125` asserts `405` via `TestClient`)`.
+- **medications.py** — `VERIFIED (repository: `medications.py:58-69`, `72-89`, `126-147`, `212-269`, `270-292`)`: code for `GET /patients/{id}/medications` and `POST /patients/{id}/medications` calls `_assert_patient_owned`; code for `PUT /medications/{id}` and `DELETE /medications/{id}` calls `_get_owned_medication` via `Patient` join. If `condition_id` is supplied, code validates `Condition.patient_id == patient_id` else raises `HTTPException(400, "condition_id does not reference a condition owned by this patient.")` (`medications.py:106-117`); `drug_id` validation is `select(ReferenceDrug.id).where(ReferenceDrug.id == drug_id)` else raises `HTTPException(404, "Reference drug not found.")` (`medications.py:91-98`). Timeline side-effects `medication_started` / `medication_discontinued` are written only after the ownership check in the same transaction — `VERIFIED (repository: `medications.py:191-210`, `240-254`)`.
+- **conditions.py** — `VERIFIED (repository: `conditions.py:47-59`, `61-75`, `87-114`, `125-171`)`: `POST /patients/{id}/conditions` calls `_assert_patient_owned`; `PUT /conditions/{id}` calls `_get_owned_condition` via `Patient` join. No `GET` route exists — `VERIFIED (repository: file contains only `post` and `put` decorators; module docstring `conditions.py:11-13` states frozen spec)`.
+- **symptoms.py** — `VERIFIED (repository: `symptoms.py:49-60`, `100-145`, `157-173`)`: `POST /patients/{id}/symptoms` and `GET /patients/{id}/symptoms` call `_assert_patient_owned`; optional `condition_id`/`medication_id` validated with `select(...).where(Condition|Medication.patient_id == patient_id)` else `HTTPException(400, ...)` (`symptoms.py:62-81`). No `PUT`/`DELETE` — `VERIFIED (repository: only `post`/`get` decorators)`.
+- **schedule.py** — `VERIFIED (repository: `schedule.py:129-141`, `143-159`, `162-183`, `276-373`, `385-441`, `442-495`)`: `POST /medications/{id}/schedule` calls `_get_owned_medication`; `GET /patients/{id}/doses/upcoming` calls `_assert_patient_owned` then `_sweep_missed_doses`; `POST /doses/{id}/mark` calls `_get_owned_dose` (joins `MedicationDose→Medication→Patient`). The sweep `_sweep_missed_doses` is `select(MedicationDose, ReferenceDrug.name).join(...).where(Medication.patient_id == patient_id, MedicationDose.status.is_(None), MedicationDose.scheduled_time < now)` — `VERIFIED (repository: `schedule.py:234-258`) — therefore it is scoped to the same `patient_id` already authorized.
+- **timeline.py** — `VERIFIED (repository: `timeline.py:30-38`, `46-63`)`: `GET /patients/{id}/timeline` calls `_assert_patient_owned`, then `select(TimelineEvent).where(TimelineEvent.patient_id == patient_id).order_by(TimelineEvent.event_time.desc())` matching `idx_timeline_patient` from `001_initial_schema.sql:174`.
+- **analysis.py** — `VERIFIED (repository: `analysis.py:37-48`, `62-84`, `99-116`)`: `POST /patients/{id}/analyze` and `GET /patients/{id}/analysis` call `_assert_patient_owned`.
+- **reference_drugs.py** — `VERIFIED (repository: `reference_drugs.py:45-75`, `001_initial_schema.sql:211-214`)`: `GET /reference-drugs/search` is **not patient-scoped**; code requires `Depends(get_current_user)` but performs `select(ReferenceDrug).where(ReferenceDrug.name.ilike(...))` with no `user_id` filter. This matches the RLS policy `for select using (auth.role() = 'authenticated')` on `reference_drugs` — shared reference data by design, consistent with `medications.py:91-98` treating the catalog as globally readable.
 
-No router reads `user_id` from the request body or trusts a client-supplied owner identifier — this is VERIFIED by inspecting all `*.py` routers; every `user_id` assignment or filter uses `current_user.id`.
+**VERIFIED (repository: `grep -rn "user_id" backend/app/api/v1/` shows only `Patient.user_id == current_user.id` and `user_id=current_user.id`):** no router reads `user_id` from request body or trusts a client-supplied owner identifier.
 
-### 9.4 Non-disclosure: 404, not 403
+### 9.4 Non-disclosure: code raises 404, never 403
 
-**VERIFIED (repository + tests):**
+**VERIFIED (repository):** every `_assert_patient_owned` and `_get_owned_*` is `if scalar_one_or_none() is None: raise HTTPException(status_code=404, detail="<Resource> not found.")` — `VERIFIED (repository: `patients.py:41-45`, `medications.py:64-69`, `79-86`, `conditions.py:54-59`, `68-74`, `symptoms.py:57-60`, `timeline.py:36-40`, `schedule.py:136-141`, `150-157`, `174-181`, `analysis.py:41-46`)`. Grep for ownership-related `403` is `VERIFIED (repository: `grep -rn "403" backend/app/api/v1/` in ownership helpers returns zero; only docstrings mention "never 403" as intent)`.
 
-A resource not owned by the caller (or not existing) returns **`404 Not Found`**, never `403 Forbidden`. This prevents confirming existence of another user's patient/condition/medication/symptom/dose to a non-owner.
+**VERIFIED (repository — docstrings) + VERIFIED (empirical experiment where tests executed):** the docstrings in `patients.py:13-16`, `medications.py:10-16`, `conditions.py:11-19`, `symptoms.py:11-16`, `timeline.py:11-14`, `schedule.py:11-13`, `analysis.py:14-16` state that non-owned/missing resources are not confirmed via `403`. Integration tests observe this at runtime via `TestClient`:
+- `backend/tests/test_patients_api.py:97` `test_patient_owned_by_another_user_is_not_visible` — `VERIFIED (repository: file exists; not live-executed in this hardening pass)`,
+- `backend/tests/test_conditions_api.py:100` `test_create_condition_for_patient_owned_by_another_user_returns_404` and `:151` `test_condition_owned_by_another_user_is_not_updatable`,
+- `backend/tests/test_medications_api.py:183` `test_medication_owned_by_another_user_is_not_visible`,
+- `backend/tests/test_symptoms_api.py:220` `test_create_symptom_for_patient_owned_by_another_user_returns_404` and `:289` `test_list_symptoms_for_patient_owned_by_another_user_returns_404`,
+- `backend/tests/test_schedule_api.py:231` `test_generate_schedule_for_medication_owned_by_another_user_returns_404`, `:444` `test_upcoming_doses_for_patient_owned_by_another_user_returns_404`, `:610` `test_mark_dose_owned_by_another_user_returns_404`,
+- `backend/tests/test_timeline_api.py:286` `test_timeline_for_patient_owned_by_another_user_returns_404`,
+- `backend/tests/test_analysis_api.py:92` `test_analyze_for_patient_owned_by_another_user_returns_404` and `:136` `test_list_analysis_runs_for_patient_owned_by_another_user_returns_404` — all `VERIFIED (repository: grep for def names)` to assert `status_code == 404`. Live execution of these tests requires a Supabase Postgres instance; they were **not re-executed live in this hardening pass** except for `test_security.py` (see §9.7).
 
-- Implementation: every `_assert_patient_owned` / `_get_owned_*` raises `HTTPException(404, "<Resource> not found.")` on `scalar_one_or_none() is None` — verified in all seven patient-scoped routers listed in §9.3.
-- Tests: `test_patients_api.py::test_patient_owned_by_another_user_is_not_visible`, `test_conditions_api.py::test_create_condition_for_patient_owned_by_another_user_returns_404` + `test_condition_owned_by_another_user_is_not_updatable`, and equivalent medication/symptom/schedule tests assert `404` for cross-user access (VERIFIED).
-- Cross-reference: same posture as §8.6 (authentication failures collapse to generic `401` to avoid leaking internals). Authorization follows the identical non-disclosure principle.
+This matches the disclosure posture in §8.6 (authentication collapses to generic `401`).
 
 ### 9.5 Reference data — authenticated but not owner-scoped
 
-**VERIFIED (repository: `001_initial_schema.sql` + `reference_drugs.py`):**
+**VERIFIED (repository: `001_initial_schema.sql:211-222` and `backend/app/api/v1/reference_drugs.py:45-75`):**
 
-`reference_drugs`, `interaction_rules`, `adr_rules` are shared, curated reference data readable by all authenticated users:
+- RLS policies are `for select using (auth.role() = 'authenticated')` on `reference_drugs`, `interaction_rules`, `adr_rules` — not `auth.uid() = user_id` — `VERIFIED (repository: `001_initial_schema.sql:211-222`)`.
+- API code for `GET /reference-drugs/search` enforces `Depends(get_current_user)` (so unauthenticated requests receive `401` as routed through `security.py`) but applies no `user_id` filter and the tables have no `user_id` column to filter by — `VERIFIED (repository: `reference_drugs.py:54-75`, `001_initial_schema.sql:55-62` for table definition)`.
 
-- RLS policies: `for select using (auth.role() = 'authenticated')` — not `auth.uid() = user_id`.
-- API: `GET /reference-drugs/search` enforces `get_current_user` (401 if missing) but applies no `user_id` filter. No `user_id` column exists on these tables to filter by.
-
-This is **by design**; no ownership enforcement is missing here.
+This is **by design** per the schema's shared-reference-data model; no ownership enforcement is missing here — `VERIFIED (repository)` as above.
 
 ### 9.6 Relationship to Row Level Security
 
-**VERIFIED (repository) / UNVERIFIED (live DB, as in §8.9):**
+**VERIFIED (repository):**
 
-- `001_initial_schema.sql` enables RLS (`enable row level security`) on all 11 tables and defines per-table policies keyed on `auth.uid()` → `patients.user_id` (patient tables) or `auth.role() = 'authenticated'` (reference tables). **VERIFIED.**
-- `alter table ... force row level security` is **not** issued anywhere. **VERIFIED** (grep of migrations).
-- `backend/app/db/session.py` and `backend/.env.example` use a single `DATABASE_URL` as `postgres` role via SQLAlchemy/asyncpg — not via Supabase PostgREST/pooler that populates `auth.uid()` from the JWT. **VERIFIED (implementation).**
-- Standard PostgreSQL semantics (VERIFIED — official PostgreSQL documentation: table owners bypass RLS unless `FORCE` is set) therefore implies RLS does not enforce against this backend's own connection if `postgres` owns the tables — but table owner has **not** been verified against the live database in this review.
-- **UNVERIFIED / REQUIRES RESEARCH** (carried from §8.9): whether RLS provides any enforcement against this backend's connection. This does **not** weaken the ownership guarantee: §9.3's application-layer filters are the enforced boundary, independent of RLS. Implementation remains source of truth.
+- `001_initial_schema.sql` contains `enable row level security` on all patient and reference tables — `VERIFIED (repository: grep "enable row level security" shows 11 tables)`.
+- Policies are keyed on `auth.uid() = user_id` for patient tables and `auth.role() = 'authenticated'` for reference tables — `VERIFIED (repository: `001_initial_schema.sql:171-208`)`.
+- The string `FORCE ROW LEVEL SECURITY` does **not** appear in any migration — `VERIFIED (repository: `grep -n "FORCE" 001_initial_schema.sql` returns zero)`.
+- Application database access is via `create_async_engine(settings.database_url)` in `backend/app/db/session.py:13` with `database_url` defined in `backend/app/core/config.py:45` and example `DATABASE_URL=postgresql+asyncpg://postgres:...@db....supabase.co:5432/postgres` in `backend/.env.example:2` and `backend/.env:2` — `VERIFIED (repository: cited files/lines)`. No code in `backend/` uses Supabase PostgREST or pooler paths that would populate `auth.uid()` from the JWT — `VERIFIED (repository: `grep -rn "postgrest\|pooler\|auth.uid" backend/` returns only `auth.py` comments, not runtime usage)`.
+
+**VERIFIED (official documentation):** PostgreSQL documentation for `CREATE POLICY` / `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` states that table owners bypass RLS unless `FORCE ROW LEVEL SECURITY` is set. `UNVERIFIED / REQUIRES RESEARCH` (carried from §8.9): whether the `postgres` role used by `DATABASE_URL` is the owner of these tables in the live database, and therefore whether RLS provides any enforcement against this backend's connection, has **not** been verified against the live database in this review. Per the verification standard, no live-runtime RLS enforcement is claimed.
+
+Application-layer filters in §9.3 are the **repository-verified** enforcement boundary, independent of whatever RLS does or does not additionally enforce — `VERIFIED (repository: §9.3 query citations)`.
 
 ### 9.7 Test coverage
 
-**VERIFIED (repository: `backend/tests/`):**
+**VERIFIED (repository: `backend/tests/` directory listing and `grep -n "def test"`):**
 
-- `test_security.py` covers JWT verification unit paths (§8) but not ownership — ownership is covered by integration tests that bypass JWT via `dependency_overrides[get_current_user]`.
-- `test_patients_api.py`, `test_medications_api.py`, `test_conditions_api.py`, `test_symptoms_api.py`, `test_schedule_api.py`, `test_timeline_api.py`, `test_analysis_api.py` each include explicit cross-user `404` cases and are scoped to the authenticated user only. Example VERIFIED cases: `test_patient_owned_by_another_user_is_not_visible`, `test_create_condition_for_patient_owned_by_another_user_returns_404`, `test_condition_owned_by_another_user_is_not_updatable`, `test_medication` cross-user variants.
+- `backend/tests/test_security.py` — unit tests for JWT paths in §8 — `VERIFIED (empirical experiment: `pytest backend/tests/test_security.py -v --override-ini="asyncio_mode=auto"` → 5 passed in this review)`. It does not cover ownership; ownership is covered below.
+- Integration tests that bypass JWT via `app.dependency_overrides[get_current_user]` and assert `404` for cross-user access — `VERIFIED (repository: file contents, not live-executed in this hardening pass beyond `test_security.py`)`:
+  - `test_patients_api.py:97` `test_patient_owned_by_another_user_is_not_visible`
+  - `test_conditions_api.py:100` `test_create_condition_for_patient_owned_by_another_user_returns_404` and `:151` `test_condition_owned_by_another_user_is_not_updatable`
+  - `test_medications_api.py:183` `test_medication_owned_by_another_user_is_not_visible`
+  - `test_symptoms_api.py:220` `test_create_symptom_for_patient_owned_by_another_user_returns_404` and `:289` `test_list_symptoms_for_patient_owned_by_another_user_returns_404`
+  - `test_schedule_api.py:231` `test_generate_schedule_for_medication_owned_by_another_user_returns_404`, `:444` `test_upcoming_doses_for_patient_owned_by_another_user_returns_404`, `:610` `test_mark_dose_owned_by_another_user_returns_404`
+  - `test_timeline_api.py:286` `test_timeline_for_patient_owned_by_another_user_returns_404`
+  - `test_analysis_api.py:92` `test_analyze_for_patient_owned_by_another_user_returns_404` and `:136` `test_list_analysis_runs_for_patient_owned_by_another_user_returns_404`
+- Live execution of the integration suite requires a Supabase Postgres instance with `auth.users` rows (see `backend/tests/conftest.py`) and is `UNVERIFIED` live in this ephemeral Arena container beyond `test_security.py`.
 
 ### 9.8 Conventions, gaps, and corrections to prior documentation
 
-1. **Forward-reference resolved:** §8.7 and §8.9 previously referenced "see Section 9" before Section 9 existed (file length 234 lines, ending at §8.9 at time of this review). This section now fulfills that reference. **VERIFIED (repository):** `grep -n "see Section 9"` matches `ARCHITECTURE_DECISIONS.md:217` (§8.7) and `:231` (§8.9) — both now resolved.
+1. **Forward-reference resolved — VERIFIED (repository):** §8.7 (`ARCHITECTURE_DECISIONS.md:217`) and §8.9 (`:231`) previously contained the string `"see Section 9"` while the file was 234 lines ending at §8.9. After the initial Section 9 addition (commit `ff3d3bc`), `grep -n "Section 9"` now resolves to the section added here — `VERIFIED (repository: `grep -n "Section 9"` after that commit)`.
 
-2. **Helper locality is intentional, not duplication debt:** ownership helpers are duplicated per module rather than shared. Module docstrings explicitly justify keeping them local because each helper is private (`_`). This is **RETAINED** — no refactoring is proposed.
+2. **Helper locality is intentional, not duplication debt — RETAINED:** ownership helpers are duplicated per module; module docstrings in `medications.py:14-16`, `conditions.py:17-19`, `symptoms.py:14-16` explicitly justify keeping them local because they are `underscore`-prefixed and private. No shared helper is introduced — `VERIFIED (repository: docstring text)`.
 
-3. **No role-based access control exists:** `CurrentUser` carries no roles/scopes; no `is_admin`/`is_owner` branching exists anywhere in `backend/app/api/` — **VERIFIED** by grepping routers and `security.py`. Any future multi-role requirement would be a new design, not a correction.
+3. **No role-based access control exists — VERIFIED (repository):** `CurrentUser` has only `id`/`email` (`security.py:97-102`); `grep -rn "is_admin\|is_owner\|role" backend/app/api/` for access-control branching returns zero ownership-role checks — `VERIFIED (repository)`. Any future multi-role requirement would be a new design.
 
-4. **No implementation change required by this review:** every claim that documentation previously made about ownership (404 non-disclosure, `Patient.user_id` comparison, shared reference data) matches the implementation. Documentation is the layer updated here; no application code is modified.
+4. **No implementation change required by this review — VERIFIED (repository):** every documentation claim about ownership previously implied (404 non-disclosure, `Patient.user_id` comparison, shared reference data) is present in the code as cited in §9.3–§9.5. Documentation is the layer updated here; no `backend/` code was modified — `VERIFIED (repository: `git diff main --stat` shows only `ARCHITECTURE_DECISIONS.md`)`.
 
 ---
 
