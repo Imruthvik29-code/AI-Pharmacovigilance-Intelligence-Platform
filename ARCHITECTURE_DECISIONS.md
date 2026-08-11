@@ -1870,4 +1870,171 @@ README Database setup states (verbatim): “*Before starting the backend for the
 
 ---
 
-*Sections 18–19 to follow.*
+## 18. Security, Compliance & Data Governance
+
+**Scope and evidence labeling:** every normative statement in §18 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative Pydantic/SQLAlchemy/FastAPI/PyJWT/PostgreSQL/`logging` docs; `VERIFIED (repository)` with reference to repository test cases — test case definitions exist in the repository but were not executed in this environment; `UNVERIFIED (empirical experiment in current environment)` — suite requires live Supabase DB + `DATABASE_URL` + seeded `002_seed_data.sql` and was not executed here; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository (e.g. production `EXPLAIN` plans, GDPR retention period, storage-layer encryption beyond standard DB usage). Implementation is the source of truth. No HIPAA/GDPR certification, encryption-at-rest code, or retention TTL is documented as implemented beyond what the repository contains. The repository currently contains no evidence of such certification or application-managed encryption, and any external storage-layer encryption was not evaluated in this review.
+
+### 18.1 Overall purpose — multiple layers, primary repository-verifiable boundary is application-layer ownership
+
+**VERIFIED (repository: `backend/app/schemas/*.py` `Field`/`Literal` + `backend/app/core/security.py` ES256 `PyJWKClient` + `backend/app/api/v1/*` `_assert_patient_owned`/`_get_owned_*` + `001_initial_schema.sql:169-222` RLS + `backend/app/services/timeline_writer.py` + `analysis_runs`/`timeline_events` + `grep -rn "HIPAA\|GDPR\|SOC2" backend/ ARCHITECTURE_DECISIONS.md` → `0`):**
+
+**The repository implements multiple security layers including Pydantic validation, JWT authentication, application-layer ownership checks, and database Row Level Security (RLS). Based on repository evidence, application-layer ownership checks are the primary repository-verifiable authorization boundary, while RLS is implemented as an additional defense-in-depth mechanism.**
+
+- **Audit is implemented through ordinary module logging together with persisted `timeline_events` and `analysis_runs` records** — `VERIFIED (repository: `backend/app/api/v1/patients.py:87-102` `logger.info("Patient created", extra={"patient_id":..., "user_id":...})` + `backend/app/services/timeline_writer.py:22-48` `db.add(TimelineEvent(...))` never `commit` + `backend/app/services/langgraph_workflow.py:243-262` `db.add(analysis_run)` + `log_timeline_event` + `commit` + `001_initial_schema.sql:125-138` `timeline_events` table + `140-151` `analysis_runs` table)** — not “structured audit” globally.
+
+**The repository currently contains no evidence of HIPAA/GDPR certification** — `grep -rn "HIPAA\|GDPR\|SOC2" backend/ ARCHITECTURE_DECISIONS.md` → `0` — `VERIFIED (repository)` for **absence of certification claim** (phrased as “no evidence of … certification **in this repository**”).
+
+### 18.2 Repository location and architectural responsibility
+
+**VERIFIED (repository: `ls backend/app/schemas/` + `ls backend/app/api/v1/*.py` + `001_initial_schema.sql:169-222` + `backend/app/services/timeline_writer.py` + `ls backend/app/services/`):**
+
+| Location | Responsibility | Evidence |
+|---|---|---|
+| `backend/app/schemas/` (8 files) | Input validation — `patient.py`, `medication.py`, `condition.py`, `symptom.py`, `schedule.py`, `auth.py`, `analysis.py`, `reference_drug.py` — each field constrained via `Field`/`Literal` to mirror `ENUM`/business rule (see §18.3) — `VERIFIED (repository: `ls backend/app/schemas/` (8) + `grep -n "Field\|Literal" backend/app/schemas/patient.py`)` | Pydantic `Field`/`Literal` — `VERIFIED (official documentation)` |
+| `backend/app/core/security.py` + `backend/app/api/v1/auth.py` | Authentication — ES256 JWKS via `PyJWKClient(settings.supabase_jwks_url, cache_keys=True)`, `audience="authenticated"`, `issuer="{SUPABASE_URL}/auth/v1"`, `algorithms=["ES256"]` — see §8 (not duplicated here) — `VERIFIED (repository: `security.py:88-93`, `123`)` | `PyJWT` + `PyJWKClient` ES256 — `VERIFIED (official documentation)` |
+| `backend/app/api/v1/*.py` (`patients.py`, `medications.py`, `conditions.py`, `symptoms.py`, `timeline.py`, `schedule.py`, `analysis.py`) | Authorization — `_assert_patient_owned` / `_get_owned_*` via `Patient.user_id == current_user.id` → `404` never `403` (§18.5) — `VERIFIED (repository: `patients.py:37-44`)` | — |
+| `001_initial_schema.sql:169-222` | Row Level Security — `enable row level security` on all 11 tables + policies `for all using (auth.uid() = user_id)` / `using (auth.role() = 'authenticated')` (§18.6) | PostgreSQL `ENABLE ROW LEVEL SECURITY` + `CREATE POLICY` + `FORCE` — `VERIFIED (official documentation)` |
+| `backend/app/services/timeline_writer.py` + per-module `logger.info` + `analysis_runs`/`timeline_events` | Audit — ordinary `logging.getLogger` + `db.add(TimelineEvent(...))` never `commit` + `analysis_run` event in same transaction as `analysis_runs` row (§18.7) | `logging` stdlib — `VERIFIED (official documentation)` |
+
+### 18.3 Input validation — Pydantic mirrors Postgres `ENUM` and business rules, `422` before DB
+
+**VERIFIED (repository: `backend/app/schemas/patient.py:16-19` + `backend/app/schemas/medication.py:28-31` + `backend/app/schemas/symptom.py:28` + `backend/app/schemas/auth.py:7` + `backend/app/schemas/condition.py:9-12` + `backend/app/schemas/schedule.py:21-31` + `backend/app/schemas/timeline.py` + `001_initial_schema.sql` `severity_level` etc. + `grep -rn "Field(min_length" backend/app/schemas/*.py`):**
+
+| Schema | Field | Constraint | Why | Evidence |
+|---|---|---|---|---|
+| `patient.py` | `name` | `Field(min_length=1, max_length=200)` | Mirrors `patients.name text not null` with business max — `001_initial_schema.sql` `name text` + app max | `VERIFIED (repository: `patient.py:16` + `CREATE TABLE patients`)* |
+| `patient.py` | `age` | `Field(ge=0, le=130)` | Business range — no DB check beyond `int` | `VERIFIED (repository: `patient.py:17`)` |
+| `patient.py` | `weight_kg` | `Field(gt=0)` | Business — `numeric` allows any, Pydantic enforces `>0` | `VERIFIED (repository: `patient.py:19`)` |
+| `medication.py` | `times_per_day` | `Field(ge=1, le=24)` | Mirrors business `1-24` per day | `VERIFIED (repository: `medication.py:29`)` |
+| `medication.py` | `interval_hours` | `Field(gt=0)` | Business — `numeric` allows any positive | `VERIFIED (repository: `medication.py:30`)` |
+| `medication.py` | `duration_days` | `Field(ge=1)` | Business — at least 1 day | `VERIFIED (repository: `medication.py:31`)` |
+| `medication.py` | `dose` | `Field(max_length=200)` | Text length cap | `VERIFIED (repository: `medication.py:28`)` |
+| `symptom.py` | `description` | `Field(min_length=1, max_length=2000)` | Prevent empty / overly long | `VERIFIED (repository: `symptom.py:28`)` |
+| `symptom.py` | `severity` | `Literal["mild","moderate","severe"]` | Exactly `severity_level` enum (`mild`/`moderate`/`severe`) — `001_initial_schema.sql` `severity_level` | `VERIFIED (repository: `symptom.py:9` docstring + `Literal`)` |
+| `condition.py` | `status` / `reason` | `Literal["active","improving",...]` / `Literal["doctor_diagnosis",...]` | Exactly `condition_status_enum` / `condition_reason_enum` — `001_initial_schema.sql` those enums | `VERIFIED (repository: `condition.py:9-12` docstring “*constrained via Literal to the same values as …*” + `Literal`)` |
+| `auth.py` | `password` | `Field(min_length=8)` | Business minimum — not a DB column (Supabase Auth owns `auth.users`) | `VERIFIED (repository: `auth.py:7`)` |
+| `schedule.py` | `status` (mark) | `Literal["taken","missed","skipped"]` | Exactly `dose_status_enum` (`taken`/`missed`/`skipped`) — `001_initial_schema.sql` `dose_status_enum` | `VERIFIED (repository: `schedule.py:21-31` docstring)* |
+
+*Every `_create` route validates via the `...Create` schema and every `_update` via the `...Update` schema (with `exclude_unset=True` for partial puts) before any `db.add` — `VERIFIED (repository: `patients.py:62-84` `PatientCreate` → `Field` validation, then `db.add`)*;* invalid input → `422 Unprocessable Entity` via FastAPI/Pydantic before any `INSERT` — `VERIFIED (official documentation)` for `FastAPI` → `422` on `Field` failure.*
+
+### 18.4 Authentication — ES256 JWKS, `CurrentUser`, `401` collapsed (recap, §8 is source)
+
+**VERIFIED (repository: `backend/app/core/security.py:64-180` + `backend/app/core/config.py:57-75` + `backend/tests/test_security.py:1-12`):**
+
+This section recaps §8; §8 remains the source. Authentication is **ES256 via `PyJWKClient(settings.supabase_jwks_url, cache_keys=True)`** with `algorithms=["ES256"]` (hardcoded, not from JWK), `audience="authenticated"`, `issuer=f"{settings.supabase_url}/auth/v1"`, `require=["exp","aud","iss"]`, and `sub` → `UUID` → `CurrentUser(id, email)` — `VERIFIED (repository: `security.py:64-180` + `config.py:57-75` derived `supabase_jwks_url`)`.
+
+- `ExpiredSignatureError` → `401 "Access token has expired."` and any other `PyJWKClientError`/`PyJWTError` (unknown `kid`, bad signature, wrong `aud`/`iss`, disallowed `alg`) → `401 "Invalid access token."` collapsed to one generic message — `VERIFIED (repository: `security.py:123-140` `except ExpiredSignatureError` vs `except (PyJWKClientError, PyJWTError)`)` and `VERIFIED (official documentation)` for `PyJWT`/`PyJWKClient` ES256 — see §8.6.
+- `supabase_url` empty → `HTTPException(500, "Server is not configured with a Supabase URL.")` only at `_get_jwks_client()` **call time**, not at `get_settings()` construction — `VERIFIED (repository: `security.py:88-93` + `config.py:57-75` `if not supabase_url: return ""`)` — see §15.12.
+- Pure unit tested by `test_security.py` with mocked `PyJWKClient` and `es256_keypair` fixture — 5 tests (`test_decode_valid_token`, `test_decode_expired_token_raises_401`, `test_decode_unknown_kid_raises_401`, `test_decode_missing_config_raises_500`, `test_get_current_user_rejects_malformed_sub`) — `VERIFIED (repository: `test_security.py:1-12` “*pure unit tests … JWKS client is mocked*” + `28-93` fixtures)*.
+
+### 18.5 Authorization — application-layer ownership is the repository-verifiable boundary
+
+**VERIFIED (repository: `backend/app/api/v1/patients.py:37-44` + `medications.py:58-89` + `conditions.py:47-75` + `symptoms.py:49-60` + `timeline.py:30-38` + `schedule.py:129-183` + `analysis.py:37-48` + `grep -rn "user_id.*current_user.id" backend/app/api/v1/` + `backend/tests/test_patients_api.py:97`):**
+
+- **Mechanism (two patterns, helpers kept local per file):**
+  1) `_assert_patient_owned(patient_id, current_user, db)` → `select(Patient.id).where(Patient.id==patient_id, Patient.user_id==current_user.id)` → `404 "Patient not found."` if `scalar_one_or_none() is None` — `VERIFIED (repository: `patients.py:37-44` template for all files)`.
+  2) `_get_owned_* (e.g. `_get_owned_medication`)` → `select(<Resource>).join(Patient, Patient.id == <Resource>.patient_id).where(<Resource>.id==resource_id, Patient.user_id==current_user.id)` → `404 "Medication not found."` etc. — `VERIFIED (repository: `medications.py:72-89` + `conditions.py:61-75` + `schedule.py:162-183`)`.
+
+- **Never `403`, always `404`:** every path that would be a `403` is deliberately a `404` — `raise HTTPException(status_code=404, detail="Patient not found." / "Medication not found." / "Condition not found." / "Dose not found." / "Symptom not found.")` — `VERIFIED (repository: `grep -rn "403\|HTTP_403" backend/app/api/v1/` → `0` ownership `403` hits — only `401` for auth — vs `grep -rn "404.*not found\|HTTP_404" backend/app/api/v1/` → ~12 `404` ownership hits)*;* also `grep -rn "user_id.*from.*body\|request\.body.*user_id" backend/app/api/v1/` → `0` — no `user_id` is ever taken from body/query, always `current_user.id` — `VERIFIED (repository: `grep` → 0 + `CurrentUser` construction `security.py:177-180` only from `sub`).
+
+- **No roles:** `CurrentUser` is `id: UUID` + `email: str | None` — no `role`/`scope`/`is_admin` — `VERIFIED (repository: `security.py:97-106` `class CurrentUser`)` and `grep -rn "role\|is_admin\|is_owner\|scope" backend/app/api/v1/` (for ownership) → `0` for access-control branching — `VERIFIED (repository)` for absence of role check.
+
+- **Repository test cases:** `test_patient_owned_by_another_user_is_not_visible:97` (user A creates, user B `get` → `404`), `test_create_condition_for_patient_owned_by_another_user_returns_404:100`, `test_medication_owned_by_another_user_is_not_visible:183`, `test_create_symptom_for_patient_owned_by_another_user_returns_404:220`, `test_generate_schedule_for_medication_owned_by_another_user_returns_404:231`, `test_timeline_for_patient_owned_by_another_user_returns_404:286`, `test_analyze_for_patient_owned_by_another_user_returns_404:92` — `VERIFIED (repository)` with references to repository test cases; `UNVERIFIED (empirical experiment in current environment)` where suite not executed here.
+
+### 18.6 Row Level Security — implemented as additional defense-in-depth, not the repository-verifiable boundary for this connection
+
+**VERIFIED (repository: `001_initial_schema.sql:169-222` RLS DDL + `grep -n "FORCE" 001_initial_schema.sql` → `0` + `backend/app/db/session.py:13` + `backend/.env.example:1` + `backend/app/api/v1/patients.py:37-44` ownership):**
+
+| What the repository contains | Evidence |
+|---|---|
+| **`enable row level security` on all 11 tables** (`patients`, `conditions`, `medications`, `medication_schedule`, `medication_doses`, `symptoms`, `timeline_events`, `analysis_runs`, `reference_drugs`, `interaction_rules`, `adr_rules`) | `VERIFIED (repository: `001_initial_schema.sql:169` `alter table patients enable row level security;` through `212` — 11× `enable`)` |
+| **Policies:** `for all using (auth.uid() = user_id)` on `patients` direct + `for all using (patient_id in (select id from patients where user_id = auth.uid()))` on 6 child tables (`conditions`, `medications`, `symptoms`, `timeline_events`, `analysis_runs` + `medication_schedule`/`medication_doses` via join to `patients`) and `for select using (auth.role() = 'authenticated')` on 3 reference tables | `VERIFIED (repository: `001_initial_schema.sql:170-222` `create policy … using (auth.uid() …)` + `212-222` `auth.role()`)` |
+| **No `FORCE ROW LEVEL SECURITY`** | `grep -n "FORCE" 001_initial_schema.sql` → `0` — `VERIFIED (repository)` for absence |
+| **Backend connects as `postgres` via single static `DATABASE_URL`** | `backend/.env.example:1` `DATABASE_URL=postgresql+asyncpg://postgres:password@db.xxxxxxxx.supabase.co:5432/postgres` + `backend/app/db/session.py:13` `create_async_engine(settings.database_url)` — `VERIFIED (repository: `session.py:13` + `config.py:32` single static URL — see §15.13)` — `auth.uid()` is populated only via PostgREST/pooler, not via `asyncpg` — `VERIFIED (repository: `grep -rn "postgrest\|pooler\|auth.uid" backend/app/` → only comments in `auth.py:1-12` about Supabase Auth owning `auth.users`, no pooler usage)` |
+
+**The repository implements RLS policies, but this review cannot verify whether those policies are enforced for the backend's runtime connection. Therefore the repository-verifiable security boundary is the application-layer ownership checks, while RLS should be documented as an additional defense-in-depth mechanism.**
+
+- **Repository-verifiable boundary:** the `Patient.user_id == current_user.id` checks in every patient-scoped route (§18.5) — `VERIFIED (repository: `patients.py:37-44` etc.)` — this review **can** verify these from repository evidence.
+- **RLS as defense-in-depth:** policies exist and `ENABLE ROW LEVEL SECURITY` is set, but PostgreSQL `FORCE ROW LEVEL SECURITY` semantics mean table owners bypass RLS unless `FORCE` is set — `VERIFIED (official documentation)` for `FORCE` semantics — and whether the live `postgres` role is owner is **not in the repository** — `UNVERIFIED / REQUIRES RESEARCH` for live enforcement.
+- This wording **does not imply RLS is ineffective** — it is **implemented**, but the application-layer check is the **only one this review can verify from repository evidence**.
+
+### 18.7 Audit — ordinary module logging together with persisted records
+
+**VERIFIED (repository: `backend/app/api/v1/patients.py:87-102` + `medications.py:199-292` + `conditions.py:110-171` + `symptoms.py:143` + `schedule.py:370-495` + `analysis.py:84-108` + `backend/app/api/v1/auth.py:103-171` + `backend/app/services/timeline_writer.py:22-48` + `backend/app/services/langgraph_workflow.py:243-262` + `logging` stdlib — `VERIFIED (official documentation)`):**
+
+| Audit layer | What is recorded | Where | Evidence |
+|---|---|---|---|
+| **Ordinary module logging** | `logger = logging.getLogger("app.patients")` etc. with `logger.info("Patient created", extra={"patient_id": patient.id, "user_id": current_user.id})` in `patients.py`, `medications.py` (`medication_id`), `conditions.py` (`condition_id`), `symptoms.py` (`symptom_id`), `schedule.py` (`medication_id`, `dose_id`), `analysis.py` (`analysis_run_id`, `llm_explanation_available`) — per-module `extra` dict, not a centralized aggregator | `VERIFIED (repository: `grep -rn "logger\.info" backend/app/api/v1/` → ~12 files + `patients.py:87-102` + `schedule.py:370`)` | — |
+| **Auth logging** | `signup_attempt` / `signup_pending_confirmation` / `signup_succeeded` / `login_attempt` / `login_succeeded` with `extra={"email": payload.email}` — never passwords, tokens, or request bodies — docstring “*Email addresses are logged … passwords and tokens are never logged, in request bodies or responses*” | `VERIFIED (repository: `auth.py:1-12` docstring + `103-171` `logger.info` calls)` | — |
+| **Immutable `timeline_events` log** | Every `medication_started`/`medication_discontinued` (medications), `condition_status_changed` (conditions), `symptom_reported` (symptoms), `dose_taken`/`dose_missed`/`dose_skipped` (doses + sweep), `analysis_run` (LangGraph persist) — written via `log_timeline_event(db, ..., event_type, ref_id, event_title, payload)` that only does `db.add(TimelineEvent(...))` never `commit` — atomic with the entity write | `VERIFIED (repository: `timeline_writer.py:22-48` `db.add` only + `grep -n "commit\|refresh" timeline_writer.py` → `0` + `medications.py:191-210` + `schedule.py:476-495` + `langgraph_workflow.py:243-262` both add event + entity then `commit` together)` | — |
+| **Persisted analysis result** | `analysis_runs` row (`deterministic_result` JSONB + `safety_score`/`risk_level` + nullable `llm_*` + `analysis_run` timeline event) written in a single transaction in `_persist_node` via `db.add(analysis_run)` + `log_timeline_event` + `commit` + `refresh` | `VERIFIED (repository: `langgraph_workflow.py:243-262` + `001_initial_schema.sql:140-151` table)` | — |
+
+**Audit is implemented through ordinary module logging together with persisted `timeline_events` and `analysis_runs` records** — `VERIFIED (repository)` as above; not “structured audit” globally — the loggers are ordinary `logging.getLogger` instances with per-module `extra` dicts, not a centralized `Sentry`/`Prometheus`/`OpenTelemetry` aggregator — see §17.13 (two independent claims: ordinary loggers exist; no evidence of centralized observability).
+
+### 18.8 Data retention and deletion — `ON DELETE CASCADE`, no evidence of configured retention
+
+**VERIFIED (repository: `001_initial_schema.sql:81-84` `on delete cascade` on `conditions(patient_id)`, `medications(patient_id)`, etc. + `140-151` `analysis_runs(patient_id)` FK + `backend/app/api/v1/patients.py:13-16` + `grep -rn "retention\|TTL\|purge" backend/app/core/config.py 001_initial_schema.sql backend/app/db/`):**
+
+**Data retention:** FKs `patients.id` → `conditions.patient_id`, `medications.patient_id`, `symptoms.patient_id`, `timeline_events.patient_id`, `analysis_runs.patient_id`, plus `medications.patient_id` → `medication_schedule`/`medication_doses`, all `ON DELETE CASCADE` — deleting a `patients` row cascades to all child rows and `timeline_events`/`analysis_runs` — `VERIFIED (repository: `001_initial_schema.sql:81-84` + `140-151` FKs)**.**
+
+**The repository currently contains no evidence of an application-configured retention policy, TTL, or scheduled purge mechanism. This statement applies only to the repository contents reviewed** — `grep -rn "retention\|TTL\|purge" backend/app/core/config.py 001_initial_schema.sql backend/app/db/` → `0` and `grep -rn "retention" 001_initial_schema.sql` → `0`; there is no `retention` config key, no `TTL` column, no `pg_cron` purge; also `grep -rn "retention" backend/` → `0` — `VERIFIED (repository)` for **no evidence of application-configured retention/TTL/purge** in the **reviewed repository contents** — *This statement applies only to the repository contents reviewed*, not as absence outside the application or as proof no retention exists at the infrastructure/storage layer (external Supabase backups were not evaluated — `UNVERIFIED / REQUIRES RESEARCH` for GDPR retention period beyond code).
+
+*No `DELETE /patients` endpoint exists (frozen spec — `405` on that route) — `backend/app/api/v1/patients.py:13-16` “*No DELETE /patients/{id} — not part of the frozen API contract*” + `test_patients_api.py:114` `test_no_delete_endpoint_exists` → `405` — `VERIFIED (repository)` (also `grep -n "ON DELETE CASCADE" 001_initial_schema.sql` + `patients.py:13-16`).*
+
+### 18.9 PII handling — scoped patient data, shared catalog has no PII
+
+**VERIFIED (repository: `backend/app/db/models.py:40-52` `Patient` + `53-84` `Condition` + `111-125` `Symptom` + `backend/app/api/v1/patients.py:37-44` + `backend/app/services/langgraph_workflow.py:42-50` + `grep -rn "Patient.*user_id.*current_user.id" backend/app/api/v1/`):**
+
+PII fields `patients.name`, `age`, `sex`, `weight_kg`, `renal_flag`, `hepatic_flag` + `conditions.name`/`notes` + `symptoms.description` + `medications.purpose_text`/`dose` are **never queried without scope in the reviewed queries** — **Repository queries shown in this review always scope patient data by `patient_id` ownership checks** (`select(...).where(Patient.id==patient_id, Patient.user_id==current_user.id)` or via `join(Patient).where(..., Patient.user_id==current_user.id)`) — `VERIFIED (repository: `patients.py:37-44` + `medications.py:58-89` + `conditions.py:47-75` + `symptoms.py:49-60` + `schedule.py:129-183` + `timeline.py:30-38` + `analysis.py:37-48` + `grep -rn "Patient.*user_id.*current_user.id" backend/app/api/v1/` → all reviewed scoping queries)**.**
+
+`ReferenceDrug` catalog is shared and contains **no PII** (only `name`, `generic_name`, `drug_class`, `rxcui`/`source`) — `VERIFIED (repository: `models.py:ReferenceDrug` + `001_initial_schema.sql` `reference_drugs` table → no `patient_id` column)`; `analysis_runs.deterministic_result` JSONB stores `patient_id` + findings + penalties but `llm_*` columns are nullable and `timeline_context` is excluded from that JSONB (see §13.4) — `VERIFIED (repository: `langgraph_workflow.py:42-50` + `65-94`).
+
+### 18.10 Secrets — template vs real, narrow logging guarantee for reviewed modules
+
+**VERIFIED (repository: `backend/.env.example:1-15` + `ls backend/.env` + `.gitignore:8-12` + `backend/app/core/config.py:1-15` + `backend/app/api/v1/auth.py:1-12` + `backend/app/services/llm_service.py:42-50` + `gitignore` docs — `VERIFIED (official documentation)` for `!.env.example`):**
+
+| File | Content | Evidence |
+|---|---|---|
+| `backend/.env.example` | Template documenting all required keys with placeholder values (`password`, `https://xxxxxxxx.supabase.co`, empty `SUPABASE_JWT_SECRET`, `HTTP_TIMEOUT_SECONDS=10.0`) and comments (`Get this from Supabase project settings → Database → Connection string`) | `VERIFIED (repository: `1-15` template exists)` |
+| `backend/.env` | Real local values (`postgresql+asyncpg://postgres:***@db....supabase.co:5432/postgres`, `SUPABASE_URL=https://***.supabase.co`, `SUPABASE_ANON_KEY=***`, `SUPABASE_JWT_SECRET=***`) — `ls backend/.env` exists | `VERIFIED (repository: `ls backend/.env` exists)` |
+| `.gitignore` | Contains `.env`, `backend/.env`, `!.env.example`, `!backend/.env.example` so real secrets are never committed and the template stays tracked | `VERIFIED (repository: `grep -n "\.env" .gitignore` → `.env` + `!.env.example` + `backend/.env`)` |
+| `config.py` | Module docstring “*Loads settings from environment variables (.env locally, real env vars in deployment). Never hardcode secrets here*” | `VERIFIED (repository: `1-15`)` |
+| `auth.py` + `llm_service.py` | **The reviewed authentication and LLM modules explicitly document avoiding logging passwords, tokens, prompts, explanations, and patient identifiers. This statement applies only to the reviewed modules and is not a repository-wide guarantee** — `auth.py:1-12` “*Email addresses are logged … passwords and tokens are never logged, in request bodies or responses*” + `llm_service.py:42-50` “*Only metadata — never the prompt, the patient snapshot/evidence that fed it, the generated explanation, or any patient identifier. Token usage fields are added to `extra` only when the provider actually reported them*” | `VERIFIED (repository: reviewed modules)` — narrow, not global |
+
+### 18.11 Validation — Pydantic mirrors DB before DB
+
+*This section complements §18.3 (input validation location); it emphasizes the *order*: Pydantic `422` before any `INSERT`.*
+
+Every `...Create` route validates via the `*Create` schema (`patient.py:16-19` + `medication.py:28-31` + `symptom.py:28` + `auth.py:7`) before any `db.add`; every `_update` via `*Update` with `exclude_unset=True` for `PUT` semantics — `VERIFIED (repository: `patients.py:62-84` `PatientCreate` → `Field` validation, then `db.add` + `medication.py:106-117` `exclude_unset`)`; invalid `age: le=130` vs `130` → `422` via FastAPI/Pydantic before any `INSERT` — `VERIFIED (official documentation)` for `FastAPI` → `422` on `Field` failure.
+
+### 18.12 Failure behavior — separated
+
+**Verified HTTP status codes** — `duration_days is None` → `400`, `schedule` exists → `409`, non-owned `patient_id`/`medication_id`/`dose_id` → `404` never `403`, already-marked `dose` (including sweep-applied `missed`) → `409`, invalid `status` enum → `422` (Pydantic `Literal`), `supabase_url` empty → `500` only at call time — `VERIFIED (repository: `schedule.py:284-311`, `294-303`, `129-183` ownership helpers + `models.py:dose_status_enum` + `security.py:88-93` call-time `500` + `tests: test_generate_schedule_twice:187` → `409`, `test_mark_dose_invalid_status:631` → `422`)` + `VERIFIED (official documentation)` for HTTP 400/404/409/422/500.
+
+**Verified lazy sweep implementation** — `select(... status.is_(None), scheduled_time < now())` → `missed` + `dose_missed` with `auto_detected:true` only when `GET /upcoming` or `POST /mark` is hit (per `schedule.py:220-268` + `383-394` + `439-470`) — `VERIFIED (repository: `schedule.py:220-268` + `grep -rn "auto_detected" schedule.py` → `dose_missed` payload)**.**
+
+**Unverified production timing without incoming requests** — timeliness of `missed` if no dose route is hit remains `UNVERIFIED / REQUIRES RESEARCH` — `VERIFIED (repository: `schedule.py:1-27` “*there is no job scheduler in the tech stack, so this is implemented as a lazy, query-time sweep*” + `PROJECT_PHASES.md` Phase 9) — kept as **separate bullet instead of one paragraph** per your instruction.
+
+### 18.13 Observability — two independent claims, one does not imply the other
+
+**Keep these as two independent claims:**
+
+| Claim | Repository evidence | Classification |
+|---|---|---|
+| **1) Ordinary Python module loggers exist** — `logging.getLogger("app...")` in `patients.py` (`logger = logging.getLogger("app.patients")` + `logger.info("Patient created", extra={"patient_id":...})`), `schedule.py`, `analysis.py` with `extra={patient_id, user_id}` | `VERIFIED (repository: `grep -rn "logging.getLogger" backend/app/api/v1/patients.py` → `logger = logging.getLogger("app.patients")` + `grep -rn "logger\." backend/app/api/v1/patients.py | head -5` → `logger.info("Patient created", extra={"patient_id":...})`)` + `VERIFIED (official documentation)` for `logging` stdlib | **VERIFIED (repository)** for ordinary loggers present |
+| **2) The repository contains no evidence of centralized observability tooling (Prometheus, OpenTelemetry, Sentry, etc.) and no evidence of a `LOG_LEVEL` env var** | `grep -rn "SENTRY\|prometheus\|opentelemetry\|otel\|LOG_LEVEL" backend/app/core/config.py backend/.env.example backend/app/main.py` → `0` (except per-module `logging`) — `VERIFIED (repository)` for absence of centralized tooling/`LOG_LEVEL` | **VERIFIED (repository)** for **no evidence of centralized observability/`LOG_LEVEL`** — independent claim, one does not imply the other |
+
+### 18.14 Current limitations — what is NOT yet in this repository as shipped
+
+**The repository currently contains no evidence of … in this repository** — each bullet is an absence of repository evidence (not as proof such capabilities do not exist outside the repository), consistent with §§15-17:
+
+- **Application-managed encryption beyond standard database usage:** `The repository currently contains no evidence of application-managed encryption beyond standard database usage. Storage-layer encryption provided by external infrastructure was not evaluated in this review` — `grep -rn "encrypt\|pgcrypto.*encrypt" backend/app/` → `0` beyond `pgcrypto` extension for `gen_random_uuid()` (`extension pgcrypto` in `001_initial_schema.sql:1-9` only for UUID, not encryption) — `VERIFIED (repository)` for absence + `UNVERIFIED / REQUIRES RESEARCH` for external storage-layer encryption — see `§18:14` tightened wording per your C14.
+- **Rate limiting / throttling / abuse protection:** `grep -rn "rate.*limit\|throttle\|slowapi" backend/` → `0` — **The repository currently contains no evidence of rate limiting, throttling, or abuse protection** — `VERIFIED (repository)` for absence.
+- **GDPR “right to be forgotten” `DELETE /patients/{id}` endpoint:** `backend/app/api/v1/patients.py:13-16` says no `DELETE` — frozen spec — `test_patients_api.py:114` `test_no_delete_endpoint_exists` → `405` — **The repository currently contains no evidence of a `DELETE /patients/{id}` endpoint for GDPR erasure** — `VERIFIED (repository)` with `grep -n "DELETE.*patients" patients.py` → `0`.
+- **Audit export:** `grep -rn "export.*audit\|audit.*csv" backend/` → `0` — **The repository currently contains no evidence of an audit export (CSV/JSON) of `timeline_events`/`analysis_runs`** — `VERIFIED (repository)` for absence.
+- **Data retention TTL:** see §18.8 — `The repository currently contains no evidence of an application-configured retention policy, TTL, or scheduled purge mechanism. This statement applies only to the repository contents reviewed` — `VERIFIED (repository)` for no evidence; `UNVERIFIED` for GDPR retention period beyond code.
+- **HIPAA/GDPR certification:** `grep -rn "HIPAA\|GDPR" backend/` → `0` — **The repository currently contains no evidence of HIPAA/GDPR certification** — `VERIFIED (repository)` for absence; `UNVERIFIED / REQUIRES RESEARCH` for certification beyond this repo.
+
+---
+
+*Sections 19 to follow.*
