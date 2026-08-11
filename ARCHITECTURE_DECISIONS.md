@@ -478,4 +478,196 @@ Application-layer filters in §9.3 are the **repository-verified** enforcement b
 
 ---
 
-*Sections 11–19 to follow.*
+## 11. LangGraph Workflow & AI Orchestration
+
+**Scope and evidence labeling:** every normative statement in §11 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative LangGraph/httpx/PostgreSQL docs; `VERIFIED (empirical experiment)` — observed by running the test/command cited; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository. Implementation is the source of truth. No future engine, scoring formula, or provider behavior is documented as implemented beyond what the repository contains.
+
+### 11.1 Overview
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:1-66`, `backend/app/services/patient_context_builder.py:1-24`, `backend/app/services/evidence_retrieval.py:1-36`, `backend/app/services/llm_service.py:1-28`, `backend/app/services/llm_providers.py:1-28` + `PROJECT_PHASES.md:103-115`):**
+
+The LangGraph Workflow is the end-to-end analysis pipeline that composes all deterministic and retrieval services and, when configured, the LLM explanation layer into a single persisted `analysis_runs` record. It is an **orchestration layer** — it computes no clinical findings itself and invents no medical facts — `VERIFIED (repository: `langgraph_workflow.py:18-32` "Safety Score node is not three separate engine calls", docstring `1-22` wiring description)`.
+
+- **What it orchestrates:** Patient Context Builder (fresh retrieval) → Deterministic Analysis Layer (Safety Score Engine composing Phases 10-12) → Evidence Retrieval (Phase 13, application service) → Timeline Engine (Phase 14, retrieval-only) → LLM Explanation (Phase 15, explain-only) → Persist (writes `analysis_runs` + `analysis_run` timeline event) — `VERIFIED (repository: `langgraph_workflow.py:12-22` + `328-336` edge chain)`.
+- **Where it lives:** `backend/app/services/langgraph_workflow.py` building a `langgraph.graph.StateGraph` (`StateGraph(AnalysisState)`) via `from langgraph.graph import END, START, StateGraph` — `VERIFIED (repository: `langgraph_workflow.py:90` import + `312-337` `_build_graph`)` and `VERIFIED (official documentation)` for LangGraph `StateGraph` API (`add_node`/`add_edge`/`compile`/`ainvoke`).
+- **How it is invoked:** `POST /patients/{patient_id}/analyze` in `backend/app/api/v1/analysis.py:62-84` calls `await run_analysis(patient_id, db)` after `await _assert_patient_owned(patient_id, current_user, db)` (404 if not owned) and then re-fetches the persisted `AnalysisRun` — `VERIFIED (repository: `analysis.py:37-48`, `62-84`)` and `VERIFIED (repository: `langgraph_workflow.py:339-356` `run_analysis` + `analysis.py:76-82` re-fetch)`.
+
+### 11.2 End-to-end execution flow
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:12-22`, `270-356`, `backend/app/api/v1/analysis.py:62-84`, `backend/app/analysis/safety_score_engine.py:231-258`, `backend/app/analysis/timeline_engine.py:44-53`):**
+
+1. **Request entry and authorization:** `POST /patients/{patient_id}/analyze` requires `Depends(get_current_user)` and first runs `select(Patient.id).where(Patient.id==patient_id, Patient.user_id==current_user.id)` — `VERIFIED (repository: `analysis.py:37-48`)` — raising `404` if not owned. No `user_id` is taken from the request body — `VERIFIED (repository: `analysis.py:73-74` `user_id` only via `current_user.id`)`. `GET /patients/{patient_id}/analysis` uses the same gate to list history `order_by(AnalysisRun.created_at.desc())` — `VERIFIED (repository: `analysis.py:99-116`)`.
+2. **Graph invocation:** `run_analysis(patient_id, db)` builds the graph bound to the request `db` session via factory closures (`_patient_context_node(db)` etc.) and calls `await graph.ainvoke({"patient_id": patient_id})` — `VERIFIED (repository: `langgraph_workflow.py:339-356`)`. `AnalysisState` is pure data (no `db` inside) — `VERIFIED (repository: `langgraph_workflow.py:46-62` `AnalysisState` comment "DB session is intentionally NOT part of this state")`.
+3. **Linear node order (verified edges):** `START → patient_context_builder → safety_score_engine → evidence_retrieval → timeline_engine → llm_explanation → persist → END` — `VERIFIED (repository: `langgraph_workflow.py:328-336` + docstring `12-22`)`. This order is **not** parallelized — Evidence Retrieval depends on `safety_score_result`, Timeline Engine depends on nothing deterministic but is placed after Evidence Retrieval by design (see §11.4).
+4. **Deterministic composition inside `safety_score_engine` node:** the graph has **one** Safety Score node; that node calls `await calculate_safety_score(patient_id, db)` which internally runs `detect_drug_interactions` + `detect_adrs` + `analyze_adherence` and returns `SafetyScoreResult` — `VERIFIED (repository: `langgraph_workflow.py:18-32` + `179-182` + `safety_score_engine.py:231-258`)`. No duplicate direct engine calls from the graph — `VERIFIED (repository: `grep -n "detect_drug_interactions" backend/app/services/langgraph_workflow.py` = 0 outside that comment).
+5. **Evidence and timeline handoff:** `evidence_retrieval` receives `(patient_id, db, safety_score_result)` → `EvidenceBundle` (medical from rule fields + personal per-finding scoped `timeline_events`) — `VERIFIED (repository: `langgraph_workflow.py:183-188`, `evidence_retrieval.py:214-249`)` — then `timeline_engine` builds `TimelineContext` via `select(TimelineEvent).where(patient_id==...).order_by(event_time.asc())` — `VERIFIED (repository: `langgraph_workflow.py:190-195`, `timeline_engine.py:44-53`)`.
+6. **LLM handoff:** `llm_explanation` receives `(patient_context, safety_score_result, evidence_bundle, timeline_context)` → `LLMExplanationResult | (None, llm_error)` — `VERIFIED (repository: `langgraph_workflow.py:197-218` + `llm_service.py:362-384` signature)`.
+7. **Persist and output:** `persist` serializes `SafetyScoreResult` (excluding live `PenaltyEntry.source` objects) to `deterministic_result` JSONB + `safety_score`/`risk_level` columns + nullable `llm_*` columns and logs `analysis_run` timeline event — `VERIFIED (repository: `langgraph_workflow.py:220-273` `_persist_node` + serialization helpers `65-82`)`. The persisted `AnalysisRun` is returned via `state["analysis_run_id"]` to the API layer — `VERIFIED (repository: `langgraph_workflow.py:355-356` + `analysis.py:79-84`)`.
+
+### 11.3 Verified LangGraph workflow diagram
+
+**VERIFIED (repository: `langgraph_workflow.py:12-22` + `safety_score_engine.py:1-7` + `328-336` edges + `231-258` internal composition):** the ASCII below matches the compiled `StateGraph`. No Mermaid is used.
+
+```
+                                    LangGraph StateGraph (linear)
+                                    backend/app/services/langgraph_workflow.py
+
+  [HTTP] POST /patients/{id}/analyze  ──►  run_analysis(patient_id, db)
+          │  ( _assert_patient_owned)              │
+          │                                         v
+          │                              ┌─────────────────────────┐
+          └──────────────────────────────▶│ patient_context_builder │──► PatientContext
+                                         │ (services/patient_      │    (fresh, no cache)
+                                         │  context_builder.py)     │
+                                         └────────────┬────────────┘
+                                                      │
+                                                      v
+                                         ┌─────────────────────────┐
+                                         │ safety_score_engine     │──► SafetyScoreResult
+                                         │  ┌───────────────────┐  │    (safety_score 0-100,
+                                         │  │ detect_drug_inter │  │     risk_level low|mid|high,
+                                         │  │ detect_adrs       │  │     penalties with source)
+                                         │  │ analyze_adherence │  │
+                                         │  │ → BASE 100 - Σ -─►│  │
+                                         │  └───────────────────┘  │
+                                         └────────────┬────────────┘
+                                                      │
+                                                      v
+                                         ┌─────────────────────────┐
+                                         │ evidence_retrieval      │──► EvidenceBundle
+                                         │ (services/evidence_     │    (medical: rule fields,
+                                         │  retrieval.py)          │     personal: per-finding
+                                         │                         │     timeline_events scoped)
+                                         └────────────┬────────────┘
+                                                      │
+                                                      v
+                                         ┌─────────────────────────┐
+                                         │ timeline_engine         │──► TimelineContext
+                                         │ (analysis/timeline_    │    (full timeline ASC,
+                                         │  engine.py)             │     retrieval-only)
+                                         └────────────┬────────────┘
+                                                      │
+                                                      v
+                                         ┌─────────────────────────┐
+                                         │ llm_explanation         │──► LLMExplanationResult
+                                         │ (services/llm_service   │    | (None, llm_error) on
+                                         │  .py → llm_providers.py)│    failure — deterministic
+                                         │  Gemini primary,        │    still persists
+                                         │  OpenRouter fallback    │
+                                         └────────────┬────────────┘
+                                                      │
+                                                      v
+                                         ┌─────────────────────────┐
+                                         │ persist                 │──► analysis_runs row
+                                         │  _serialize_safety_     │    (deterministic_result
+                                         │  score_result → JSONB,  │     + safety_score/risk_level
+                                         │  log_timeline_event     │     + llm_* nullable,
+                                         │  "analysis_run"         │     + timeline event)
+                                         └─────────────────────────┘
+                                                      │
+                                                      v
+                                                   [END]
+```
+
+*Deterministic Analysis Layer is the boxed `detect_*` trio inside `safety_score_engine`; Evidence Retrieval and Timeline Engine are *retrieval/structuring* services, not scoring — as coded.*
+
+### 11.4 Node-by-node responsibilities
+
+**VERIFIED (repository: `langgraph_workflow.py:176-273` node factories + individual service/engine docstrings):**
+
+| Node (graph name) | Module file | Input state keys | Output state keys | Responsibility (verified) | What it never does |
+|---|---|---|---|---|---|
+| `patient_context_builder` | `backend/app/services/patient_context_builder.py` | `patient_id` | `patient_context: PatientContext` | Builds fresh `PatientContext` (demographics + `active_conditions` where `status != "resolved"` + `active_medications` where `status=="active"` + `active_symptoms` where `resolved_date IS NULL`) — `VERIFIED (repository: `55-116`)`; no writes, no scoring — `VERIFIED (repository: docstring `1-24`)` | Never caches, never checks ownership (`Assumes caller has already verified` — `VERIFIED (repository: `109-116`)) |
+| `safety_score_engine` | `backend/app/analysis/safety_score_engine.py` via `langgraph_workflow.py:179-182` | `patient_id` (and `db` closure) | `safety_score_result: SafetyScoreResult` | Composes `detect_drug_interactions` + `detect_adrs` + `analyze_adherence` → applies `BASE_SCORE - Σ penalties` floored at `MIN_SCORE` → `risk_level` thresholds — `VERIFIED (repository: `safety_score_engine.py:231-258`, `36-82` constants)` | Never calls LLM, never invents severity — `VERIFIED (repository: docstring `9-19`)` |
+| `evidence_retrieval` | `backend/app/services/evidence_retrieval.py` | `patient_id`, `safety_score_result` | `evidence_bundle: EvidenceBundle` | For each finding: medical evidence from finding fields (no re-query) + personal evidence via per-finding scoped `timeline_events` lookup (`ref_id` vs `payload.medication_id` vs `condition_status_changed`) — `VERIFIED (repository: `83-117` medical helpers + `133-198` personal query + `214-249` `retrieve_evidence`)` | Never re-queries `interaction_rules`/`adr_rules` — `VERIFIED (repository: `grep -n "select.*InteractionRule" evidence_retrieval.py` = 0)` |
+| `timeline_engine` | `backend/app/analysis/timeline_engine.py` via `langgraph_workflow.py:190-195` | `patient_id` | `timeline_context: TimelineContext` | Retrieves full timeline `order_by(event_time.asc())` as in-memory narrative context — `VERIFIED (repository: `timeline_engine.py:44-53`, docstring `1-12` "does NOT perform pattern detection")` | Never scores, never persists, never filters beyond `patient_id` — `VERIFIED (repository: docstring `29-33` "No artificial cap")` |
+| `llm_explanation` | `backend/app/services/llm_service.py` via `langgraph_workflow.py:197-218` | `patient_context`, `safety_score_result`, `evidence_bundle`, `timeline_context` | `llm_result: LLMExplanationResult | None`, `llm_error: str | None` | Builds prompt (`_SYSTEM_INSTRUCTIONS` + patient snapshot + findings + evidence + timeline tail `-30` most recent) → `_call_providers_with_fallback` → `_parse_and_validate` → validated result — `VERIFIED (repository: `llm_service.py:33-118` prompt + `212-285` parsing)` | Never diagnoses, never calculates scores, never prescribes dosage — `VERIFIED (repository: `llm_service.py:8-18` + `_SYSTEM_INSTRUCTIONS` hard rules)` |
+| `persist` | `backend/app/services/langgraph_workflow.py:220-273` | `safety_score_result`, `llm_result` | `analysis_run_id: UUID` | Creates `AnalysisRun(id, patient_id, analysis_version="v1.0", deterministic_result=_serialize_safety_score_result(...), safety_score, risk_level, llm_*, created_at)` + `log_timeline_event("analysis_run")` then `commit` + `refresh` — `VERIFIED (repository: `223-273`)` | Never persists `timeline_context` inside `deterministic_result` (deliberately excluded) — `VERIFIED (repository: docstring `42-50` + `_serialize_safety_score_result:82-94` excludes `timeline_context` and `PenaltyEntry.source`) |
+
+*All nodes close over the request `db: AsyncSession`; `AnalysisState` itself carries no `db` — `VERIFIED (repository: `langgraph_workflow.py:46-62` comment). Node names deliberately differ from state keys (`ValueError` if colliding) — `VERIFIED (repository: `langgraph_workflow.py:280-290` comment).*
+
+### 11.5 State passed between nodes
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:46-62` `AnalysisState` TypedDict + `270-356` node I/O):**
+
+```python
+class AnalysisState(TypedDict, total=False):  # VERIFIED (repository: 46)
+    patient_id: uuid.UUID                      # initial, guaranteed
+    patient_context: PatientContext            # after patient_context_builder
+    safety_score_result: SafetyScoreResult     # after safety_score_engine
+    evidence_bundle: EvidenceBundle            # after evidence_retrieval
+    timeline_context: TimelineContext          # after timeline_engine
+    llm_result: LLMExplanationResult | None    # after llm_explanation
+    llm_error: str | None                      # after llm_explanation (on failure)
+    analysis_run_id: uuid.UUID                 # after persist
+```
+
+- `total=False` — fields populate progressively; only `patient_id` is present on `START` — `VERIFIED (repository: `46`)`.
+- `db` is a factory closure, not in `AnalysisState` — `VERIFIED (repository: `52-62` + `176-223` `_patient_context_node(db)` pattern)`.
+- `SafetyScoreResult` carries the full audit trail (`starting_score`, `total_points_deducted`, `interaction_findings`, `adr_findings`, `adherence_findings`, `penalties: list[PenaltyEntry]` with `source`) — `VERIFIED (repository: `backend/app/analysis/safety_score_engine.py:103-162`)`.
+- `EvidenceBundle` groups per-finding `FindingEvidence(finding, medical_evidence, personal_evidence)` — `VERIFIED (repository: `evidence_retrieval.py:53-82`)`.
+
+### 11.6 Error handling and recovery behavior
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:59-66` docstring + `197-218` `_llm_explanation_node` + `223-273` persist + `backend/app/services/llm_service.py:76-82` failure docstring):**
+
+| Failure location | What happens | What persists | Classification |
+|---|---|---|---|
+| Missing/unconfigured `DATABASE_URL` or Supabase URL, or bad `patient_id` | Raises before/within node (e.g. `sqlalchemy` error or `ScalarResult`); graph fails, no `analysis_run` row is committed | Nothing — no partial write committed — `VERIFIED (repository: `langgraph_workflow.py` has no partial-commit retry; `_persist_node` is the only commit)` | **VERIFIED (repository)** |
+| Unexpected exception inside any node *except* `llm_explanation` | Exception propagates and fails the whole `graph.ainvoke` run — `VERIFIED (repository: `langgraph_workflow.py:197-218` only catches `NotImplementedError` + `LLMExplanationError`) | Depends on whether `persist` was reached; if before `persist`, nothing persisted | **VERIFIED (repository)** |
+| LLM provider failure or malformed output | `llm_explanation` catches `NotImplementedError` (retained defensively) + `LLMExplanationError` (every provider failed or output failed schema validation) → logs `warning` + returns `{"llm_result": None, "llm_error": str(exc)}` — `VERIFIED (repository: `langgraph_workflow.py:205-216` + `llm_service.py:76-82`)` | Deterministic pipeline **still persists** — `persist` writes `analysis_run` with `llm_summary`/`llm_reasoning`/`llm_recommendations`/`confidence_score`/`confidence_level` as `NULL` — `VERIFIED (repository: `langgraph_workflow.py:233-238` `llm_result.summary if llm_result else None`)` | **VERIFIED (repository)** |
+| Token usage unavailable | `llm_providers.py` returns `LLMCompletion` with `None` usage fields — `VERIFIED (repository: `llm_providers.py:35-62`)`; `llm_service.py` logging omits `None` keys rather than logging `None` — `VERIFIED (repository: `llm_service.py:240-257` `if completion.prompt_tokens is not None:`) | N/A — operational logging only | **VERIFIED (repository)** |
+
+*Deterministic scoring never fails due to LLM unavailability — this is the key resilience guarantee — `VERIFIED (repository: `langgraph_workflow.py:59-66` "deterministic pipeline always persists regardless")`.*
+
+### 11.7 Provider fallback strategy
+
+**VERIFIED (repository: `backend/app/services/llm_service.py:14-32` + `287-345` + `backend/app/services/llm_providers.py:68-199`):**
+
+- **Primary → fallback order:** module-level `tuple[LLMProvider, ...] = (GeminiProvider(), OpenRouterProvider())` — Gemini first, OpenRouter second — `VERIFIED (repository: `llm_service.py:340`)` and spec §4. Both provider classes read settings lazily (`settings.gemini_api_key` / `settings.openrouter_api_key`/`..._model`, `settings.llm_timeout_seconds`) on each `complete` call — `VERIFIED (repository: `llm_providers.py:99`, `177`, `153`, `llm_service.py:299` `timeout_seconds=settings.llm_timeout_seconds`)`.
+- **Fallback trigger:** a provider counts as failed if **either** `provider.complete()` raises `LLMProviderError` **or** its `text` fails `_parse_and_validate` (`LLMExplanationError`) — malformed-but-successful output is treated same as unreachable — `VERIFIED (repository: `llm_service.py:291-309` docstring + `294-309` try/except)`. Failures are collected in `failures: list[str]` and ultimately `raise LLMExplanationError("All configured LLM providers failed: " + "; ".join(failures))` — `VERIFIED (repository: `llm_service.py:311-315`)`.
+- **Gemini-only single retry:** `GeminiProvider.complete()` retries **once** and only for transient failures — `HTTP 429/500/502/503/504` or `httpx.TimeoutException` (`retryable=True`) — `VERIFIED (repository: `llm_providers.py:13-28` "Retry (Gemini only)" + `35-62` `retries` set + `105-122` retry logic + `133-155` marking `retryable` on `LLMProviderError`)`. Every other failure (missing key, non-transient 4xx, malformed shape) raises immediately with `retryable=False` — `VERIFIED (repository: `llm_providers.py:88-98` + `105-111`)`. `OpenRouterProvider` never retries — `VERIFIED (repository: docstring `53-62`).
+- **Logging fallback use:** `_log_successful_completion` logs `provider_used`, `model_used`, `latency_ms`, `fallback_used: bool` (`index > 0`) + token usage only when reported — `VERIFIED (repository: `llm_service.py:240-257` + `_call_providers_with_fallback:304-312` `fallback_used=index>0`)` — never logs prompts/evidence/explanations/patient identifiers — `VERIFIED (repository: `llm_service.py:42-50` logging docstring)`.
+
+**Official documentation:** `httpx` (`httpx.AsyncClient`, `httpx.TimeoutException`, `httpx.RequestError`) — `VERIFIED (official documentation)` as declared dependency in `backend/requirements.txt` + `backend/app/services/llm_providers.py:10` `import httpx`. Provider REST endpoints are `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` (Gemini) and `https://openrouter.ai/api/v1/chat/completions` (OpenRouter) with `response_mime_type: application/json` / `response_format: {type: json_object}` — `VERIFIED (repository: `llm_providers.py:123-145`, `178-198`).
+
+### 11.8 Deterministic vs LLM responsibilities
+
+**VERIFIED (repository: engine docstrings + `langgraph_workflow.py` + `llm_service.py` system instructions):**
+
+| Layer | Responsibility | Evidence |
+|---|---|---|
+| **Deterministic analysis** (`app/analysis/*.py`) | Compute findings, measurements, `safety_score`/`risk_level`, penalties with audit trail | `VERIFIED (repository: `drug_interaction_engine.py:1-15`, `adr_engine.py:1-15`, `adherence_engine.py:1-24`, `safety_score_engine.py:9-19`)` — LLM never invents findings |
+| **Orchestration** (`app/services/langgraph_workflow.py`) | Order nodes, thread `AnalysisState`, close over `db`, persist | `VERIFIED (repository: `langgraph_workflow.py:270-356`)` — never computes clinical facts |
+| **Evidence retrieval** (`app/services/evidence_retrieval.py`) | Structure medical evidence from finding fields + per-finding scoped `timeline_events` as `EvidenceBundle` | `VERIFIED (repository: `evidence_retrieval.py:1-36` placement + `83-198` scoping)` — not an analysis engine |
+| **LLM explanation** (`app/services/llm_service.py` + `llm_providers.py`) | Explain already-computed `SafetyScoreResult`/`EvidenceBundle`/`PatientContext`/`TimelineContext` in plain language only; self-report confidence via prompt rubric | `VERIFIED (repository: `llm_service.py:8-18` + `_SYSTEM_INSTRUCTIONS` hard rules `Do NOT invent / Do NOT diagnose / Do NOT calculate / Do NOT recommend new dosage` + `645-658` confidence rubric)`; `LLMExplanationResult` shape `llm_summary`/`llm_reasoning`/`llm_recommendations`/`confidence_score`/`confidence_level` — `VERIFIED (repository: `llm_service.py:37-68`)` |
+| **Persistence** (`langgraph_workflow.py:_persist_node` → `app/db/models:AnalysisRun` + `app/services/timeline_writer.py`) | Write `analysis_runs` + `analysis_run` timeline event as single transaction | `VERIFIED (repository: `langgraph_workflow.py:220-273`)` — single `db.commit()` |
+
+*Grounding is prompt-level instructions + structural schema validation only; no semantic/keyword-overlap check — `VERIFIED (repository: `llm_service.py:52-59` "Grounding strategy")`. Confidence is self-reported and validated only for well-formedness (int 0-100, enum low/moderate/high) — not recomputed or clamped — `VERIFIED (repository: `llm_service.py:61-71` + `_parse_and_validate:295-312`).*
+
+### 11.9 Persistence boundaries
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:42-50`, `65-94`, `220-273`, `backend/app/db/models.py` (via `001_initial_schema.sql: analysis_runs` table) + `backend/app/services/timeline_writer.py`):**
+
+- **What is persisted to `analysis_runs`:** `id` (new UUID), `patient_id`, `analysis_version="v1.0"`, `deterministic_result` (JSONB from `_serialize_safety_score_result`: `safety_score`, `risk_level`, `starting_score`, `total_points_deducted`, `interaction_findings`, `adr_findings`, `adherence_findings`, `penalties` — each via `_serialize_*` excluding `PenaltyEntry.source`), `safety_score` (int), `risk_level` (enum), `llm_summary`/`llm_reasoning`/`llm_recommendations`/`confidence_score`/`confidence_level` (nullable — `None` when LLM failed), `created_at` — `VERIFIED (repository: `langgraph_workflow.py:65-94` serialization + `231-241` `AnalysisRun` construction)`.
+- **What is NOT persisted in `deterministic_result`:** `timeline_context` (excluded deliberately — `timeline_events` remains single source of truth; second copy would create drift) — `VERIFIED (repository: docstring `42-50` + `_serialize_safety_score_result` does not reference `timeline_context`)` and `PenaltyEntry.source` live finding objects (not JSON-serializable; `description` preserves the why) — `VERIFIED (repository: `langgraph_workflow.py:52-62` comment + `_serialize_penalty:86-94` excludes `source`)`.
+- **Timeline side-effect in same transaction:** `await log_timeline_event(db, patient_id, event_type="analysis_run", ref_id=analysis_run.id, event_title="Safety analysis run: {risk_level} risk ({safety_score}/100)", payload={safety_score, risk_level, llm_explanation_available})` then `await db.commit()` + `refresh` — `VERIFIED (repository: `langgraph_workflow.py:243-262`)`. This completes the 8th canonical `event_type` from spec §5 — `VERIFIED (repository: `PROJECT_PHASES.md:103-115` Phase 14 note "analysis_run was the last remaining event type")`.
+- **Single transaction:** `analysis_run` row + `analysis_run` timeline event are committed together via one `db.commit()` in `_persist_node` — `VERIFIED (repository: `langgraph_workflow.py:259-262`)`; no other node performs writes.
+
+### 11.10 Current implementation status and known limitations
+
+**VERIFIED (repository: file headers, Phase completion marks in `PROJECT_PHASES.md`, and live code behavior):**
+
+- **Implemented and verified (Phases 10-15 wiring):** all 6 nodes, linear ordering, patient context fresh build, safety score composition, evidence retrieval scoped queries, timeline retrieval ASC, provider abstraction with Gemini retry, OpenRouter fallback, JSON schema validation (strip fences + bracket extraction + field/confidence checks), operational logging without patient data, and persist with NULL tolerant LLM columns — `VERIFIED (repository: cited files above)`.
+- **Incomplete / pending:**
+  - **LLM explanation end-to-end in production** is `UNVERIFIED / REQUIRES RESEARCH` for live provider behavior: `GEMINI_API_KEY` / `OPENROUTER_API_KEY` are configured via `backend/.env` and `backend/app/core/config.py:62-78` (`gemini_api_key`, `openrouter_api_key` default `""`, fail-closed via `LLMProviderError` if unset — `VERIFIED (repository: `llm_providers.py:100`, `183`)`); live Gemini/OpenRouter response success, latency, and token usage have **not** been observed in this review against live provider endpoints — `UNVERIFIED`.
+  - **Phase 15 (Gemini Integration) is still unchecked** in `PROJECT_PHASES.md:103-115` (`[ ] Prompt Engineering` etc.) — `VERIFIED (repository: `PROJECT_PHASES.md` checkboxes)` — LLM wiring is implemented in code but not marked complete in project phases.
+  - No semantic grounding check against evidence text — explicitly scoped out per `llm_service.py:52-59` — `VERIFIED (repository)` but `UNVERIFIED` for effectiveness.
+- **Known limitations (explicit, not speculation):**
+  - Timeline prompt truncated to last 30 entries — unbounded `TimelineContext` could exceed LLM token limits if full context were sent — `VERIFIED (repository: `llm_service.py:33-38` + docstring + `_MAX_TIMELINE_ENTRIES_IN_PROMPT=30`)`.
+  - No retry for `OpenRouter` after Gemini retry — by design — `VERIFIED (repository: `llm_providers.py:53-62`)`.
+  - Confidence is self-reported and only well-formedness validated — not clamped or recomputed — `VERIFIED (repository: `llm_service.py:61-71`)`; `UNVERIFIED` whether model-graded confidence correlates with evidence quality.
+
+---
+
+*Sections 12–19 to follow.*
