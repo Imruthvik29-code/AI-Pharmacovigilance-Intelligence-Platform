@@ -161,4 +161,78 @@ An earlier design draft proposed a `term_type` column (RxNorm Term Type, or TTY,
 
 ---
 
-*Continued in Part 2 of 3 — sections 8 through 19.*
+*Continued below — Part 2, Sections 8 through 19.*
+
+---
+
+# Part 2 of 3
+
+---
+
+## 8. Authentication & Authorization Architecture
+
+### 8.1 Token verification model
+
+**VERIFIED** (`backend/app/core/security.py`, `backend/app/core/config.py`): Supabase Auth issues access tokens signed asymmetrically. The module docstring states this was confirmed directly against this project's own live-issued tokens, not against Supabase's general documentation alone, and records the specific observed claims: `alg: ES256`, `aud: authenticated`, `iss: {SUPABASE_URL}/auth/v1`, and a `kid` header present in this project's JWKS response. This documentation treats that claim as accurate as recorded in the repository; it has not been independently re-verified against a live token by this review.
+
+**Final decision:** verification is performed against Supabase's published JWKS (JSON Web Key Set) endpoint, not a shared HS256 secret. `Settings.supabase_jwks_url` (`backend/app/core/config.py`) is a **derived** property — `f"{supabase_url}/auth/v1/.well-known/jwks.json"` — not a separate configured value, since Supabase publishes this at a fixed, well-known path under the project's own URL. There is therefore nothing new to configure beyond `SUPABASE_URL`, which the deployment already requires for the Auth proxy in `api/v1/auth.py`. Authentication is outside Part 1's scope (database schema and drug catalog architecture), so no cross-reference to Part 1 applies here.
+
+**Rejected alternative:** continuing to verify against `SUPABASE_JWT_SECRET` (HS256, shared secret). This was the original implementation and is documented in `config.py` as **deprecated**, not removed — `supabase_jwt_secret` remains a valid `Settings` field, defaulting to empty string, purely so that an existing deployed `.env` file containing this key does not break config loading. No verification code path reads it. Removing the field outright was rejected as an unnecessary breaking config change; the field is now provably inert (confirmed by reading `security.py` end-to-end — it is never referenced there).
+
+### 8.2 Algorithm pinning
+
+**Final decision:** `_ALLOWED_ALGORITHMS = ["ES256"]` is hardcoded in `security.py` rather than read from the resolved JWK's own `alg` field.
+
+**Rationale (recorded in the module docstring, verified as accurate against the code):** signature verification always uses the algorithm bound to the specific JWK object `PyJWKClient` resolves, regardless of this allow-list — so the hardcoding does not weaken verification below what the resolved key already enforces. Its actual purpose is to make the one algorithm this codebase is willing to accept explicit and auditable in source, rather than implicit in whatever Supabase's JWKS response happens to declare at runtime. A future Supabase migration off ES256 would cause `jwt.decode(..., algorithms=["ES256"])` to reject a token signed with a new algorithm — a deliberate hard failure requiring a reviewed code change, rather than silent acceptance of a new algorithm the codebase has never evaluated.
+
+**Trade-off accepted:** this is a live availability risk if Supabase ever rotates its signing algorithm without this codebase being updated in lockstep — every request would start failing 401 until the allow-list is manually revised. This is treated as an acceptable trade-off in exchange for auditability; no monitoring/alerting mechanism for this scenario exists in the repository.
+
+### 8.3 Dependency version pin
+
+**VERIFIED** (`backend/requirements.txt`): `pyjwt[crypto]>=2.13.0,<3.0.0`, not a bare `pyjwt[crypto]`.
+
+**Rationale:** the module docstring states PyJWT versions 2.9.0–2.12.1 carry a known algorithm allow-list bypass in the `PyJWKClient`/`PyJWK` decode path this module uses (cited as CVE-2026-48523), fixed in 2.13.0. This is a security-motivated version floor, not an arbitrary pin, and it directly protects the algorithm-pinning guarantee in §8.2 — an allow-list bypass in the underlying library would make `_ALLOWED_ALGORITHMS` meaningless regardless of how carefully it's set in this codebase's own code.
+
+### 8.4 Issuer / audience validation
+
+**VERIFIED**: `jwt.decode(...)` is called with `audience="authenticated"` and `issuer=f"{settings.supabase_url}/auth/v1"`, plus `options={"require": ["exp", "aud", "iss"]}` — all three claims are mandatory on the token, not merely checked if present. Both the audience string and issuer URL pattern are stated as confirmed against this project's real issued tokens (module docstring), not assumed from generic Supabase documentation.
+
+### 8.5 JWKS client caching
+
+**VERIFIED**: `_get_jwks_client()` constructs a single module-level `PyJWKClient(settings.supabase_jwks_url, cache_keys=True)` on first use and reuses it across requests within the process (`_jwks_client` global, lazily initialized, `None` until first call). `cache_keys=True` gives the client its own internal key cache, so the common case (a recognized `kid`) never re-fetches the JWKS document; only a cache miss — e.g. an unrecognized `kid` after Supabase rotates its signing key — triggers a refetch.
+
+**Design note on testability:** the client is rebuilt only inside `_get_jwks_client()`, and nowhere else. This is deliberate so tests can monkeypatch that one function directly (confirmed in `tests/test_security.py`'s `_patch_jwks_client` helper) instead of manipulating the module-level cache variable — the function is the seam, not the state.
+
+### 8.6 Failure handling and information disclosure
+
+**VERIFIED**, from `decode_supabase_jwt`'s exception handling:
+
+| Condition | Response |
+|---|---|
+| `supabase_url` unset (no JWKS endpoint derivable) | `500` — server misconfiguration, not a client error |
+| Token expired (`ExpiredSignatureError`) | `401`, "Access token has expired." |
+| Unknown/rotated `kid`, unreachable JWKS endpoint, malformed token, bad signature, disallowed algorithm, wrong audience/issuer (`PyJWKClientError` or any `jwt.PyJWTError`) | `401`, "Invalid access token." — all collapsed into one message |
+
+**Final decision:** every JWT-level failure mode other than expiry is deliberately surfaced as the same generic "Invalid access token." message. This mirrors the same non-disclosure posture already established in Part 1 for resource ownership (never confirm to a caller *why* something failed in a way that leaks system internals) — here applied to authentication rather than authorization. No stack trace, JWKS fetch error detail, or key-matching diagnostic reaches the client.
+
+### 8.7 Identity extraction
+
+**VERIFIED** (`get_current_user`): the `sub` claim is required and parsed as a UUID; a missing `sub` is `401` ("Token missing subject claim"), and a `sub` that is not a valid UUID is `401` ("Invalid access token.") rather than a `422` or `500` — an unparseable identity claim is treated as an authentication failure, not a validation error, consistent with §8.6's non-disclosure posture. `CurrentUser` is a minimal, two-field (`id`, `email`) object; no role, scope, or claim beyond identity is extracted or used anywhere in this codebase's authorization pattern — ownership is enforced entirely via `patients.user_id` comparison at the query level (see Section 9), not via token claims or roles.
+
+### 8.8 Fail-at-call-time convention (cross-referenced, not restated)
+
+**VERIFIED**: `_get_jwks_client()` raises `HTTPException(500)` only when actually invoked (i.e., on the first authenticated request needing JWKS), not at settings-load or import time. This is the same convention documented for `api/v1/auth.py`'s `_supabase_headers()` (missing `SUPABASE_URL`/`SUPABASE_ANON_KEY` fails at call time) and later, for the LLM provider layer, in `llm_providers.py` (missing API keys fail at call time). This convention is introduced here rather than in Part 1 because Part 1's accepted sections do not cover authentication; it will be referenced again, not re-explained, in the configuration section later in this Part.
+
+### 8.9 Relationship to Row Level Security (open item)
+
+Part 1 §6.1 records that Row Level Security is enabled on every patient-scoped table, with policies keyed on `auth.uid()` matching against `patients.user_id`. This section covers only the application-layer JWT verification that authenticates a caller to the FastAPI backend; it does not establish whether the database itself independently enforces the same boundary against this backend's own connection.
+
+**VERIFIED**: the backend connects to Postgres using a single, statically configured `DATABASE_URL` (`backend/.env`), authenticated as the `postgres` role, via SQLAlchemy/asyncpg — not through Supabase's PostgREST/pooler layer, which is the path that normally populates `auth.uid()` from a request's JWT claims. `001_initial_schema.sql` enables RLS on every relevant table (`alter table ... enable row level security`) but does not issue `FORCE ROW LEVEL SECURITY` on any of them.
+
+Standard PostgreSQL RLS semantics (a general database-engine behavior, not a repository-specific claim) exempt a table's owner from its own RLS policies unless `FORCE ROW LEVEL SECURITY` is explicitly set. Whether the `postgres` role used by this backend is the owner of these tables — and therefore exempt from the policies defined in `001_initial_schema.sql` — has not been confirmed against the live database from within this repository.
+
+**UNVERIFIED / REQUIRES RESEARCH:** whether Supabase RLS provides any enforcement against this backend's own connection, given the above. This does not weaken the ownership guarantee the API already provides: the `(id, user_id)` filter pattern used by every router (documented in Section 9) is enforced in application code, independent of whatever RLS does or does not additionally enforce at the database layer. RLS's practical role in this architecture — defense-in-depth against this backend's own queries, versus protection intended for a different (PostgREST/client-side) access path this backend does not use — is recorded here as an open question, not resolved.
+
+---
+
+*Sections 9–19 to follow.*
