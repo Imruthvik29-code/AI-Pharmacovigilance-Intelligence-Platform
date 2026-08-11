@@ -28,10 +28,12 @@ requests never hit the network -- only a cache miss (e.g. an unrecognized
 ## Algorithm selection -- explicitly pinned to ES256
 
 `algorithms=["ES256"]` is hardcoded rather than derived from the
-matched JWK's own `alg` field. This is a deliberate, confirmed choice:
-signature verification always uses the algorithm bound to the resolved
-JWK object regardless of this allow-list, so hardcoding does not weaken
-verification -- it simply makes the one algorithm this codebase accepts
+matched JWK's own `alg` field. `jwt.decode` receives `signing_key.key`,
+the raw public key from the resolved JWK, not the `PyJWK` object itself.
+PyJWT therefore checks the token header's `alg` against this allow-list
+and selects the ES256 verifier from that allowed header value; it does
+not additionally enforce equality with the resolved JWK's own `alg`
+metadata. The hardcoding makes the one algorithm this codebase accepts
 explicit and auditable in code, instead of implicit in whatever
 Supabase's JWKS response happens to declare. If Supabase ever migrates
 off ES256, this line requires a deliberate, reviewed code change rather
@@ -41,8 +43,10 @@ than silently accepting a new algorithm.
 
 `pyjwt[crypto]>=2.13.0,<3.0.0` is required, not just `pyjwt[crypto]`.
 PyJWT versions 2.9.0-2.12.1 have a known algorithm allow-list bypass
-(CVE-2026-48523) in the `PyJWKClient`/`PyJWK` decode path used by this
-module -- fixed in 2.13.0. See backend/requirements.txt.
+(CVE-2026-48523) when `jwt.decode` receives a `PyJWK`, fixed in 2.13.0.
+This module instead passes the raw `signing_key.key` to `jwt.decode`, so
+its current decode call does not use that CVE-affected `PyJWK` path. See
+backend/requirements.txt.
 
 ## Issuer/audience validation
 
