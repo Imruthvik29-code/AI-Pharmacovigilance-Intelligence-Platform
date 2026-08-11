@@ -1479,4 +1479,228 @@ The repository defines a **single `DATABASE_URL` configuration value and contain
 
 ---
 
-*Sections 16–19 to follow.*
+## 16. Testing & Quality Assurance
+
+**Scope and evidence labeling:** every normative statement in §16 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative `pytest`/`pytest-asyncio`/`TestClient`/`FastAPI`/`PyJWT` docs; `VERIFIED (repository)` with reference to repository test cases — test case definitions exist in the repository but were not executed in this environment; `UNVERIFIED (empirical experiment in current environment)` — suite requires live Supabase DB + `DATABASE_URL` + seeded `002_seed_data.sql` and was not executed here; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository (e.g. production coverage, CI as shipped). Implementation is the source of truth. No future test harness, coverage gate, or CI workflow is documented as implemented beyond what the repository contains.
+
+### 16.1 Purpose — mix of unit, engine-integration, and API integration tests
+
+**VERIFIED (repository: `backend/tests/conftest.py:1-22` + `backend/tests/test_security.py:1-12` + `backend/tests/test_llm_service.py` + `backend/tests/test_drug_interaction_engine.py:1-15` + `backend/tests/test_patients_api.py:1-12` + `PROJECT_PHASES.md` + `ls backend/tests/test_*.py`):**
+
+The repository contains a **mix of unit, engine-integration, and API integration tests**. Many integration tests are designed to run against a **live PostgreSQL/Supabase database**, while **pure unit tests (for example, security and LLM service tests) mock external dependencies** — `VERIFIED (repository: `conftest.py:1-12` describes integration majority as “*integration tests against a live database, run via the synchronous `TestClient`*” but `test_security.py:1-12` header states “*pure unit tests … JWKS client is mocked*” and `test_llm_service.py` mocks `httpx` — demonstrating the mix; `ls backend/tests/test_*.py | wc -l` → `21` files)**.**
+
+Per `PROJECT_PHASES.md` (“*Test every phase before marking it complete*”), every phase from Database (Phase 1) through Evidence Retrieval (Phase 13) and LangGraph wiring (Phase 14) has a corresponding `test_*` file — `VERIFIED (repository: `PROJECT_PHASES.md` Phase notes + `ls` 21 files + `grep -l "TestClient" backend/tests/test_*.py` → 10 API integration files vs `grep -l "PyJWKClient\|httpx" backend/tests/test_security.py` for unit)**.**
+
+### 16.2 Repository organization — 21 test files, dual `conftest.py`, `pytest.ini`
+
+**VERIFIED (repository: `ls backend/tests/` + `pytest.ini` + `backend/tests/conftest.py` + `conftest.py` (root)):**
+
+| Item | Verified detail |
+|---|---|
+| **Location & count** | `backend/tests/` contains **21** files: `test_adherence_engine.py`, `test_adr_engine.py`, `test_analysis_api.py`, `test_auth_api.py`, `test_conditions_api.py`, `test_drug_interaction_engine.py`, `test_evidence_retrieval.py`, `test_import_rxnorm.py`, `test_langgraph_workflow.py`, `test_llm_providers.py`, `test_llm_service.py`, `test_medications_api.py`, `test_patient_context_builder.py`, `test_patients_api.py`, `test_reference_drugs_search_api.py`, `test_safety_score_engine.py`, `test_schedule_api.py`, `test_security.py`, `test_symptoms_api.py`, `test_timeline_api.py`, `test_timeline_engine.py` + `conftest.py` — `VERIFIED (repository: `ls backend/tests/test_*.py | wc -l` → `21`)` |
+| **`conftest.py` duality** | `backend/tests/conftest.py` defines the shared fixtures (`existing_auth_user_id`, `existing_drug_id`, `created_*_ids`, `_cleanup_*`) — `VERIFIED (repository: 31-125)`; root `conftest.py` adds `backend/` to `sys.path` (`BACKEND_DIR = ROOT / "backend"; sys.path.insert(0, str(BACKEND_DIR))`) so `from app.*` imports work when `pytest` is run from repo root — `VERIFIED (repository: root `conftest.py:9-15`)` |
+| **`pytest.ini`** | Single file at repo root `pytest.ini` containing `[pytest]\nasyncio_mode = auto` — `VERIFIED (repository: `cat pytest.ini`)`; no `testpaths`, no `addopts`, no `pythonpath` beyond `conftest.py` insertion — `VERIFIED (repository: `grep -v "asyncio_mode" pytest.ini` → `0` other keys)` |
+| **Dependencies** | `backend/requirements.txt` pins `pytest==8.3.3` + `pytest-asyncio==0.24.0` — `VERIFIED (repository: `grep -n "pytest" backend/requirements.txt`)` and `VERIFIED (official documentation)` for `pytest-asyncio` `asyncio_mode = auto` |
+
+### 16.3 Test layers — three layers, three seams
+
+**VERIFIED (repository: `backend/tests/test_security.py:1-12` + `backend/tests/test_drug_interaction_engine.py:1-15` + `backend/tests/test_patients_api.py:1-12` + `PROJECT_PHASES.md` Phase notes + `grep` for `TestClient` vs `AsyncSessionLocal`):**
+
+| Layer | What it tests | How it runs | Example files | Evidence |
+|---|---|---|---|---|
+| **Pure unit** | JWT verification, LLM prompt/parse/fallback, provider retry — no DB, no `TestClient`; external I/O mocked (`PyJWKClient` via monkeypatch, `httpx` via injected fake providers or `monkeypatch`) | `pytest` with `test_security.py`’s `es256_keypair` fixture generating a keypair + `_patch_jwks_client` helper; `test_llm_service.py`’s `monkeypatch.setattr` on `_PROVIDERS` tuple | `test_security.py` (5 tests: valid/expired/unknown-kid/missing-config/malformed-sub), `test_llm_service.py` (29 tests: prompt determinism, fence/JSON recovery, missing-field, confidence `bool` rejection, Gemini→OpenRouter fallback, `fallback_used` logging) | `VERIFIED (repository: `test_security.py:1-12` “*pure unit tests … JWKS client is mocked, while JWT signature verification still runs*” + `test_security.py:40-72` `es256_keypair` + `_patch_jwks_client`)` |
+| **Engine-integration (deterministic)** | Drug interaction, ADR, adherence, safety score, timeline, patient context, evidence retrieval **engines** — called directly with `AsyncSessionLocal` against a live DB, not via HTTP | `async with AsyncSessionLocal() as session: await detect_drug_interactions(patient_id, session)` — `VERIFIED (repository: `test_drug_interaction_engine.py:1-15` header “*Phase 10's tests therefore call the engine directly against a live DB session rather than through any endpoint*” + `PROJECT_PHASES.md` Phase 10 note same) | `test_drug_interaction_engine.py`, `test_adr_engine.py`, `test_adherence_engine.py`, `test_safety_score_engine.py`, `test_timeline_engine.py`, `test_patient_context_builder.py`, `test_evidence_retrieval.py` | `VERIFIED (repository: `grep -n "AsyncSessionLocal" backend/tests/test_drug_interaction_engine.py` + Phase 10 header)` |
+| **API integration (contract)** | Frozen spec §7 HTTP contracts + ownership + validation — every route via `TestClient` (`client.post`/`get`/`put`/`delete`) with `dependency_overrides[get_current_user]` | `app = FastAPI(...); client = TestClient(app)` + `app.dependency_overrides[get_current_user] = _override_current_user(user_id)`; `conftest.py` provides `existing_auth_user_id` + `existing_drug_id` + `created_*_ids` | `test_patients_api.py`, `test_medications_api.py`, `test_conditions_api.py`, `test_symptoms_api.py`, `test_schedule_api.py` (schedule + adherence), `test_timeline_api.py`, `test_analysis_api.py`, `test_auth_api.py`, `test_reference_drugs_search_api.py` | `VERIFIED (repository: `test_patients_api.py:1-12` “*Authentication is bypassed via dependency override … about patient CRUD + ownership*” + `grep -l "from fastapi.testclient import TestClient" backend/tests/test_*.py` → 10 files)` |
+
+*The repository currently contains no evidence of a fourth layer (e.g. browser E2E, load, or chaos tests) — `grep -rn "playwright\|cypress\|k6\|locust" backend/` → `0` — `VERIFIED (repository)` for absence, phrased as absence of repository evidence (not as proof such tests do not exist outside the repository).*
+
+### 16.4 Pytest configuration
+
+**VERIFIED (repository: `pytest.ini` + `backend/requirements.txt` + `backend/tests/conftest.py` + `conftest.py` root + Pydantic `BaseSettings` docs — `VERIFIED (official documentation)` for `pytest-asyncio`):**
+
+- `pytest.ini` at repo root:
+
+```ini
+[pytest]
+asyncio_mode = auto
+```
+
+`VERIFIED (repository: `cat pytest.ini` + `ls backend/pytest.ini 2>&1` → `No such file` — only root)**.
+
+- No `testpaths`, no `addopts`, no `pythonpath`, no `markers`, no `xfail` strict config — `VERIFIED (repository: `grep -v "asyncio_mode" pytest.ini` → `0` other keys)**.
+- Dependencies: `pytest==8.3.3` and `pytest-asyncio==0.24.0` in `backend/requirements.txt` — `VERIFIED (repository: `grep -n "pytest" backend/requirements.txt`)` and `VERIFIED (official documentation)` for `pytest-asyncio`’s `asyncio_mode = auto` (allows `async def test_*` without `@pytest.mark.asyncio`).
+- Path handling: root `conftest.py` inserts `backend/` into `sys.path` so `from app.core.config import get_settings` works when `pytest` is invoked from repo root — `VERIFIED (repository: root `conftest.py:9-15` `BACKEND_DIR = ROOT / "backend"; sys.path.insert(0, str(BACKEND_DIR))`)` — `backend/tests/conftest.py` does **not** duplicate that insertion; it only defines fixtures (and imports `AsyncSessionLocal` via the already-inserted path).
+
+### 16.5 Shared fixtures — FK-aware setup (`existing_auth_user_id`, `existing_drug_id`)
+
+**VERIFIED (repository: `backend/tests/conftest.py:31-58` + `001_initial_schema.sql` FKs + `002_seed_data.sql`):**
+
+```python
+@pytest.fixture
+async def existing_auth_user_id():   # VERIFIED (repository: conftest.py:31-43)
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(text("SELECT id FROM auth.users LIMIT 1"))
+        row = result.first()
+    if row is None:
+        pytest.skip("No rows in auth.users -- sign up at least one test user via POST /auth/signup ...")
+    return row[0]
+
+@pytest.fixture
+async def existing_drug_id():        # VERIFIED (repository: conftest.py:45-58)
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(text("SELECT id FROM reference_drugs LIMIT 1"))
+        row = result.first()
+    if row is None:
+        pytest.skip("No rows in reference_drugs -- run 002_seed_data.sql ...")
+    return row[0]
+```
+
+- **Why `existing_auth_user_id`:** `patients.user_id` has a real FK to `auth.users(id)` (`001_initial_schema.sql` `patients.user_id uuid not null references auth.users(id) on delete cascade`) — fabricating a UUID would violate the FK, as noted in Phase 1 caveats — `VERIFIED (repository: `conftest.py:1-12` docstring + `001_initial_schema.sql` FK definition)`.
+- **Why `existing_drug_id`:** `medications.drug_id` has a real FK to `reference_drugs(id)` seeded in `002_seed_data.sql` (12 drugs, 7 interaction rules, 13 ADR rules per `PROJECT_PHASES.md` Phase 1 note “*Phase 1 seed data (002_seed_data.sql) is intentionally a small, curated set (12 drugs, 7 interaction rules, 13 ADR rules)*” — `VERIFIED (repository: `PROJECT_PHASES.md` + `002_seed_data.sql` row counts)**).
+- **No `existing_condition_id` / `existing_symptom_id` is needed** — conditions/symptoms have no external FK beyond `patient_id`, which tests create directly via the patients API — `VERIFIED (repository: `conftest.py:10-12` docstring for Phase 5/6)**.
+- **Both fixtures are `async def` and use `AsyncSessionLocal`** — `VERIFIED (repository: `conftest.py:31-58`)` and `VERIFIED (official documentation)` for `pytest-asyncio` `async def` fixtures with `asyncio_mode = auto`.
+
+### 16.6 Shared fixtures — explicit tracking for isolation (autouse cleanup, not `SAVEPOINT` rollback)
+
+**VERIFIED (repository: `backend/tests/conftest.py:60-125` + `14-22` docstring + `grep` for `SAVEPOINT` → 0 in app code):**
+
+```python
+@pytest.fixture
+def created_patient_ids() -> list[uuid.UUID]:   # VERIFIED (repository: 60-68)
+    return []
+
+@pytest.fixture(autouse=True)                    # VERIFIED (repository: 70-85)
+async def _cleanup_created_patients(created_patient_ids: list[uuid.UUID]):
+    yield                                        # test runs here
+    if not created_patient_ids:
+        return
+    stmt = text("DELETE FROM patients WHERE id IN :ids").bindparams(bindparam("ids", expanding=True))
+    async with AsyncSessionLocal() as session:
+        await session.execute(stmt, {"ids": created_patient_ids})
+        await session.commit()
+```
+
+- **Same pattern for `created_medication_ids` / `created_condition_ids` / `created_symptom_ids`** with 3 additional `autouse` fixtures `_cleanup_created_medications` / `_cleanup_created_conditions` / `_cleanup_created_symptoms` each `DELETE FROM <table> WHERE id IN :ids` — `VERIFIED (repository: `conftest.py:70-125`)`.
+- **Why not `SAVEPOINT`-rollback:** docstring records the Phase 3 review decision: “*A per-test SAVEPOINT-rollback pattern would require binding the async session to that same loop, which `TestClient` doesn't expose — forcing it risks cross-event-loop `asyncpg` errors. Instead, tests explicitly track the ids … and an autouse fixture deletes exactly those rows afterward, so repeated runs don't accumulate data.*” — `VERIFIED (repository: `conftest.py:14-22`)` and `VERIFIED (official documentation)` for `TestClient`’s synchronous ASGI thread model + `pytest-asyncio` event loop isolation.
+- **Yield-then-delete:** `yield` suspends the fixture until the test completes; code after `yield` is teardown and runs **regardless of pass/fail** — `VERIFIED (official documentation)` for `pytest` `yield` fixtures + `VERIFIED (repository: `70-85` `yield` then `DELETE` + `commit`)`.
+
+*The repository currently contains no evidence of `SAVEPOINT`/`ROLLBACK`/`begin_nested` in `backend/tests/conftest.py` — `grep -n "SAVEPOINT\|ROLLBACK\|begin_nested" backend/tests/conftest.py` → `0` — `VERIFIED (repository)` for absence (not as proof such a pattern could not exist outside the repository).*
+
+### 16.7 Dependency overrides — ownership mocking without JWT
+
+**VERIFIED (repository: `backend/tests/test_patients_api.py:14-28` + `backend/tests/test_medications_api.py:8-22` + `grep -rn "dependency_overrides\[get_current_user\]" backend/tests/` + FastAPI docs — `VERIFIED (official documentation)`):**
+
+```python
+def _override_current_user(user_id):                                         # VERIFIED (repository: test_patients_api.py:14-22)
+    async def _fake_current_user() -> CurrentUser:
+        return CurrentUser(id=user_id, email="test@example.com")
+    return _fake_current_user
+
+@pytest.fixture(autouse=True)
+def _clear_dependency_overrides():                                             # VERIFIED (repository: test_patients_api.py:24-28)
+    yield
+    app.dependency_overrides.clear()
+
+def test_patient_owned_by_another_user_is_not_visible(existing_auth_user_id, created_patient_ids):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    # ... create as user A ...
+    app.dependency_overrides[get_current_user] = _override_current_user(other_user_id)  # B
+    resp = client.get(f"/api/v1/patients/{created['id']}")                   # VERIFIED (repository: 97-110)
+    assert resp.status_code == 404
+```
+
+- **Seam:** `get_current_user` (`backend/app/core/security.py:141-180` — `CurrentUser` from `sub` UUID + `HTTPBearer(auto_error=False)`) is the sole FastAPI dependency providing identity; `app.dependency_overrides[get_current_user]` is the FastAPI DI override mechanism — `VERIFIED (official documentation)` for `app.dependency_overrides` (FastAPI docs).
+- **Per-test clearing:** `_clear_dependency_overrides` is `autouse` and does `app.dependency_overrides.clear()` after `yield` — `VERIFIED (repository: `test_patients_api.py:24-28` + `test_medications_api.py` same pattern)**;* `backend/tests/conftest.py` itself does **not** mock `get_current_user` — it only provides `existing_auth_user_id`/`existing_drug_id` — `VERIFIED (repository: `grep -n "get_current_user" backend/tests/conftest.py` → 0)**.*
+- **Coverage:** `grep -rn "dependency_overrides\[get_current_user\]" backend/tests/` → ~12 files (`test_patients_api.py`, `test_medications_api.py`, `test_conditions_api.py`, `test_symptoms_api.py`, `test_schedule_api.py`, `test_timeline_api.py`, `test_analysis_api.py`, etc.) — `VERIFIED (repository)` for breadth.
+
+### 16.8 Environment requirements — live DB, seeded data, and `sys.path`
+
+**VERIFIED (repository: `backend/tests/conftest.py:1-15` + `conftest.py` root `9-15` + `PROJECT_PHASES.md` Phase 1 note + `backend/.env.example:1-15` + `001_initial_schema.sql`):**
+
+| Requirement | Verified detail |
+|---|---|
+| **Live Supabase Postgres** | `DATABASE_URL=postgresql+asyncpg://postgres:password@db.xxxxxxxx.supabase.co:5432/postgres` in `backend/.env.example:1` (template) and `backend/.env` (real value) — `VERIFIED (repository: `ls backend/.env` exists + `grep -n "DATABASE_URL" backend/.env.example`)`; tests use `AsyncSessionLocal` (which reads `settings.database_url` at import via `session.py:11`) and `TestClient` against the ASGI app — both hit the same live DB |
+| **Seeded reference data** | `002_seed_data.sql` (not `001_initial_schema.sql` alone) must be applied before medication/analysis tests — `VERIFIED (repository: `conftest.py:45-58` `existing_drug_id` `pytest.skip("No rows in reference_drugs -- run 002_seed_data.sql before running medication tests.")` + `PROJECT_PHASES.md` Phase 1 seed `12/7/13` counts)` |
+| **At least one `auth.users` row** | `existing_auth_user_id` `SELECT id FROM auth.users LIMIT 1` or `pytest.skip("No rows in auth.users -- sign up at least one test user via POST /auth/signup before running patient tests.")` — `VERIFIED (repository: `conftest.py:31-43`)`; signup is via `POST /api/v1/auth/signup` (`auth.py:62-84` proxies to `POST {SUPABASE_URL}/auth/v1/signup`) — `VERIFIED (repository: `auth.py:62-84`)` |
+| **`sys.path` for `pytest` from repo root** | Root `conftest.py` does `BACKEND_DIR = ROOT / "backend"; if str(BACKEND_DIR) not in sys.path: sys.path.insert(0, str(BACKEND_DIR))` so `from app.db.session import AsyncSessionLocal` works when `pytest` is invoked from repo root — `VERIFIED (repository: root `conftest.py:9-15`)`; `backend/tests/conftest.py` does **not** insert `sys.path` — it relies on the root one |
+
+*The repository currently contains no evidence of an in-memory SQLite fake, `fakeredis`, or `pytest-postgresql` `tmp_path` factory for these integration tests — `grep -rn "sqlite\|fakeredis\|pytest-postgresql\|tmp_path.*db" backend/tests/conftest.py` → `0` — `VERIFIED (repository)` for absence, phrased as absence of repository evidence.*
+
+### 16.9 API contract coverage — every frozen spec §7 route has a TestClient test
+
+**VERIFIED (repository: `pharmacovigilance-spec-v1.md` §7 + `PROJECT_PHASES.md` Phase 3-9 frozen-spec notes + `grep -n "client\.(post\|get\|put\|delete)" backend/tests/test_*.py`):**
+
+| Spec §7 route (frozen) | Test file | Verified `TestClient` call | Frozen-spec exclusion test (405) |
+|---|---|---|---|
+| `POST /auth/signup` + `POST /auth/login` | `test_auth_api.py` | `client.post("/api/v1/auth/signup", json={email,password})` → `201` (signup) + `client.post("/api/v1/auth/login", ...)` → `200` | — |
+| `POST /patients` + `GET /patients` + `GET /patients/{id}` + `PUT /patients/{id}` | `test_patients_api.py` | `client.post("/api/v1/patients", json={name,age,sex,weight_kg})` → `201` + `client.get("/api/v1/patients")` + `client.get(f"/api/v1/patients/{id}")` + `client.put(f"/api/v1/patients/{id}", json={age:31})` → `200` (partial via `exclude_unset`) | `test_no_delete_endpoint_exists:114` — `client.delete(f"/api/v1/patients/{id}")` → `405` — per `patients.py:1-12` “*No DELETE /patients/{id} — not part of the frozen API contract*” + `PROJECT_PHASES.md` Phase 3 `DELETE Patient` note |
+| `POST /patients/{id}/medications` + `GET /patients/{id}/medications` + `PUT /medications/{id}` + `DELETE /medications/{id}` | `test_medications_api.py` | `client.post(f"/api/v1/patients/{id}/medications", json={drug_id,start_date})` → `201` + `client.get` + `client.put` + `client.delete` → `204` | — (medications **is** `DELETE`, unlike patients) |
+| `POST /patients/{id}/conditions` + `PUT /conditions/{id}` | `test_conditions_api.py` | `client.post(f"/api/v1/patients/{id}/conditions", json={name,diagnosed_date})` → `201` + `client.put(f"/api/v1/conditions/{id}", json={status:"improving"})` → `200` | `grep -n "GET.*conditions\|DELETE.*conditions" test_conditions_api.py` → `0`; `test_conditions_api.py` header: no `GET`/`DELETE` for conditions per frozen spec §7 + `conditions.py:1-13` — **no `GET` test exists, by design** |
+| `POST /patients/{id}/symptoms` + `GET /patients/{id}/symptoms` | `test_symptoms_api.py` | `client.post(f"/api/v1/patients/{id}/symptoms", json={description,medication_id})` + `client.get(f"/api/v1/patients/{id}/symptoms")` | `test_no_update_or_delete_endpoints_exist:303` — `client.put`/`delete` on symptoms → `405` — per `symptoms.py:1-13` “*No PUT or DELETE routes — the frozen spec lists only these two*” |
+| `POST /medications/{id}/schedule` + `GET /patients/{id}/doses/upcoming` + `POST /doses/{id}/mark` | `test_schedule_api.py` | `client.post(f"/api/v1/medications/{id}/schedule")` → `201` (or `409` if exists) + `client.get(f"/api/v1/patients/{id}/doses/upcoming")` + `client.post(f"/api/v1/doses/{id}/mark", json={status:"taken"})` | — |
+| `GET /patients/{id}/timeline` | `test_timeline_api.py` | `client.get(f"/api/v1/patients/{id}/timeline")` → `200` ordered `DESC` | `test_no_post_put_delete_endpoints_exist:300` — `client.post/put/delete` on timeline → `405` — per `timeline.py:1-16` read-only |
+| `POST /patients/{id}/analyze` (`201`) + `GET /patients/{id}/analysis` (history `DESC`) | `test_analysis_api.py` | `client.post(f"/api/v1/patients/{id}/analyze")` → `201` + `client.get(f"/api/v1/patients/{id}/analysis")` → `200` | — |
+| `GET /reference-drugs/search` | `test_reference_drugs_search_api.py` | `client.get("/api/v1/reference-drugs/search?q=war&limit=20")` → `200` with `q.strip()` + `case` ranking | — |
+
+*Each API test file also covers **ownership** (`404` for non-owned/missing `patient_id` + `medication_id`/`condition_id` mismatch `400`) and **validation** (`422` for invalid enums, `405` for missing routes) — e.g. `test_patient_owned_by_another_user_is_not_visible:97` + `test_create_condition_for_patient_owned_by_another_user_returns_404:100` + `test_medication_owned_by_another_user_is_not_visible:183` — `VERIFIED (repository)` with references; `UNVERIFIED (empirical experiment in current environment)` where suite not executed here.*
+
+### 16.10 Engine / wiring tests — direct call vs via HTTP, two suites for LangGraph
+
+**VERIFIED (repository: `PROJECT_PHASES.md` Phase 10 + Phase 14 notes + `backend/tests/test_drug_interaction_engine.py:1-15` header + `backend/tests/test_langgraph_workflow.py:1-15` header + `backend/tests/test_analysis_api.py:1-15` header):**
+
+| Suite | How it runs | What it verifies | Evidence |
+|---|---|---|---|
+| **Deterministic engines direct** | `async with AsyncSessionLocal() as session: await detect_drug_interactions(patient_id, session)` — no HTTP, no `TestClient`, no `dependency_overrides` | Engine `detect_drug_interactions` is direction-independent, `detect_adrs` allows multiple per drug, `analyze_adherence` counts overdue `NULL` as `missed`, `calculate_safety_score` composes penalties → `SafetyScoreResult`, `build_timeline_context` orders `ASC` | `VERIFIED (repository: `test_drug_interaction_engine.py:1-15` header “*Phase 10's tests therefore call the engine directly against a live DB session rather than through any endpoint*” + `grep -n "AsyncSessionLocal" backend/tests/test_drug_interaction_engine.py` + `PROJECT_PHASES.md` Phase 10 note)* |
+| **LangGraph wiring direct** | `async with AsyncSessionLocal() as session: final_state = await run_analysis(patient_id, session)` — calls `langgraph_workflow.py:339-356` `run_analysis` directly against a live `AsyncSession`; tests graph wiring, state threading (`AnalysisState`), `NotImplementedError`/`LLMExplanationError` → `llm_result: None`, and `deterministic_result` excludes `timeline_context` | `test_langgraph_workflow.py:1-15` header “*calls `run_analysis()` directly against a live DB session (graph wiring, state threading, persistence, LLM-NotImplementedError handling, repeated-run versioning), independent of the API layer*” | `VERIFIED (repository: `test_langgraph_workflow.py:1-15` header + `grep -n "run_analysis" backend/tests/test_langgraph_workflow.py`)` |
+| **LangGraph wiring via HTTP** | `client.post(f"/api/v1/patients/{id}/analyze")` via `TestClient` — tests `POST /analyze` `201` + `GET /analysis` history `DESC` + ownership `404` | HTTP contract, ownership via `get_current_user`, re-fetch via `analysis_run_id`, empty history for never-analyzed patient | `VERIFIED (repository: `test_analysis_api.py:1-15` header “*exercises the HTTP layer separately (both routes, ownership enforcement, empty history)*” + `PROJECT_PHASES.md` Phase 14 “*test_analysis_api.py exercises the HTTP layer separately*”)* |
+
+*The repository currently contains no evidence of a single test that exercises both layers in one function — the two suites are deliberately separate per `PROJECT_PHASES.md` Phase 14 “*mirrors the existing convention of separating engine/service-level tests from API-level tests used throughout Phases 10-13*” — `VERIFIED (repository)` for separation.*
+
+### 16.11 CI / coverage — no coverage gate or GitHub Actions workflow in the repository
+
+**VERIFIED (repository: `ls .github/workflows/ 2>&1` + `grep -rn "coverage\|coveragerc\|\.coveragerc\|--cov\|fail_under" backend/` + `cat pytest.ini` + `backend/requirements.txt`):**
+
+- **The repository currently contains no evidence of a coverage measurement tool** — `grep -rn "coverage\|coveragerc\|\.coveragerc\|--cov\|fail_under" backend/` → `0` results and `pytest.ini` contains no `addopts = --cov` or `fail_under` — `VERIFIED (repository)` for absence.
+- **The repository currently contains no evidence of a GitHub Actions workflow** (no `.github/workflows/*.yml`) — `ls .github/workflows/ 2>&1` → `No such file or directory` — `VERIFIED (repository)` for absence (not as proof CI does not exist outside the repository — e.g. in a fork or external CI system — only that this repository as shipped has no workflow YAML).
+- **The repository currently contains no evidence of a coverage gate** (`fail_under`, `threshold`, `min_coverage`) — `grep -rn "fail_under\|threshold" backend/` → `0` — `VERIFIED (repository)` for absence.
+- **Therefore, CI, coverage, and quality gates are `UNVERIFIED / REQUIRES RESEARCH` for this repository as shipped** — the engineering standard for `pytest` exists (see §16.4), but automated enforcement does not — `VERIFIED (repository)` for absence, phrased as absence of repository evidence.
+
+### 16.12 Performance / parallelism — synchronous `TestClient`, no `xdist`
+
+**VERIFIED (repository: `backend/tests/conftest.py:14-22` + `backend/requirements.txt` + `grep -n "xdist" backend/requirements.txt pytest.ini`):**
+
+| Aspect | Verified detail |
+|---|---|
+| **`TestClient` is synchronous** | “*run via the synchronous `TestClient`, which executes the ASGI app on its own thread/event loop*” — `VERIFIED (repository: `conftest.py:14-22` docstring)` and `VERIFIED (official documentation)` for Starlette `TestClient` synchronous ASGI execution |
+| **No `pytest-xdist`** | `grep -n "xdist" backend/requirements.txt pytest.ini` → `0` and `pytest.ini` has no `addopts = -n auto` — `VERIFIED (repository)` for absence; therefore **the repository currently contains no evidence of parallel test execution via `xdist`** — not as proof parallelism does not exist outside the repository |
+| **No dedicated load/stress harness** | `grep -rn "k6\|locust\|pytest-benchmark\|benchmark" backend/tests/` → `0` — `VERIFIED (repository)` for absence |
+| **Each test creates its own `AsyncSessionLocal` and tracks `created_*_ids`** | No shared mutable state beyond that explicit per-test list — `VERIFIED (repository: `conftest.py:60-125`)`; the async `existing_auth_user_id` / `existing_drug_id` are `async def` with `asyncio_mode = auto` — `VERIFIED (repository: `31-58`)` |
+
+*The repository currently contains no evidence of a performance budget, timeout, or `httpx.TimeoutException` being asserted as a performance gate in `backend/tests/` — `grep -rn "TimeoutException" backend/tests/` shows only `llm_providers` timeout handling, not a perf gate — `VERIFIED (repository)` for absence.*
+
+### 16.13 Failure behavior — skip vs fail vs cleanup regardless of outcome
+
+**VERIFIED (repository: `backend/tests/conftest.py:31-58` `pytest.skip` + `70-125` `yield` then `DELETE` + `grep -n "pytest.skip" backend/tests/conftest.py` + `pytest.skip` docs — `VERIFIED (official documentation)`):**
+
+| Condition | What the test harness does | Evidence |
+|---|---|---|
+| **Live DB has 0 rows in `auth.users`** (no user ever signed up via `POST /auth/signup`) | `existing_auth_user_id` fixture executes `SELECT id FROM auth.users LIMIT 1` → `row is None` → `pytest.skip("No rows in auth.users -- sign up at least one test user via POST /auth/signup before running patient tests.")` — dependent tests are **skipped**, not failed | `VERIFIED (repository: `conftest.py:31-43` `if row is None: pytest.skip(...)`)` + `VERIFIED (official documentation)` for `pytest.skip` semantics |
+| **Live DB has 0 rows in `reference_drugs`** (no `002_seed_data.sql`) | `existing_drug_id` similarly `pytest.skip("No rows in reference_drugs -- run 002_seed_data.sql ...")` | `VERIFIED (repository: `conftest.py:45-58`)` |
+| **Test creates patients/medications/conditions/symptoms then the test passes or fails** | `autouse` fixtures `_cleanup_created_patients` / `_cleanup_created_medications` / `_cleanup_created_conditions` / `_cleanup_created_symptoms` do `yield` (suspend until test completes) then `if not created_*_ids: return` else `DELETE FROM <table> WHERE id IN :ids` + `await session.commit()` — `VERIFIED (repository: `conftest.py:70-125` `yield` then `DELETE` + `commit`)`; this runs **regardless of pass/fail** per `pytest` `yield` fixture teardown semantics — `VERIFIED (official documentation)` for `yield` teardown | `VERIFIED (repository: `conftest.py:70-125`)` + `VERIFIED (official documentation)` for `yield` |
+| **Wrong `DATABASE_URL` or DB unreachable at import** | `AsyncSessionLocal` construction at `session.py:11` (`engine = create_async_engine(settings.database_url, ...)`) would raise at import/first `await session.execute` before any test runs — no `try` in `conftest.py` catches this | `VERIFIED (repository: `session.py:11` engine at import)**; not a `pytest.skip` — would be an import/collection error |
+
+### 16.14 Current limitations — frozen-spec scope, live-DB requirement, no SQLite, no load test
+
+**VERIFIED (repository: `backend/tests/test_patients_api.py:114` + `backend/tests/test_symptoms_api.py:303` + `backend/tests/test_timeline_api.py:300` + `backend/tests/test_import_rxnorm.py:1-15` + `PROJECT_PHASES.md` Phase 3-9 notes + `grep` for absence):**
+
+| Limitation | Verified detail |
+|---|---|
+| **Live DB required — no in-memory SQLite/Fake FK** | Integration tests require a live Supabase Postgres with `DATABASE_URL` and seeded `reference_drugs` — `VERIFIED (repository: `conftest.py:1-12` header + `002_seed_data.sql` dependency + `grep -rn "sqlite\|fakeredis\|pytest-postgresql\|tmp_path.*db" backend/tests/conftest.py` → `0` — **The repository currently contains no evidence of an in-memory SQLite fake, `fakeredis`, or `pytest-postgresql` `tmp_path` factory**)** |
+| **Frozen-spec exclusions are `405` by design, and their tests are `VERIFIED`** | `test_patients_api.py:114` `test_no_delete_endpoint_exists` (`DELETE /patients/{id}` → `405`) + `test_symptoms_api.py:303` `test_no_update_or_delete_endpoints_exist` (`PUT`/`DELETE /symptoms` → `405`) + `test_timeline_api.py:300` `test_no_post_put_delete_endpoints_exist` (`POST`/`PUT`/`DELETE /timeline` → `405`) — each asserts `405` per `PROJECT_PHASES.md` Phase 3 “*No DELETE /patients*”, Phase 5 “*no `GET`/`DELETE` for conditions*”, Phase 6 “*no `PUT`/`DELETE` for symptoms*” — `VERIFIED (repository)` with references; these are frozen-spec scope, not gaps |
+| **Seeded Phase 1 additions still pending per §6.2** | No test seeds `term_type`/`is_active` Phase 1 additions (still pending per `ARCHITECTURE_DECISIONS.md:99` `Implementation status: not yet applied`) — `VERIFIED (repository: `grep -n "term_type\|is_active" backend/tests/` → `0` beyond docstring)** |
+| **No load/performance benchmark in repo** | `grep -rn "k6\|locust\|pytest-benchmark\|benchmark" backend/` → `0` — **The repository currently contains no evidence of a load/performance benchmark** — `VERIFIED (repository)` for absence; any statement about API latency under production load is `UNVERIFIED / REQUIRES RESEARCH` |
+| **RxNorm import test hits real network** | `backend/tests/test_import_rxnorm.py:1-15` header “*sourcing data from NLM's public RxNav REST API*” (`https://rxnav.nlm.nih.gov/REST/allconcepts.json` vs `…/Prescribe/allconcepts.json` per §7.1) — requires network or is skipped if offline — `VERIFIED (repository: `test_import_rxnorm.py:1-15`)` + `VERIFIED (official documentation)` for RxNav REST API per NLM |
+
+---
+
+*Sections 17–19 to follow.*
