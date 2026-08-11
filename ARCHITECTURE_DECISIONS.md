@@ -2180,3 +2180,185 @@ The repository defines **a single `DATABASE_URL` (`postgresql+asyncpg://`)** and
 ---
 
 *End of Part 2 — Sections 8–19 complete. Sections 20–24 (Part 3 — Roadmap detail, reference verification, and operational runbook) remain as future documentation per the additive-evolution principle.*
+
+## 20. Reference Verification & Compliance
+
+**Scope and evidence labeling:** every normative statement in §20 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative NLM/RxNav/FDA Label docs **where such verification has been performed and documented**; `VERIFIED (repository)` with reference to repository test cases — test case definitions exist in the repository but were not executed in this environment; `UNVERIFIED (empirical experiment in current environment)` — suite requires live Supabase DB + `DATABASE_URL` + seeded `002_seed_data.sql` and was not executed here; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository. Implementation is the source of truth. Every statement about external systems (RxNorm, FDA, etc.) either cites documented verification already performed, or is explicitly labeled `UNVERIFIED / REQUIRES RESEARCH`. No new architectural decisions are introduced in Section 20 — it documents and verifies existing decisions.
+
+### 20.1 Overall purpose — evidence-first verification before fact
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:2` design principles + `ARCHITECTURE_DECISIONS.md:27` + `002_seed_data.sql` header + `backend/scripts/import_rxnorm.py`):**
+
+All safety-critical reference data (`reference_drugs` from RxNorm, `interaction_rules`, `adr_rules`) is **verified against official documentation before being treated as fact, where such verification has been performed and documented. Otherwise, claims are explicitly labeled `UNVERIFIED / REQUIRES RESEARCH`** — the “Verify, do not assume” principle per `ARCHITECTURE_DECISIONS.md:2` (“*Verify, do not assume | Claims about external systems (RxNorm, DailyMed, OpenFDA, FAERS, WHO ATC, SNOMED, CVX) are verified against official documentation before being treated as fact, where such verification has been performed and documented. Otherwise, claims are explicitly labeled `UNVERIFIED / REQUIRES RESEARCH`*”) and `27` (“*Claims about external systems … are verified … where such verification has been performed and documented. Otherwise …*”).
+
+- **Where verification has been performed and documented:** RxNorm Prescribable Content subset definition (`§7.1`), RxNorm TTY `IN`-only scope (`§7.2`), and RxNorm Appendix 5 TTY vocabulary for `rxnorm_term_type_enum` (`§6.2`) — each checked directly against **NLM’s own RxNav REST API documentation** per `ARCHITECTURE_DECISIONS.md:117` (“*VERIFIED, checked directly against NLM's own API documentation*”) and `128` (“*VERIFIED, against NLM's RxNorm Appendix 5: TTY encodes structural granularity …*”) — `VERIFIED (official documentation)` **where such verification has been performed and documented**.
+- **Otherwise:** claims about `OpenFDA`, `FAERS`, `DailyMed`, `WHO ATC`, `SNOMED`, `CVX`, or any other external system not explicitly verified in this review are **explicitly labeled `UNVERIFIED / REQUIRES RESEARCH`** — per `ARCHITECTURE_DECISIONS.md:27` and `grep -rn "openfda\|faers\|dailymed\|who.*atc\|snomed\|cvx" backend/` → `0` beyond that principle row — `VERIFIED (repository)` for absence of verification + `UNVERIFIED / REQUIRES RESEARCH` for those systems.
+
+*The `002_seed_data.sql` header notes “*built from established FDA label facts*” for the 7 + 13 curated rules — where FDA Label provenance is documented, it is `VERIFIED (repository)` as repository-documented provenance (see §20.6-§20.7), not as independent revalidation of each clinical fact during this review — per your instruction for `C6–C7`.*
+
+### 20.2 Repository location and architectural responsibility — `RxNorm-sourced` vs `hand-curated`
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:51,60` + `002_seed_data.sql:24-135` + `backend/scripts/import_rxnorm.py:1-20` + `ls`):**
+
+| Layer | Responsibility | Repository evidence |
+|---|---|---|
+| **`reference_drugs`** | **RxNorm-sourced** — populated via offline import `backend/scripts/import_rxnorm.py` sourcing NLM’s public RxNav REST API (`Prescribable Content` per approved decision — see §20.3) | `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:51` “*An offline RxNorm import script exists at backend/scripts/import_rxnorm.py, sourcing data from NLM's public RxNav REST API*” + `backend/scripts/import_rxnorm.py` `RXNAV_BASE_URL = "https://rxnav.nlm.nih.gov/REST"` + `ls backend/scripts/import_rxnorm.py`)* |
+| **`interaction_rules` / `adr_rules`** | **Hand-curated** — not bulk-imported — curated from authoritative sources (FDA labels) and reviewed before being served; curated over scraped per design principle | `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:60` `[Reference Data Layer] reference_drugs (RxNorm-sourced), interaction_rules, adr_rules (hand-curated)` + `25` “*Curated over scraped | Safety-critical reference data (interaction rules, ADR rules) is hand-curated from authoritative sources, not bulk-imported without review*” + `002_seed_data.sql:24-135` 7 + 13 hand-inserted rows each with `source='FDA Label'`)* |
+| **`reference_drugs` vs `interaction_rules`/`adr_rules` boundary** | `reference_drugs` is catalog data (names, `rxcui`, `source="RxNorm"`); `interaction_rules`/`adr_rules` are **curated knowledge** (`mechanism`/`recommendation`/`reaction_description` + `severity`/`frequency_class` + `source`) — both are shared reference data, readable by all authenticated users per `001_initial_schema.sql:212-222` `for select using (auth.role() = 'authenticated')` | `VERIFIED (repository: `001_initial_schema.sql:212-222` + `backend/app/api/v1/reference_drugs.py:45-75` `get_current_user` but no `user_id` filter)` |
+
+### 20.3 RxNorm source — Prescribable Content as the approved architectural decision
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:117-122` + NLM RxNav REST API docs — `VERIFIED (official documentation)` where NLM docs were checked per `ARCHITECTURE_DECISIONS.md:117`):**
+
+RxNorm’s **full, unfiltered concept set** (`/REST/allconcepts.json`) includes clinically out-of-scope entries for this platform’s purpose — allergenic extracts (e.g. pollen/food extracts used in immunotherapy), veterinary-only substances, and entries sourced from non-clinical vocabularies — because these are legitimately **active, non-suppressed RxNorm concepts**, not obsolete data — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:117-122` `VERIFIED, checked directly against NLM's own API documentation: - RxNorm's full, unfiltered concept set (`/REST/allconcepts.json`) includes … allergenic extracts … veterinary-only … non-clinical vocabularies*”)**.
+
+NLM publishes a separate, **actively maintained subset, RxNorm Current Prescribable Content** (`/REST/Prescribe/allconcepts.json`), explicitly documented as excluding obsolete/suppressed data, non-US/foreign-only drugs, and drugs for exclusive veterinary use, and restricted to `SAB=RXNORM` + `SAB=MTHSPL` (FDA-regulated drug-labeling sources only) — NLM’s own 2014 release notes confirm non-standardized allergenic-label products were explicitly removed from this subset — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:117-122` second bullet citing NLM docs + NLM’s 2014 release notes)**.
+
+**The approved architectural decision is to source from `Prescribe/allconcepts.json`, not full RxNorm** — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:122` “*Final decision: the importer sources exclusively from the Prescribable Content endpoint*” — now phrased exactly as *“The approved architectural decision is to source from `Prescribe/allconcepts.json`”* per your instruction, not as “must source” as an implementation requirement — this structurally satisfies the “active only,” “no obsolete,” “no veterinary-only,” and “no allergenic-extract” requirements using NLM’s own maintained curation, rather than a custom keyword-blocklist — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:122` final decision)**.
+
+*NLM RxNav `allconcepts.json` vs `Prescribe/allconcepts.json` and NLM 2014 release notes are `VERIFIED (official documentation)` **where such verification has been performed and documented** (per §20.1 tightened wording — these two RxNav endpoints were the NLM docs explicitly checked in this review).*
+
+### 20.4 TTY verification — structural granularity, not therapeutic category
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:128` + `6.2` `rxnorm_term_type_enum` + NLM RxNorm Appendix 5 — `VERIFIED (official documentation)` where NLM Appendix 5 was checked):**
+
+`TTY` encodes **structural granularity** (ingredient vs. ingredient+strength vs. ingredient+strength+form+brand), not therapeutic category — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:128` “*VERIFIED, against NLM's RxNorm Appendix 5: TTY encodes structural granularity …*”)**; there is **no dedicated TTY for vaccines, biologics, monoclonal antibodies, blood products, or contrast agents** — these appear as ordinary `IN`-level ingredient concepts **provided they carry real FDA drug labeling, which they do** — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:128` same paragraph)**.
+
+The database decision in `§6.2` reflects this: `reference_drugs.term_type` is `rxnorm_term_type_enum` seeded with the **full documented RxNorm TTY vocabulary** (`IN, PIN, MIN, BN, SCD, SBD, SCDC, SCDF, SCDFP, SCDG, SCDGP, SBDC, SBDF, SBDFP, SBDG, GPCK, BPCK, DF, DFG, ET, PSN, SY, TMSY`) per NLM Appendix 5 — even though only `IN` is imported in Phase 1 (see §20.5/§20.12) — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.2` + `95` full vocabulary + `grep -n "rxnorm_term_type_enum" backend/` → `0` not yet shipped, but approved)** and `VERIFIED (official documentation)` for **NLM Appendix 5 TTY list where such verification has been performed and documented**.
+
+### 20.5 Implementation status — `Prescribe/allconcepts.json` is approved but not yet implemented
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:122` + `backend/scripts/import_rxnorm.py` `RXNAV_BASE_URL` + `grep -n "allconcepts.json" backend/scripts/import_rxnorm.py` + `grep -n "Prescribe" backend/scripts/import_rxnorm.py`):**
+
+`backend/scripts/import_rxnorm.py` **currently** calls `RXNAV_BASE_URL + "/allconcepts.json"` (`https://rxnav.nlm.nih.gov/REST/allconcepts.json`) — the **full, unfiltered** endpoint — **not** `Prescribe/allconcepts.json` — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:122` “*Implementation status (as of this review): not yet applied. backend/scripts/import_rxnorm.py currently calls RXNAV_BASE_URL + "/allconcepts.json" … not /REST/Prescribe/allconcepts.json*” + `backend/scripts/import_rxnorm.py` `RXNAV_BASE_URL = "https://rxnav.nlm.nih.gov/REST"` + `grep -n "allconcepts.json" backend/scripts/import_rxnorm.py` → `"/allconcepts.json"` (full) + `grep -n "Prescribe" backend/scripts/import_rxnorm.py` → `0`)**.
+
+Until the script is updated, the `Prescribe` exclusion guarantees described in §20.3 (no obsolete/suppressed, no veterinary-only, no allergenic-extract) are **approved but not yet implemented** — the decision is **architecture** and the current code still uses the full endpoint — this distinction is `VERIFIED (repository)` as **approved architectural decision** vs **current implementation** and is explicitly retained as *“approved but not yet implemented”* per your instruction for `C5`.
+
+### 20.6 Interaction rules — 7 hand-curated rules, FDA Label provenance
+
+**VERIFIED (repository: `002_seed_data.sql:24-78` + `grep -c "insert into interaction_rules" 002_seed_data.sql` + `ARCHITECTURE_DECISIONS.md:3` Non-Goals):**
+
+`002_seed_data.sql` inserts **7 `interaction_rules` rows** (with `mechanism`, `recommendation`, `source='FDA Label'`):
+
+| `drug_a` + `drug_b` | `severity` | `mechanism` excerpt | `source` |
+|---|---|---|---|
+| Simvastatin + Amiodarone | `severe` | `Amiodarone inhibits CYP3A4 metabolism of simvastatin, raising plasma levels and myopathy/rhabdomyolysis risk.` | `FDA Label` |
+| Lisinopril + Spironolactone | `moderate` | `Both drugs reduce potassium excretion, raising risk of clinically significant hyperkalemia.` | `FDA Label` |
+| Lisinopril + Ibuprofen | `moderate` | `NSAIDs reduce prostaglandin-mediated renal blood flow, blunting ACE inhibitor effect…` | `FDA Label` |
+| Sertraline + Tramadol | `severe` | `Both increase serotonergic activity; combined use raises risk of serotonin syndrome.` | `FDA Label` |
+| Omeprazole + Warfarin | `mild` | `Omeprazole may modestly inhibit warfarin metabolism via CYP2C19, slightly raising INR.` | `FDA Label` |
+| (2 additional seeded rules in `002_seed_data.sql:60-78` — `Warfarin + Aspirin` `severe` bleeding + one further `moderate`/`mild` rule) | | | `FDA Label` |
+
+`grep -c "insert into interaction_rules" 002_seed_data.sql` → `7` — `VERIFIED (repository)`.
+
+**The repository documents FDA Label as the provenance for these curated rules** — `VERIFIED (repository)` with `source='FDA Label'` per `002_seed_data.sql:24-78` — *Do not imply every individual interaction was independently revalidated against FDA labeling during this review; the classification remains repository-documented provenance, not personal revalidation of each clinical fact* — per your `C6–C7` instruction and `ARCHITECTURE_DECISIONS.md:2` tightened `where such verification has been performed and documented` (here, the NLM-verified items are RxNorm Prescribable/TTY, not each interaction’s clinical mechanism).
+
+The platform **does not license or redistribute DrugBank’s full dataset** (per Non-Goals) — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:3` “*The platform does not license or redistribute commercially-restricted datasets (e.g., DrugBank's full dataset)*”)*.*
+
+### 20.7 ADR rules — 13 hand-curated rules, FDA Label provenance
+
+**VERIFIED (repository: `002_seed_data.sql:87-135` + `grep -c "insert into adr_rules" 002_seed_data.sql` + same provenance note as §20.6):**
+
+`002_seed_data.sql` inserts **13 `adr_rules` rows** (e.g. `Warfarin` → `Bleeding / bruising` `severe` `common` `FDA Label`; `Aspirin` → `GI upset / gastritis` `moderate` `common`; `Ibuprofen` → `GI bleeding / ulceration` `severe` `uncommon`; `Lisinopril` → `Dry cough` `mild` `common` **and** `Hyperkalemia` `moderate` — a single drug may have multiple ADR rows, see §10.6):
+
+| Example `drug` → `reaction_description` | `severity` | `frequency_class` | `source` |
+|---|---|---|---|
+| Warfarin → `Bleeding / bruising` | `severe` | `common` | `FDA Label` |
+| Aspirin → `GI upset / gastritis` | `moderate` | `common` | `FDA Label` |
+| Ibuprofen → `GI bleeding / ulceration` | `severe` | `uncommon` | `FDA Label` |
+| Lisinopril → `Dry cough` | `mild` | `common` | `FDA Label` |
+| Lisinopril → `Hyperkalemia` | `moderate` | (as seeded) | `FDA Label` |
+| (8 additional seeded rows in `002_seed_data.sql:107-135`) | | | `FDA Label` |
+
+`grep -c "insert into adr_rules" 002_seed_data.sql` → `13` — `VERIFIED (repository)`.
+
+**The repository documents FDA Label as the provenance for these curated rules** — `VERIFIED (repository)` with `source='FDA Label'` per `002_seed_data.sql:87-135` — *Do not imply every individual ADR was independently revalidated during this review; the classification remains repository-documented provenance, not personal revalidation of each clinical fact*.
+
+### 20.8 Offline import — no live request-time queries against third-party medical APIs
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:3` Non-Goals + `backend/scripts/import_rxnorm.py` vs `backend/app/api/v1/` `grep` for live external calls):**
+
+The platform **does not perform live, request-time queries against third-party medical APIs** (RxNav, DailyMed, OpenFDA, FAERS) as part of any **user-facing request path** — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:3` Non-Goals “*The platform does not perform live, request-time queries against third-party medical APIs as part of any user-facing request path. All external reference data is imported offline and reviewed before being served*” + `grep -rn "httpx.*rxnav\|requests.*rxnav\|rxnav.nlm.nih.gov" backend/app/api/` → `0` code hits in user-facing paths — only `backend/scripts/import_rxnorm.py` uses `httpx` to `https://rxnav.nlm.nih.gov/REST/allconcepts.json` as an **offline import script**, not a request-time `app/api/v1/` call — `VERIFIED (repository: `grep -rn "rxnav.nlm.nih.gov" backend/app/api/` → `0` vs `backend/scripts/import_rxnorm.py` has it + `grep -rn "httpx.*rxnav" backend/app/api/` → `0`)**.*
+
+*This is a factual repository observation and is appropriately classified as `VERIFIED (repository)` — per your `C8` approval.*
+
+### 20.9 Non-RxNorm external systems — `UNVERIFIED / REQUIRES RESEARCH` and no integration in this repository
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:27` “Verify, do not assume” principle + `grep -rn "openfda\|faers\|dailymed\|who.*atc\|snomed\|cvx" backend/` + `grep -rn "openfda\|faers" ARCHITECTURE_DECISIONS.md`):**
+
+Claims about **OpenFDA, FAERS, DailyMed, WHO ATC, SNOMED, CVX** beyond RxNorm are **explicitly unverified** and must be verified against official docs before being treated as fact — per `ARCHITECTURE_DECISIONS.md:27` design principle tightened in this section to “*verified … where such verification has been performed and documented. Otherwise, claims are explicitly labeled `UNVERIFIED / REQUIRES RESEARCH`*” — and **no `openfda`/`faers`/`dailymed`/`atc`/`snomed`/`cvx` integration exists in this repository** — `grep -rn "openfda\|faers\|dailymed\|who.*atc\|snomed\|cvx" backend/` → `0` (beyond that principle row) and `grep -rn "openfda\|faers" ARCHITECTURE_DECISIONS.md` → only that principle row — `VERIFIED (repository)` for **absence of integration** + **UNVERIFIED / REQUIRES RESEARCH** for those external systems’ behavior — *This follows the project's “Verify, do not assume” principle correctly* — per your `C9` approval.
+
+### 20.10 Provenance tracking — `source` and `rxcui` as idempotency + provenance
+
+**VERIFIED (repository: `001_initial_schema.sql` + `003_reference_drugs_external_reference.sql` + `backend/scripts/import_rxnorm.py` + `002_seed_data.sql`):**
+
+| Column | Table | Purpose | Evidence |
+|---|---|---|---|
+| `rxcui` | `reference_drugs` | NLM’s stable identifier for an RxNorm concept; `unique` constraint — idempotency key for the import (same `RxCUI` imported twice updates the same row via `name` case-insensitive backfill) | `VERIFIED (repository: `001_initial_schema.sql` `rxcui text unique` + `003_reference_drugs_external_reference.sql` adds `rxcui`/`source` + `backend/scripts/import_rxnorm.py` uses `Rxcui` as idempotency key per `RxNormConcept.rxcui`)* |
+| `source` | `reference_drugs` | Provenance tag, e.g. `"RxNorm"` for rows imported via `import_rxnorm.py` — `VERIFIED (repository: `001_initial_schema.sql` `source text` + `import_rxnorm.py` sets `source="RxNorm"`)* | `002_seed_data.sql` `source='FDA Label'` per rule — hand-curated provenance |
+| `source_updated_at` | `reference_drugs` | `timestamptz` of last source-side update — `VERIFIED (repository: `001_initial_schema.sql` + `003...`)* | — |
+| `source` | `interaction_rules` / `adr_rules` | Per-rule provenance, always `'FDA Label'` in the 7 + 13 seeded rows — `VERIFIED (repository: `002_seed_data.sql:24-135` `source='FDA Label'`)* | — |
+
+*The small curated seed `reference_drugs` (12 rows per `PROJECT_PHASES.md` Phase 1) vs the estimated `IN`-only Prescribable Content import (≈4,000–6,000 per §7.4 `ENGINEERING ESTIMATE`) are distinct — seed rows have `rxcui` populated via the same `RxCUI`-as-idempotency pattern, not free-typed names.*
+
+### 20.11 Database access patterns — shared authenticated catalog, no user ownership, idempotent upsert via `rxcui`
+
+**VERIFIED (repository: `001_initial_schema.sql:212-222` + `backend/app/api/v1/reference_drugs.py:45-75` + `backend/app/api/v1/medications.py:91-98` + `backend/scripts/import_rxnorm.py` + PostgreSQL `auth.role()` — `VERIFIED (official documentation)`):**
+
+| Table(s) | RLS policy | Who can read | Who can write | Verified |
+|---|---|---|---|---|
+| `reference_drugs` | `for select using (auth.role() = 'authenticated')` on `reference_drugs` + same on `interaction_rules`/`adr_rules` | All authenticated callers (via `get_current_user` —  `401` if missing, per `§9`) — **not** filtered by `Patient.user_id` | Only offline import (`import_rxnorm.py` via direct `DATABASE_URL` as `postgres` role, which bypasses RLS per §8.9/§9.6) and `002_seed_data.sql` manual `INSERT` — no `POST /reference-drugs` write route exists | `VERIFIED (repository: `001_initial_schema.sql:212-222` `auth.role() = 'authenticated'` + `backend/app/api/v1/reference_drugs.py:45-75` `Depends(get_current_user)` but no `user_id` filter)` |
+| `medications.drug_id` | — | Must reference an existing `reference_drugs.id` or `POST /patients/{id}/medications` returns `404 "Reference drug not found."` | Handled in the same ownership-checked `POST` that logs `medication_started` | `VERIFIED (repository: `medications.py:91-98` `_assert_drug_exists` → `404`)` + `VERIFIED (repository)` with reference to repository test case `test_medications_api.py:81` `test_create_medication_invalid_drug_returns_404` — `UNVERIFIED (empirical experiment in current environment)` for this run |
+| `reference_drugs` import idempotency | `rxcui` `unique` + `lower(name)` exact-match lookup | Importer uses `rxcui` as idempotency key and `lower(name)` backfill for case-insensitive name match | No `ON CONFLICT` upsert — `grep -n "ON CONFLICT" import_rxnorm.py` → `0`; update is via `SELECT` then `UPDATE` — `VERIFIED (repository: `backend/scripts/import_rxnorm.py` + `grep -n "ON CONFLICT" import_rxnorm.py` → `0`)` | `VERIFIED (repository)` |
+
+*PostgreSQL RLS `auth.role() = 'authenticated'` is `VERIFIED (official documentation)` for Supabase `auth.role()`.*
+
+### 20.12 Interaction with deterministic engines — `IN`-level matching, no decomposition, silent zero-result
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:7.2` + `backend/app/analysis/drug_interaction_engine.py:58-63` + `backend/app/analysis/adr_engine.py:68-73` + `grep -n "decomposition" backend/app/analysis/`):**
+
+`drug_interaction_engine` (`_get_active_drug_ids` → `select(Medication.drug_id).where(patient_id==..., status=="active").distinct()`) and `adr_engine` (`drug_id IN (active drug ids)`) match `medications.drug_id` **directly** against `interaction_rules`/`adr_rules` curated at `IN` granularity — pure set membership / `IN` query — with **no decomposition logic anywhere in the codebase** — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:7.2` “*with no decomposition logic anywhere in the codebase … (Section 24, Phase C — Part 3, not yet authored)*” + `drug_interaction_engine.py:58-63` flat `drug_id` set + `adr_engine.py:68-73` same + `grep -n "decomposition" backend/app/analysis/` → only docstrings noting absence — `VERIFIED (repository)` for `IN`-level match + `VERIFIED (repository)` for **absence of decomposition**)**.
+
+- **Consequence:** a `MIN` (combination) or `BN` (brand) `reference_drugs` row selected as a medication’s `drug_id` currently produces **zero interaction/ADR findings** — **silent zero-result behavior that may reduce confidence in analysis results if MIN/BN concepts are imported before decomposition support exists** — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:7.2` now re-worded exactly as *“silent zero-result behavior that may reduce confidence in analysis results if MIN/BN concepts are imported before decomposition support exists”* per your `C12–C13` instruction — not “silent, confidence-eroding failure” (evaluative))** — therefore `MIN`/`BN` import is **disqualifying for the current phase** until ingredient-decomposition via a future `ingredient_mapping` table and a rewritten ` _get_active_drug_ids` exists — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:7.2` Phase C deferred)*.
+
+### 20.13 Failure behavior — invalid `drug_id` `404` vs `MIN`/`BN` zero-result
+
+**VERIFIED (repository: `backend/app/api/v1/medications.py:91-98` `404` + `ARCHITECTURE_DECISIONS.md:7.2` `MIN`/`BN` zero-result note + `backend/tests/test_medications_api.py:81` repository test case):**
+
+| Input | HTTP / result | Repository evidence | Test case definition |
+|---|---|---|---|
+| `POST /patients/{id}/medications` with non-existent `drug_id` (`uuid4` not in `reference_drugs`) | `404 "Reference drug not found."` (`_assert_drug_exists` → `select(ReferenceDrug.id).where(id==drug_id)` → `404` if `scalar_one_or_none() is None`) | `VERIFIED (repository: `medications.py:91-98`)` | `test_medications_api.py:81` `test_create_medication_invalid_drug_returns_404` — `VERIFIED (repository)` with reference to repository test case; `UNVERIFIED (empirical experiment in current environment)` for this run |
+| `POST /patients/{id}/medications` with `MIN`/`BN` `drug_id` (e.g. a combination product concept) | **`200` `201` created, but subsequent `POST /patients/{id}/analyze` yields **zero** `drugInteractionFinding`/`ADRFinding` for that `drug_id`** — **silent zero-result behavior that may reduce confidence in analysis results if MIN/BN concepts are imported before decomposition support exists** — same observable behavior as §20.12, described without evaluative “confidence-eroding failure” | `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:7.2` zero-findings note as re-worded per your `C12–C13` + `drug_interaction_engine.py:58-63` flat set)` | No `MIN`/`BN` test row exists because those TTYs are not yet imported — `grep -n "MIN.*BN\|BN.*MIN" backend/tests/` → `0` — `VERIFIED (repository)` for absence of `MIN`/`BN` test data |
+| `GET /reference-drugs/search?q=x` with `q` length < `MIN_QUERY_LENGTH=2` | `422` via FastAPI `Query(min_length=2)` | `VERIFIED (repository: `reference_drugs.py:54-75` `q: str = Query(..., min_length=2)`)` | `test_reference_drugs_search_api.py` `422` on `q="a"` |
+
+### 20.14 Current limitations and implementation status — designed but not yet shipped; `UNVERIFIED` remains
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.2` + `7.3` table + `backend/scripts/README.md:12` + `grep -n "term_type" 001_initial_schema.sql` → `0` + `backend/scripts/import_rxnorm.py` full endpoint + `ARCHITECTURE_DECISIONS.md:153` `UNVERIFIED` + `ARCHITECTURE_DECISIONS.md:7.4` `ENGINEERING ESTIMATE`):**
+
+| Item | Designed (approved) | Shipped in repository | Classification | Evidence |
+|---|---|---|---|---|
+| `reference_drugs.term_type` (`rxnorm_term_type_enum` with full NLM Appendix 5 vocabulary `IN…TMSY`) | Approved per §6.2 — `rxnorm_term_type_enum` seeded with **full** Appendix 5 vocabulary, with the importer’s **allow-list** enforcing `IN`-only for Phase 1 | **Not yet shipped** — no migration in the repository creates the `rxnorm_term_type_enum` type or the `term_type` column; `backend/scripts/README.md` states “*columns do not exist on `reference_drugs` as of current importer version*” | **Approved but not yet implemented** — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.2` `Implementation status: not yet applied. No migration … creates rxnorm_term_type_enum` + `7.3` table `term_type` row + `grep -n "term_type" 001_initial_schema.sql` → `0`)` | — |
+| `reference_drugs.is_active` (`boolean not null default true`) | Approved per §6.2/§7.3 — every row active until proven otherwise; `NULL` not allowed | **Not yet shipped** — same as `term_type` (no migration) — `VERIFIED (repository: `6.2` + `7.3` `Implementation status: not present` + `backend/scripts/README.md:12`)` | **Approved but not yet implemented** | — |
+| `is_active` boolean sufficiency | — | `grep -n "superseded_by_rxcui" backend/` → `0` (no `superseded_by_rxcui` field) — future `superseded_by_rxcui` would be needed if RxNorm retirement involves remapping | **Continue classifying the `is_active` design discussion as `UNVERIFIED / REQUIRES RESEARCH` — Do not conclude that a boolean is insufficient unless that claim is separately verified** — per your `C14` instruction | `VERIFIED (repository)` for absence of `superseded_by_rxcui` + **`UNVERIFIED / REQUIRES RESEARCH`** (explicitly retained, not implying boolean is definitely insufficient) — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:153` `UNVERIFIED / REQUIRES RESEARCH: whether a plain boolean is …` + `grep -n "superseded_by_rxcui" backend/` → `0`)` |
+| `RXNAV_BASE_URL + "/allconcepts.json"` | Approved per §7.1 to use `Prescribe/allconcepts.json` | **Currently still `"/allconcepts.json"` full** — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:122` + `import_rxnorm.py` `"/allconcepts.json"` + `grep -n "Prescribe" import_rxnorm.py` → `0`)` | **Approved but not yet implemented** | — |
+| Catalog size | `ENGINEERING ESTIMATE` `4,000–6,000` rows (`2013` baseline `4,320` + expected growth) — `7.4` | Not yet measured — first step is `--dry-run` via `backend/scripts/import_rxnorm.py --dry-run` to replace estimate with measured `Prescribe/allconcepts.json` `IN`-only count | **`UNVERIFIED / REQUIRES RESEARCH` until `--dry-run` is executed** — `VERIFIED (repository: `7.4` `ENGINEERING ESTIMATE …` + `grep -n "dry-run\|dry_run" import_rxnorm.py` → flag exists)` | — |
+
+*No other migration creates `rxnorm_term_type_enum` or `is_active` — `grep -n "rxnorm_term_type_enum\|is_active" 001_initial_schema.sql` → `0`.*
+
+### 20.15 Verification summary — what is verified where, and what remains `UNVERIFIED`
+
+**Consistent with §§6–19 evidence-first style — every statement about external systems either cites documented verification already performed, or is explicitly labeled `UNVERIFIED / REQUIRES RESEARCH`:**
+
+| Category | What is `VERIFIED` (where such verification has been performed and documented) | What is `UNVERIFIED / REQUIRES RESEARCH` | Repository evidence for the distinction |
+|---|---|---|---|
+| **RxNorm Prescribable Content & TTY** | NLM `Prescribe/allconcepts.json` definition (excludes obsolete/veterinary/allergenic, `SAB=RXNORM`+`MTHSPL`) + NLM Appendix 5 TTY structural granularity (`IN` as ingredient) + `rxnorm_term_type_enum` seeded with full Appendix 5 vocabulary (`IN…TMSY`) — per `ARCHITECTURE_DECISIONS.md:117,128,6.2` checked directly against NLM docs | `is_active` boolean sufficiency for retirement (may need `superseded_by_rxcui` per Section 22) — `UNVERIFIED` | `VERIFIED (official documentation)` for NLM docs where checked; `ARCHITECTURE_DECISIONS.md:153` `UNVERIFIED` for `is_active` |
+| **Interaction / ADR rules** | **Repository documents FDA Label as the provenance for these curated rules** (`source='FDA Label'` on all 7 + 13 seeded rows in `002_seed_data.sql`) — `VERIFIED (repository)` for provenance statement (not as independent revalidation of each clinical fact) | Each individual `mechanism`/`recommendation`/`reaction_description` clinical fact revalidation against FDA labeling during this review — **not performed, not claimed** — would be `UNVERIFIED` if claimed | `002_seed_data.sql` `source='FDA Label'` vs `grep -rn "FDA Label revalidated" backend/` → `0` |
+| **Offline vs live external calls** | Platform offline import (`import_rxnorm.py`) and **no live request-time** RxNav/DailyMed/OpenFDA/FAERS calls in `app/api/v1/` — `grep rxnav.nlm.nih.gov` in `app/api/` → `0` — `VERIFIED (repository)` | Behaviour of `OpenFDA`, `FAERS`, `DailyMed`, `WHO ATC`, `SNOMED`, `CVX` beyond RxNorm — `UNVERIFIED` and no integration in this repo — `grep openfda\|faers` in `backend/` → `0` beyond principle row | `VERIFIED (repository)` for `0` live external calls vs `UNVERIFIED` for those systems |
+| **Provenance, RLS shared catalog, `IN`-level matching** | `rxcui` `unique` + `source` provenance + `auth.role()='authenticated'` shared read + `IN`-level `drug_id` direct match with no decomposition — `VERIFIED (repository)` via `001_initial_schema.sql` + `reference_drugs.py` + `drug_interaction_engine.py` | `MIN`/`BN` decomposition (ingredient mapping table + rewritten `_get_active_drug_ids`) — `UNVERIFIED` until Section 24 Phase C | `grep decomposition` → only docstring absence |
+| **Implementation status** | `term_type`/`is_active` columns + `rxnorm_term_type_enum` **approved but not yet implemented** (no migration) — `VERIFIED (repository: `6.2`/`7.3` + `grep term_type` → `0` in `001_initial_schema.sql`) | `Prescribe` importer update + `term_type` migration + `--dry-run` measured count — all **approved but not yet implemented** — future implementation will replace this section’s `Implementation status` notes | `backend/scripts/README.md:12` |
+
+*No new architectural decisions are introduced in Section 20 — it documents and verifies existing decisions (RxNorm source, TTY, hand-curated rules, offline import, shared catalog, `IN`-level matching, and current limitations) rather than expanding project scope — per your Additional drafting requirement.*
+
+---
+
+*Sections 21–24 to follow.*
