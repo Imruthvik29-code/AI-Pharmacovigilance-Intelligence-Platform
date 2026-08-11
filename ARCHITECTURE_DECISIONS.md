@@ -1088,4 +1088,236 @@ await db.refresh(analysis_run)                                    # VERIFIED (re
 
 ---
 
-*Sections 14–19 to follow.*
+## 14. Timeline, Scheduling & Adherence
+
+**Scope and evidence labeling:** every normative statement in §14 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative PostgreSQL/SQLAlchemy/FastAPI/LangGraph docs; `VERIFIED (repository)` with reference to repository test cases — test case definitions exist in the repository but were not executed in this environment; `UNVERIFIED (empirical experiment in current environment)` — suite requires live Supabase DB + `DATABASE_URL` + seeded `002_seed_data.sql` and was not executed here; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository (e.g. production latency, execution plans, confidence calibration). Implementation is the source of truth. No future scheduler, pagination, or scoring mechanism is documented as implemented beyond what the repository contains.
+
+### 14.1 Purpose — auditable event log, deterministic scheduling, adherence marking
+
+**VERIFIED (repository: `backend/app/services/timeline_writer.py:1-22` + `backend/app/api/v1/schedule.py:1-27` + `backend/app/api/v1/timeline.py:1-16` + `PROJECT_PHASES.md` Phase 7-9 notes + `001_initial_schema.sql:125-138`):**
+
+- **Timeline:** records an **auditable, patient-scoped event log** as side effects of entity writes (`medication_started`/`medication_discontinued`, `condition_status_changed`, `symptom_reported`, `dose_taken`/`dose_missed`/`dose_skipped`, `analysis_run`) — 8 canonical `event_type` values from spec §5 — `VERIFIED (repository: `timeline_writer.py:9-14` comment listing 4 values + `schedule.py:45-62` mapping `taken→dose_taken` etc. + `langgraph_workflow.py:243-252` `event_type="analysis_run"` + `timeline.py:13-16` “*Read-only … no POST/PUT/DELETE, since events are never created directly*” + `001_initial_schema.sql:125-138` `timeline_events` table)`.
+- **Scheduling:** generates **deterministic dose instances** (`medication_schedule` + `medication_doses` rows) from medication cadence (`duration_days` + `times_per_day`/`interval_hours`) anchored at `08:00 UTC` on `start_date`, capped at `3650` rows — `VERIFIED (repository: `schedule.py:100` `MAX_GENERATED_DOSES=3650` + `105` `DEFAULT_FIRST_DOSE_TIME=08:00 UTC` + `191-214` `_compute_schedule_params` + `321` `anchor = datetime.combine(start_date, DEFAULT_FIRST_DOSE_TIME)`)`.
+- **Adherence:** records `taken`/`missed`/`skipped` via `POST /doses/{id}/mark` (with `actual_time` handling) and drives the **lazy missed-dose sweep** that flips overdue unmarked doses to `missed` — both feeding the deterministic safety analysis (`adherence_engine.py` counts) and evidence retrieval (`personal evidence` scoped to `ref_id`/`payload.medication_id`) — `VERIFIED (repository: `schedule.py:45-62` `_MARK_EVENT_TYPES` + `220-268` `_sweep_missed_doses` + `adherence_engine.py:57-84` `due`/`missed` definition)`.
+- **Not an adherence statistics endpoint:** adherence `taken/missed/skipped/due` counts are an **internal input to the Safety Score Engine** (`adherence_engine.py` → `safety_score_engine.py`), not a standalone `GET /adherence` API — `VERIFIED (repository: `PROJECT_PHASES.md` Phase 9 “*Adherence Statistics … explicitly out of scope for Phase 9’s own API surface — not part of the frozen section 7 API contract*” + `adherence_engine.py:1-12` docstring)**.
+
+### 14.2 Repository location and architectural responsibility
+
+**VERIFIED (repository: `backend/app/api/v1/schedule.py:1-27` + `backend/app/api/v1/timeline.py:1-16` + `backend/app/services/timeline_writer.py:1-22` + `ls backend/app/api/v1/schedule.py`, `timeline.py`, `services/timeline_writer.py` + `001_initial_schema.sql:125-138` + Spec §6):**
+
+| File | Responsibility | Why there |
+|---|---|---|
+| `backend/app/api/v1/schedule.py` | Dose schedule generation (`POST /medications/{id}/schedule`), upcoming doses (`GET /patients/{id}/doses/upcoming`), dose marking (`POST /doses/{id}/mark`), and the lazy missed-dose sweep (`_sweep_missed_doses`) | Patient-scoped REST resource per spec §7 — `VERIFIED (repository: module docstring `1-27`)` |
+| `backend/app/api/v1/timeline.py` | Read-only timeline feed (`GET /patients/{id}/timeline`, ordered `event_time DESC`) — no `POST`/`PUT`/`DELETE` | Frozen spec §7 declares only `GET` for timeline — `VERIFIED (repository: `timeline.py:1-16` docstring “*Read-only … no POST/PUT/DELETE, since events are never created directly*”)` |
+| `backend/app/services/timeline_writer.py` | Reusable helper `async def log_timeline_event(db, *, patient_id, event_type, event_title, ...)` that **only** does `db.add(TimelineEvent(...))` — callers commit atomically | Additive service, not exhaustive in spec §6 file list — docstring “*Deliberately NOT listed in the spec's folder structure (section 6) … additive fit alongside `patient_context_builder.py`*” — `VERIFIED (repository: `timeline_writer.py:6-12`)` |
+| `001_initial_schema.sql` `timeline_events` | Table `id uuid PK default gen_random_uuid()`, `patient_id uuid FK cascade`, `event_type text`, `ref_id uuid`, `event_title text`, `event_description text`, `event_time timestamptz default now()`, `payload jsonb`, `created_at timestamptz default now()` — `VERIFIED (repository: `125-138`)` | Single source of truth for timeline data per `timeline_engine.py:29-33` + `langgraph_workflow.py:42-50` |
+
+*`event_type` is intentionally `text`, not a Postgres `ENUM` — it mirrors `001_initial_schema.sql:128` `event_type text` per spec §5’s `timeline_events` schema — `VERIFIED (repository: `timeline_writer.py:9-12` + `001_initial_schema.sql:128`)` and `VERIFIED (official documentation)` for `text`/`jsonb`/`timestamptz`.*
+
+### 14.3 Inputs and outputs
+
+**VERIFIED (repository: `backend/app/api/v1/schedule.py:274-439` + `backend/app/api/v1/timeline.py:44-63` + `backend/app/services/timeline_writer.py:34-48` + `001_initial_schema.sql:125-138`):**
+
+| Route / function | Inputs | Outputs | Verified |
+|---|---|---|---|
+| `POST /medications/{id}/schedule` (`generate_schedule`) | `medication_id` path + existing `medications` row with `duration_days` (int) + at least one of `times_per_day` (int) / `interval_hours` (numeric) + `start_date` (date) — all persisted on the medication | `201` + `list[MedicationDose]` with `id`, `medication_id`, `schedule_id` (FK to `medication_schedule.id`), `scheduled_time` (timestamptz), `status` (`None` initially), `actual_time` (`None`), `created_at`/`updated_at` — plus `medication_schedule` rows (one per dose) with `scheduled_time` — `VERIFIED (repository: `274-348` `MedicationDose` construction with `schedule_id=schedule_row.id`)` | — |
+| `GET /patients/{id}/doses/upcoming` (`list_upcoming_doses`) | `patient_id` path + `current_user.id` via `_assert_patient_owned` (404 if not owned) — implicitly `now()` via `datetime.now(timezone.utc)` | `200` + `list[UpcomingDoseResponse]` (`id`, `medication_id`, `scheduled_time`, `drug_name`, `dose`) — only `scheduled_time >= now()` AND `status IS NULL` AND `Medication.status=="active"` ordered `scheduled_time ASC` — `VERIFIED (repository: `383-434` query + join `ReferenceDrug`)` | — |
+| `POST /doses/{id}/mark` (`mark_dose`) | `dose_id` path + JSON `status` (`"taken"|"missed"|"skipped"`, validated via `MedicationDoseMarkRequest` → `dose_status_enum`) + optional `actual_time` (timestamptz) — `VERIFIED (repository: `schedule.py:439-463` + `models.py:dose_status_enum`)` | `200` + `MedicationDoseResponse` with updated `status`/`actual_time`/`updated_at` + `dose_taken`/`dose_missed`/`dose_skipped` `timeline_events` row in same transaction — `VERIFIED (repository: `439-495` + `45-62` `_MARK_EVENT_TYPES`)` | — |
+| `GET /patients/{id}/timeline` (`get_timeline`) | `patient_id` path + `current_user.id` | `200` + `list[TimelineEventResponse]` ordered `event_time DESC` (most recent first) matching `idx_timeline_patient` — `VERIFIED (repository: `timeline.py:44-63`)` | — |
+| `log_timeline_event(db, *, patient_id, event_type, event_title, ...)` | `db: AsyncSession` + required `patient_id`, `event_type` (plain `str`), `event_title` + optional `ref_id`, `event_description`, `payload` (JSONB dict) | Returns `TimelineEvent` (staged via `db.add`, **not committed** — caller commits) — `VERIFIED (repository: `timeline_writer.py:34-48`)` | — |
+
+*Hard delete `DELETE /medications/{id}` and `PUT /conditions/{id}` etc. are documented in their own modules and log `medication_discontinued` / `condition_status_changed` via the same writer — `VERIFIED (repository: `medications.py:240-254` + `conditions.py:125-171`)` — but `DELETE /patients` does not exist per frozen spec — `VERIFIED (repository: `patients.py:13-16` “No DELETE /patients/{id}”)**.*
+
+### 14.4 Schedule generation — cadence, dose count, spacing, anchoring, and caps
+
+**VERIFIED (repository: `backend/app/api/v1/schedule.py:100-214`, `274-348` + `backend/tests/test_schedule_api.py:90-205` repository test cases):**
+
+- **Preconditions (validated before any generation):** `if medication.duration_days is None: raise 400 "medication.duration_days must be set …"` — `VERIFIED (repository: `285-293`)*;* `if medication.times_per_day is None and medication.interval_hours is None: raise 400 "At least one of … must be set …"` — `VERIFIED (repository: `294-303`)*;* existing schedule check `if existing scalar_one_or_none() is not None: raise 409 "A schedule already exists …"` — `VERIFIED (repository: `294-303`)*;* all three are `HTTPException` with `status 400`/`409` — `VERIFIED (official documentation)` for HTTP 400/409 semantics.
+
+- **Dose count and interval formulas (`_compute_schedule_params`):** — `VERIFIED (repository: `191-214`):*
+
+  ```python
+  if medication.times_per_day is not None:               # Branch 1
+      total_doses = medication.times_per_day * medication.duration_days
+      interval_hours = medication.interval_hours or (24 / medication.times_per_day)
+  else:                                                  # Branch 2: interval_hours only
+      interval_hours = float(medication.interval_hours)
+      total_doses = math.floor(duration_days * 24 / interval_hours + _FLOOR_EPSILON)
+      total_doses = max(total_doses, 1)
+  ```
+
+  `_FLOOR_EPSILON = 1e-9` guards `floor()` against floating-point `3.9999999` → `4.0` — `VERIFIED (repository: `110` + docstring `114-117`)*;* minimum `1` dose even when `duration*24/interval < 1` — `VERIFIED (repository: `214`)`.
+
+- **Defensive cap:** `MAX_GENERATED_DOSES = 3650` — if `total_doses > 3650: raise 400 "Requested schedule would generate {total} doses, exceeding the maximum … Reduce …"` — `VERIFIED (repository: `100` + `311-317`)`. This guards pathological inputs (e.g. `times_per_day=24` × multi-year `duration_days` or very small `interval_hours`) — `VERIFIED (repository: `96-102` comment “*Defensive cap … Not a spec requirement; purely a safety guard*”)*.*
+
+- **Anchoring:** first dose at `08:00 UTC` on `start_date` — `VERIFIED (repository: `105` `DEFAULT_FIRST_DOSE_TIME = time(hour=8, tzinfo=UTC)` + `321` `anchor = datetime.combine(medication.start_date, DEFAULT_FIRST_DOSE_TIME)` + `323-340` `scheduled_time = anchor + timedelta(hours=interval_hours * i)`)*;* deterministic, not “now”.*
+
+- **Empirical repository test cases** (definitions exist — `VERIFIED (repository)` with references; `UNVERIFIED (empirical experiment in current environment)` because suite not executed here — requires live DB):
+
+  `test_generate_schedule_creates_expected_dose_count:90`, `test_generate_schedule_spacing_defaults_to_even_daily_spread:110` (`times_per_day=2` → 12h even spread), `test_generate_schedule_respects_explicit_interval_hours:131`, `test_generate_schedule_with_interval_hours_only_creates_expected_dose_count:250` (`floor(duration*24/interval)`), `test_generate_schedule_with_interval_hours_only_floors_partial_dose:299` (epsilon guard), `test_generate_schedule_exceeding_max_doses_returns_400:205`, `test_generate_schedule_twice_returns_409:187`.
+
+### 14.5 Upcoming doses — future, unmarked, active-medication filter
+
+**VERIFIED (repository: `backend/app/api/v1/schedule.py:383-434` + `backend/tests/test_schedule_api.py:360-408` repository test cases):**
+
+```python
+select(MedicationDose.id, MedicationDose.medication_id, MedicationDose.scheduled_time,
+       ReferenceDrug.name, Medication.dose)
+.join(Medication, Medication.id == MedicationDose.medication_id)
+.join(ReferenceDrug, ReferenceDrug.id == Medication.drug_id)
+.where(
+    Medication.patient_id == patient_id,
+    Medication.status == "active",          # VERIFIED (repository: 402)
+    MedicationDose.status.is_(None),        # VERIFIED (repository: 403)
+    MedicationDose.scheduled_time >= now(), # VERIFIED (repository: 404)
+)
+.order_by(MedicationDose.scheduled_time)    # VERIFIED (repository: 405)
+```
+
+- **Why `status=="active"` only:** a paused/completed/discontinued medication’s future doses are not “upcoming” in the clinical sense — mirrors the same filter in `detect_drug_interactions` + `detect_adrs` + `analyze_adherence` — `VERIFIED (repository: `schedule.py:1-27` docstring “*Only for medications with status == "active"*” + `adherence_engine.py:57-63`)`.
+- **Enrichment:** `drug_name`/`dose` are joined so the response is directly usable by a “take your medication” UI without client-side re-lookup — `VERIFIED (repository: `385-408` comment “*Enriched with drug_name/dose…*”)**.*
+- **Sweep side-effect:** `list_upcoming_doses` first runs `await _sweep_missed_doses(patient_id, db)` + `await db.commit()` — so any overdue unmarked doses are `missed` before the query, but the sweep never affects this query’s result set (`scheduled_time < now()` vs `>= now()`) — `VERIFIED (repository: `383-394` + `220-268` sweep)*;* documented as a small write side-effect on a read — `VERIFIED (repository: `385-408` docstring “*runs the missed-dose sweep … documented write side-effect*”)**.*
+- **Repository test cases:** `test_upcoming_doses_returns_future_unmarked_doses_ordered:360`, `test_upcoming_doses_excludes_inactive_medication:385`, `test_upcoming_doses_scoped_to_patient:408` — `VERIFIED (repository)` with references; `UNVERIFIED (empirical experiment in current environment)`.
+
+### 14.6 Missed-dose sweep — lazy, request-triggered consistency model
+
+**VERIFIED (repository: `backend/app/api/v1/schedule.py:1-27` + `220-268` + `383-394` + `439-470` + `grep` for absence of scheduler):**
+
+> **The repository implements a lazy, request-triggered consistency model rather than eventual consistency via a background scheduler.** — `VERIFIED (repository: `schedule.py:8-15` “*the tech stack (spec section 4) has no job scheduler/cron component, so this is implemented as a lazy, query-time sweep rather than a true background job*” + `grep -rn "cron\|scheduler\|apscheduler\|pg_cron\|celery\|background.*task" backend/` → `0` code hits (only docstrings mention absence)).
+
+```python
+async def _sweep_missed_doses(patient_id: UUID, db: AsyncSession) -> None:
+    now = datetime.now(timezone.utc)                                    # VERIFIED (repository: 230)
+    result = await db.execute(
+        select(MedicationDose, ReferenceDrug.name)                       # VERIFIED (repository: 231)
+        .join(Medication, Medication.id == MedicationDose.medication_id)
+        .join(ReferenceDrug, ReferenceDrug.id == Medication.drug_id)
+        .where(
+            Medication.patient_id == patient_id,                         # VERIFIED (repository: 235)
+            MedicationDose.status.is_(None),                              # VERIFIED (repository: 236)
+            MedicationDose.scheduled_time < now,                           # VERIFIED (repository: 237)
+        )
+    )
+    for dose, drug_name in result.all():
+        dose.status = "missed"; dose.updated_at = now                   # VERIFIED (repository: 238-241)
+        await log_timeline_event(db, patient_id=patient_id,              # VERIFIED (repository: 243-252)
+            event_type="dose_missed", ref_id=dose.id,
+            event_title=f"Missed dose of {drug_name}" if drug_name else "Dose missed",
+            payload={"medication_id": str(dose.medication_id),
+                     "scheduled_time": dose.scheduled_time.isoformat(),
+                     "auto_detected": True})
+    # Does NOT commit — caller commits/flushes — VERIFIED (repository: 255-268 docstring)
+```
+
+- **Trigger points:** `list_upcoming_doses` does `await _sweep_missed_doses(patient_id, db)` + `await db.commit()` — `VERIFIED (repository: `383-394`)`; `mark_dose` does `await _sweep_missed_doses(patient_id, db)` + `await db.flush()` (so the `dose.status` just fetched reflects any sweep-applied `missed`) — `VERIFIED (repository: `439-470` + docstring `220-268`)*;* any overdue unmarked dose is therefore `missed` before either a read or a mark is processed.
+- **Scope and independence from medication status:** sweep filters on `Medication.patient_id == patient_id` and `status IS NULL` + `scheduled_time < now` — it **does not filter on `Medication.status`** (active/paused/discontinued all sweep) — because a dose that was due is either taken or missed regardless of the medication’s current lifecycle state — `VERIFIED (repository: `231-237` query has no `Medication.status` predicate + `220-268` docstring “*Applies regardless of the parent medication's status*”)*.*
+- **Operational behavior at production scale** (timeliness of `missed` if no request triggers sweep) is `UNVERIFIED / REQUIRES RESEARCH` unless measured — the sweep only runs when a dose-related route for that patient is hit, so an overdue dose could remain `status IS NULL` until the next `GET /upcoming` or `POST /mark` — `VERIFIED (repository: `220-268` docstring) + `PROJECT_PHASES.md` Phase 9 “*there is no job scheduler in the tech stack*” — production timeliness `UNVERIFIED`**.
+- **Repository test cases:** `test_upcoming_doses_sweeps_overdue_unmarked_doses_to_missed:654` + `test_mark_dose_sweeps_overdue_dose_before_processing_the_mark:700` — `VERIFIED (repository)` with references; `UNVERIFIED (empirical experiment in current environment)`.
+
+### 14.7 Dose marking — taken / missed / skipped
+
+**VERIFIED (repository: `backend/app/api/v1/schedule.py:45-62` + `439-495` + `backend/tests/test_schedule_api.py:463-631` repository test cases):**
+
+| Aspect | Verified detail |
+|---|---|
+| **Endpoint** | `POST /doses/{id}/mark` with `MedicationDoseMarkRequest(status, actual_time?)` where `status` is validated against `dose_status_enum` (`taken`/`missed`/`skipped` — `models.py:dose_status_enum`) → `422` if invalid — `VERIFIED (repository: `439-463` + `models.py:dose_status_enum` + `test_mark_dose_invalid_status:631` asserting `422`) |
+| **Ownership** | `_get_owned_dose(dose_id, current_user, db)` joins `MedicationDose→Medication→Patient→ReferenceDrug` and filters `Patient.user_id == current_user.id` → `404 "Dose not found."` if not owned — `VERIFIED (repository: `162-183` + `439-463` first line `dose, patient_id, drug_name = await _get_owned_dose(...)`)` |
+| **Sweep before mark** | `await _sweep_missed_doses(patient_id, db)` + `await db.flush()` ensures an overdue unmarked dose is already `missed` before the `if dose.status is not None` check — so a late `mark` on an overdue dose correctly sees it as already `missed` — `VERIFIED (repository: `439-470`)` |
+| **Immutability** | If `dose.status is not None` (whether prior explicit `taken`/`missed`/`skipped` or sweep-applied `missed`) → `raise HTTPException(409, "Dose already marked as '{status}'.")` — `VERIFIED (repository: `463-470`)*;* there is **no `PUT /doses/{id}` “correct a mark”** — `VERIFIED (repository: `grep -n "correct a mark" schedule.py:462` docstring “*there is no spec-defined ‘correct a mark’ flow, so this is treated as immutable once set*” + `PROJECT_PHASES.md` Phase 9 “*intentionally immutable*”)*;* repository test `test_mark_dose_twice_returns_409:580` asserts this — `VERIFIED (repository)` with reference |
+| **`actual_time` rule** | `dose.actual_time = payload.actual_time or (now if status=="taken" else None)` — defaults to `now()` only for `taken`, left `None` for `missed`/`skipped` — `VERIFIED (repository: `472-474`)`; `test_mark_dose_taken_sets_status_and_defaults_actual_time:463` + `test_mark_dose_taken_respects_explicit_actual_time:486` + `test_mark_dose_missed_leaves_actual_time_null:509` + `test_mark_dose_skipped_leaves_actual_time_null:531` — `VERIFIED (repository)` with references |
+| **Timeline side-effect** | `await log_timeline_event(db, patient_id, event_type=_MARK_EVENT_TYPES[status], ref_id=dose.id, event_title=f"{verb} dose of {drug_name}" ...)` + `await db.commit()` + `refresh` — `VERIFIED (repository: `476-495`)`; `test_mark_dose_logs_corresponding_timeline_event:557` asserts `dose_taken`/`dose_missed`/`dose_skipped` event exists — `VERIFIED (repository)` with reference |
+
+### 14.8 Timeline events — table, event types, and single source of truth
+
+**VERIFIED (repository: `001_initial_schema.sql:125-138` + `backend/app/services/timeline_writer.py:1-48` + `backend/app/api/v1/timeline.py:1-63` + `backend/app/analysis/timeline_engine.py:1-53` + `backend/app/services/patient_context_builder.py`):**
+
+| Aspect | Verified detail |
+|---|---|
+| **Table** | `timeline_events` (`id uuid PK default gen_random_uuid()`, `patient_id uuid FK cascade`, `event_type text`, `ref_id uuid`, `event_title text`, `event_description text`, `event_time timestamptz default now()`, `payload jsonb`, `created_at timestamptz default now()`) — `VERIFIED (repository: `001_initial_schema.sql:125-138`)` + ORM `models.py:TimelineEvent` — `VERIFIED (repository)`; `event_type` is plain `text`, not a Postgres `ENUM` — mirrors spec §5 schema — `VERIFIED (repository: `timeline_writer.py:9-12` + `001_initial_schema.sql:128`)` and `VERIFIED (official documentation)` for `text`/`jsonb`/`timestamptz` |
+| **Writer** | `async def log_timeline_event(db, *, patient_id, event_type, event_title, ref_id=None, event_description=None, payload=None) -> TimelineEvent` — `VERIFIED (repository: `timeline_writer.py:34-48`)` — only does `db.add(TimelineEvent(...))` and `return event` — **never** `commit` — `VERIFIED (repository: `timeline_writer.py:22-48` docstring “*only calls `db.add(...)` — it never commits*” + `grep -n "commit\|refresh" timeline_writer.py` → `0`)`; callers add the event to the same session as the entity write and commit both together — `VERIFIED (repository: `medications.py:191-210` + `schedule.py:476-495` + `langgraph_workflow.py:243-262`)` |
+| **8 canonical `event_type` values in use** | `medication_started` / `medication_discontinued` (medications), `condition_status_changed` (conditions), `symptom_reported` (symptoms), `dose_taken` / `dose_missed` / `dose_skipped` (doses + sweep), `analysis_run` (LangGraph persist) — `VERIFIED (repository: `timeline_writer.py:9-14` + `schedule.py:45-62` `_MARK_EVENT_TYPES` + `langgraph_workflow.py:243-252` + `medications.py:191-210` + `conditions.py:125-171` + `symptoms.py:100-145`)`; hard `DELETE /medications/{id}` and `DELETE /patients` deliberately do **not** log an event (no `medication_deleted` type in spec §5) — `VERIFIED (repository: `medications.py:268-292` docstring “*No timeline event is logged here … spec's event_type list has no ‘medication deleted’ value*” + `test_medication_delete_does_not_log_event:140`)` |
+| **Feed API** | `GET /patients/{id}/timeline` is **read-only** — no `POST`/`PUT`/`DELETE` (405) — `VERIFIED (repository: `timeline.py:1-16` docstring + `test_no_post_put_delete_endpoints_exist:300` asserting `405`)`; implementation `select(TimelineEvent).where(patient_id==...).order_by(event_time.desc())` matching `idx_timeline_patient(patient_id, event_time desc)` — `VERIFIED (repository: `timeline.py:44-63` + `001_initial_schema.sql:165`)`; `TimelineContext` for LLM is the same source but ordered `ASC` (oldest→newest) as narrative context — `VERIFIED (repository: `timeline_engine.py:44-53` `order_by(ASC)`)` vs `timeline.py:44-63` `DESC` |
+| **Ordering and traceability** | `event_time` is set to `now()` at write time (`datetime.now(timezone.utc)`) — `VERIFIED (repository: `timeline_writer.py:40-48`); `payload` is JSONB (e.g. `dose_missed` → `{"medication_id": "...", "scheduled_time": "...", "auto_detected": true}`) — `VERIFIED (repository: `schedule.py:243-252`)` |
+
+### 14.9 Database access patterns and indexes — repository facts vs optimizer conclusions
+
+**Explicitly distinguished:**
+
+| **Repository-verified** | **UNVERIFIED / REQUIRES RESEARCH** |
+|---|---|
+| **Indexes exist:** `idx_schedule_medication(medication_id)`, `idx_doses_medication(medication_id)`, `idx_doses_scheduled_time(scheduled_time)`, `idx_timeline_patient(patient_id, event_time desc)` **exist** in `001_initial_schema.sql:160-166` — `VERIFIED (repository: `grep -n "create index" 001_initial_schema.sql` → 4 relevant indexes)` | **Execution plans / optimizer behavior** — `UNVERIFIED` unless supported by `EXPLAIN (ANALYZE)` output in the repository (none exists) — `VERIFIED (repository: `grep -rn "EXPLAIN" backend/` → 0)`; any statement that PostgreSQL **actually chooses** those indexes in production (e.g. `Index Scan` vs `Sequential Scan`, `Index Only Scan`) is `UNVERIFIED` |
+| **Queries target indexed columns:** schedule generation `select(MedicationSchedule.id).where(medication_id==...)` targets `idx_schedule_medication`; timeline feed `select(TimelineEvent).where(patient_id==...).order_by(event_time.desc())` targets `idx_timeline_patient`; sweep `where(patient_id+status+scheduled_time)` uses `patient_id` filter that narrows the row set — `VERIFIED (repository: `schedule.py:274-348` + `timeline.py:44-63` + `schedule.py:231-237`)` | **Query latency, throughput, memory, scalability** at production scale — `UNVERIFIED` (no benchmark, no load test in repo) |
+| **Index capability per PostgreSQL docs:** B-tree index on `(patient_id, event_time desc)` **can** accelerate `WHERE patient_id==... ORDER BY event_time DESC` without sort when `ORDER BY` matches index order — `VERIFIED (official documentation)` for PostgreSQL B-tree composite index semantics | **Chosen plan** for sweep (`WHERE patient_id + status IS NULL + scheduled_time < now`) — the trailing `status` column is low-cardinality; whether a composite `medications(patient_id, status)` helps is deferred pending `EXPLAIN ANALYZE` — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:105` deferred composite index reasoning) — plan itself `UNVERIFIED` |
+
+*No additional index is created for this feature — the existing `idx_timeline_patient` is relied upon; no `payload->>'medication_id'` expression index is created here — `VERIFIED (repository: `grep -n "create index" 001_initial_schema.sql` shows only that index for timeline).*
+
+### 14.10 Performance characteristics
+
+**VERIFIED (repository: `schedule.py:100`, `311-317` + `timeline.py:44-63` + `timeline_engine.py:29-33` + `001_initial_schema.sql:165` + `PROJECT_PHASES.md` notes) — distinguished from UNVERIFIED scale conclusions:**
+
+| **Repository verified** | **UNVERIFIED / REQUIRES RESEARCH** |
+|---|---|
+| - Defensive cap `MAX_GENERATED_DOSES = 3650` — if `total > 3650: raise 400` — `VERIFIED (repository: `100` + `311-317`)` — guards pathological inputs (e.g. `times_per_day=24` × long `duration_days`) — *Not a spec requirement; purely a safety guard* — `VERIFIED (repository: `96-102` comment)` | - **Latency / throughput / memory** for schedule generation of large but allowed counts (up to 3650) — `UNVERIFIED` (no load test, no `EXPLAIN ANALYZE`) |
+| - **No pagination / `LIMIT` on `GET /timeline`** — returns full `timeline_events` for the patient — `VERIFIED (repository: `timeline.py:44-63` no `limit`/`offset`/`page`)` — same as `TimelineContext`’s uncapped design (`timeline_engine.py:29-33` “*No artificial cap on the number of events returned, consistent with `GET /timeline` which also returns the full timeline with no pagination*”) | - **Execution plans** (`Index Scan` vs `Seq Scan`, `Sort` node presence) — `UNVERIFIED` (no `EXPLAIN` in repo) |
+| - **Per-medication schedule:** one `POST /schedule` creates `total_doses` `medication_schedule` rows (each `scheduled_time`) plus matching `medication_doses` rows linked via `schedule_id` (FK `on delete set null` for doses) — `VERIFIED (repository: `321-348` two-pass `add` + `flush` + `commit`)` | - **Scalability under production workloads** (many patients × long histories) — `UNVERIFIED` |
+| - **Upcoming doses** is inherently bounded: `scheduled_time >= now()` + `status IS NULL` + `active` filter returns only future unmarked doses, not entire history — `VERIFIED (repository: `383-434`)` | - Any benchmark of timeline feed latency — `UNVERIFIED` (no benchmark implied) |
+
+*This is an intentional implementation trade-off verified from the repository. No batching or pagination strategy currently exists for `GET /timeline`. Performance characteristics at production scale remain `UNVERIFIED / REQUIRES RESEARCH`.*
+
+### 14.11 Interaction with LangGraph, evidence retrieval, and analysis
+
+**Explicitly distinguished — two distinct consumers of `timeline_events`:**
+
+| Consumer | Query shape | Purpose | Evidence |
+|---|---|---|---|
+| **Evidence Retrieval** | **Scoped retrieval** — `select(TimelineEvent).where(patient_id==..., or_(event_type.in_(_MEDICATION_ID_ON_REF_ID), event_type.in_(_MEDICATION_ID_ON_PAYLOAD), event_type=="condition_status_changed"))` via `ref_id`/`payload.medication_id` — per-finding, one `IN` list per finding — `VERIFIED (repository: `evidence_retrieval.py:33-75` docstring + `171-236` scoped query `or_(*match_clauses)`)` | Per-finding explainability: “what happened relevant to this specific drug-interaction/ADR/adherence finding” — `VERIFIED (repository: `evidence_retrieval.py:37-50`)` | Scoped personal `EvidenceItem`s with `occurred_at=event_time` |
+| **Timeline Engine** | **Complete chronological retrieval** — `select(TimelineEvent).where(patient_id==...).order_by(event_time.asc())` — no `WHERE` beyond `patient_id`, no `LIMIT` — `VERIFIED (repository: `timeline_engine.py:44-53`)*;* opposite of the feed’s `DESC` — `VERIFIED (repository: `timeline_engine.py:37-43`)` | Unscoped narrative context for LLM: “what happened for this patient, period” — `VERIFIED (repository: `timeline_engine.py:1-12` “*retrieving and structuring the patient's timeline context … does NOT perform pattern detection*” + `langgraph_workflow.py:32-36` placement after Evidence Retrieval) | `TimelineContext(entries: list[TimelineEntry])` ordered `ASC` |
+
+*These are **separate architectural responsibilities even though both read from `timeline_events`** — evidence is finding-scoped, timeline context is patient-scoped narrative — `VERIFIED (repository: `timeline_engine.py:1-24` vs `evidence_retrieval.py:1-19` docstrings explicitly contrast the two)`. `Analysis runs` persistence logs a third consumer: `analysis_run` timeline event in the same transaction as `analysis_runs` row — `VERIFIED (repository: `langgraph_workflow.py:243-262` `persist` + `timeline_writer.py:1-28`)`.*
+
+### 14.12 Failure behavior — validation, ownership, conflict, and sweep race
+
+**VERIFIED (repository: `schedule.py:284-311`, `294-303`, `383-495`, `models.py:dose_status_enum` + `timeline.py:30-38` + `backend/tests/test_schedule_api.py` + `test_timeline_api.py` repository test cases) + `VERIFIED (official documentation)` for HTTP 400/404/409/422:**
+
+| Condition | HTTP | Repository evidence | Test case definition (repository — collected, not executed here) |
+|---|---|---|---|
+| `duration_days is None` | `400` | `schedule.py:285-293` `if medication.duration_days is None: raise HTTPException(400, "medication.duration_days must be set…")` | `test_generate_schedule_missing_duration_days:172` |
+| `times_per_day is None and interval_hours is None` | `400` | `schedule.py:294-303` | `test_generate_schedule_missing_times_per_day:157` + `test_generate_schedule_missing_both:320` |
+| `total_doses > 3650` | `400` | `schedule.py:311-317` | `test_generate_schedule_exceeding_max_doses:205` + `test_generate_schedule_interval_hours_only_exceeding_max_doses:342` |
+| `schedule` already exists for `medication_id` | `409` | `schedule.py:294-303` `if existing scalar_one_or_none() is not None: raise 409` | `test_generate_schedule_twice_returns_409:187` |
+| Non-existent `medication_id` / `patient_id` | `404` | `schedule.py:284-303` + `timeline.py:30-38` `_assert_patient_owned` | `test_generate_schedule_for_nonexistent_medication:223` + `test_upcoming_doses_for_nonexistent_patient:436` |
+| Non-owned `medication_id` / `patient_id` / `dose_id` | `404` (never `403`) | `schedule.py:129-183` ownership helpers `Patient.user_id == current_user.id` (same as §9) + `timeline.py:30-38` | `test_generate_schedule_for_medication_owned_by_another_user:231` + `test_upcoming_doses_for_patient_owned_by_another_user:444` + `test_mark_dose_owned_by_another_user:610` + `test_timeline_for_patient_owned_by_another_user:286` |
+| Already-marked `dose` (including sweep-applied `missed`) | `409` | `schedule.py:463-470` `if dose.status is not None: raise 409` | `test_mark_dose_twice_returns_409:580` + `test_mark_dose_sweeps_overdue_dose_before_processing_the_mark:700` |
+| Mismatched `condition_id` / `medication_id` on symptom | `400` | `symptoms.py:62-81` (same pattern) — not in `schedule.py` but same ownership guard | `test_create_symptom_with_condition_from_another_patient:167` |
+| Invalid `status` value (not `taken`/`missed`/`skipped`) | `422` | `models.py:dose_status_enum` (`taken`, `missed`, `skipped`) + Pydantic `MedicationDoseMarkRequest` validation → `422` via FastAPI | `test_mark_dose_invalid_status:631` |
+
+*All `test_*` entries above are **repository test case definitions** — `VERIFIED (repository)` with references; `UNVERIFIED (empirical experiment in current environment)` because the integration suite requires live DB and was not executed here.*
+
+### 14.13 Transaction boundaries — flush, stage-only writer, and atomic commits
+
+**VERIFIED (repository: `backend/app/api/v1/schedule.py:321-348`, `439-470` + `backend/app/services/timeline_writer.py:22-48` + SQLAlchemy `add`/`flush`/`commit` docs — `VERIFIED (official documentation)`):**
+
+| Operation | Transaction steps (verified) | Why this order |
+|---|---|---|
+| **`generate_schedule` (`POST /schedule`)** | `anchor = combine(start_date, 08:00 UTC)` → loop `total_doses`× `MedicationSchedule(..., scheduled_time)` + `db.add` each → `await db.flush()` (parents persisted, ids allocated) → loop `MedicationDose(..., schedule_id=schedule_row.id, scheduled_time=...)` + `db.add` each → `await db.commit()` → `refresh` each dose — `VERIFIED (repository: `321-348` two-pass `add` + `flush` + `commit`)` | `MedicationDose.schedule_id` is `ForeignKey(medication_schedule.id, ondelete=SET NULL)` — children need parent `id` — `VERIFIED (repository: `models.py:MedicationDose.schedule_id`)` |
+| **`mark_dose` (`POST /doses/{id}/mark`)** | `dose, patient_id, drug_name = await _get_owned_dose(...)` → `await _sweep_missed_doses(patient_id, db)` → `await db.flush()` (so the just-swept `dose.status` is visible on the already-loaded `dose` object) → `if dose.status is not None: raise 409` → `dose.status = payload.status` + `dose.actual_time = payload.actual_time or (now if taken else None)` + `dose.updated_at = now` → `await log_timeline_event(...)` → `await db.commit()` + `refresh` — `VERIFIED (repository: `439-495`)` | `flush` before the `409` check ensures an overdue dose that the sweep just flipped to `missed` is correctly rejected, not overwritten — `VERIFIED (repository: `439-470` comment “*ensure `dose.status` reflects any sweep-applied change*” + `test_mark_dose_sweeps_overdue_dose_before_processing_the_mark:700`)* |
+| **`log_timeline_event`** | `def log_timeline_event(db, *, patient_id, event_type, ...): event = TimelineEvent(...); db.add(event); return event` — **never** `commit` or `refresh` — `VERIFIED (repository: `timeline_writer.py:34-48` docstring “*only calls `db.add(...)` — it never commits*” + `grep -n "commit\|refresh" timeline_writer.py` → `0`)` — `VERIFIED (official documentation)` for `add` vs `flush` vs `commit` | Every caller adds the event to the **same session** as the entity write and commits both together — so the entity and its timeline event are always persisted atomically (never one without the other) — `VERIFIED (repository: `timeline_writer.py:6-12` docstring)` |
+| **`list_upcoming_doses` sweep commit** | `await _sweep_missed_doses(patient_id, db)` → `await db.commit()` before the `select(...).where(status IS NULL ...)` — `VERIFIED (repository: `383-394`)` — the sweep’s `missed` writes are committed even though the caller is a `GET` (documented write side-effect) | `schedule.py:385-408` docstring “*Phase 9: runs the missed-dose sweep … documented write side-effect*” |
+
+*No `celery`/`background task`/`pg_cron` is used — the two commit points above are the only places the sweep persists — `VERIFIED (repository: `grep -rn "commit" backend/app/api/v1/schedule.py` → only `list_upcoming` + `mark_dose` + `generate_schedule`)*.*
+
+### 14.14 Current limitations and implementation status
+
+**VERIFIED (repository: `schedule.py:96-102`, `1-27` + `PROJECT_PHASES.md` Phase 9 + `backend/app/api/v1/patients.py:13-16`, `conditions.py:1-13`, `symptoms.py:1-13`, `timeline.py:1-16` + `backend/tests/test_patients_api.py` + `test_symptoms_api.py` + `test_timeline_api.py` repository test cases):**
+
+- **Implemented (Phases 7-9, verified):** `timeline_writer.py` additive service, `GET /patients/{id}/timeline` read-only feed (`DESC`), per-medication schedule generation with two branches (`times_per_day` / `interval_hours`) + `08:00 UTC` anchor + `3650` cap + `409` on duplicate, upcoming doses filtered + enriched, dose marking with `actual_time` rule + `409` immutability, lazy sweep scoped to `patient_id` (with `auto_detected:true`) — all as cited above — `VERIFIED (repository)`.
+- **No background scheduler/cron** — intentionally substituted by the lazy, request-triggered sweep — `VERIFIED (repository: `schedule.py:1-27` + `PROJECT_PHASES.md` Phase 9 “*tech stack has no job scheduler … implemented as lazy, query-time sweep*”)*;* production timeliness of `missed` if no request triggers sweep is `UNVERIFIED / REQUIRES RESEARCH`**.
+- **No adherence statistics endpoint** — not in frozen spec §7 (deferred) — `adherence_engine.py` is an internal input to `Safety Score` only, not a standalone `GET /adherence` API — `VERIFIED (repository: `PROJECT_PHASES.md` Phase 9 “*Adherence Statistics … explicitly out of scope for Phase 9’s own API surface — not part of the frozen section 7 API contract*”)**.*
+- **Frozen-spec route scope (intentionally narrow, not a gap):** `DELETE /patients/{id}` does **not** exist — `VERIFIED (repository: `patients.py:13-16` “No DELETE /patients/{id}” + `test_patients_api.py:test_no_delete_endpoint_exists` asserting `405`)`; `conditions` exposes only `POST /patients/{id}/conditions` + `PUT /conditions/{id}` (no `GET`/`DELETE`) — `VERIFIED (repository: `conditions.py:1-13` + `test_conditions_api.py`)*;* `symptoms` exposes only `POST` + `GET` (no `PUT`/`DELETE`) — `VERIFIED (repository: `symptoms.py:1-13` + `test_symptoms_api.py:test_no_update_or_delete_endpoints_exist`)*;* `timeline` is read-only (`GET` only, `405` on others) — `VERIFIED (repository: `timeline.py:1-16` + `test_timeline_api.py:test_no_post_put_delete_endpoints_exist`)**.
+- **No pagination on timeline/upcoming:** `GET /timeline` returns full `timeline_events` for the patient and `GET /upcoming` returns all future unmarked doses — both without `limit`/`offset`/`page` — `VERIFIED (repository: `timeline.py:44-63` no `limit` + `schedule.py:383-434` bounded only by `scheduled_time >= now()`)*;* scale behaviour `UNVERIFIED / REQUIRES RESEARCH`**.
+- **No “correct a mark” flow:** a dose already `taken`/`missed`/`skipped` (whether explicit or sweep-applied) is rejected `409` — there is no spec-defined `PUT /doses/{id}` or “unmark” — `VERIFIED (repository: `schedule.py:462-470` docstring “*there is no spec-defined ‘correct a mark’ flow, so this is treated as immutable once set*” + `PROJECT_PHASES.md` Phase 9 “*intentionally immutable*”)**.*
+- **No dedicated cleanup for generated `medication_schedule`/`medication_doses` rows** beyond `ON DELETE CASCADE` via `patients(id)` → `medications(id)` — `VERIFIED (repository: `001_initial_schema.sql:81-84` `on delete cascade` + `models.py:MedicationSchedule`/`MedicationDose` FKs + `PROJECT_PHASES.md` Phase 9 cleanup note)*.*
+
+---
+
+*Sections 15–19 to follow.*
