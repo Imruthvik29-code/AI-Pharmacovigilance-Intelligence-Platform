@@ -670,4 +670,208 @@ class AnalysisState(TypedDict, total=False):  # VERIFIED (repository: 46)
 
 ---
 
-*Sections 12–19 to follow.*
+## 12. Evidence Retrieval & Explainability
+
+**Scope and evidence labeling:** every normative statement in §12 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative docs; `VERIFIED (empirical experiment)` — observed by running the test/command cited; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository. Implementation is the source of truth. No future retrieval method, grounding technique, or scoring logic is documented as implemented beyond what the repository contains.
+
+### 12.1 Purpose
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:1-19`):**
+
+Evidence Retrieval is the application service whose sole purpose is to **retrieve and structure supporting evidence** for the LLM explanation layer — it does **not** detect findings or compute scores. Per the confirmed Phase 13 design, it is “*not to detect new findings or compute a score… only to retrieve and structure supporting evidence for the Phase 15 LLM explanation layer*” — `VERIFIED (repository: `evidence_retrieval.py:7-12`)` — and is the direct SQL implementation of spec §8’s “Evidence Retrieval Node” and spec §4’s “Retrieval (MVP): Plain SQL (personal history + interaction rules) — pgvector added later without node changes” — `VERIFIED (repository: `evidence_retrieval.py:12` quoting spec §4)`.
+
+Deterministic findings remain the facts; evidence is the supporting context that lets the LLM **explain** those facts without inventing them — a boundary enforced both at the prompt level and structurally via schema validation (see §12.8, §12.15).
+
+### 12.2 Repository location and architectural responsibility
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:1-12` + `ls backend/app/services/` + `PROJECT_PHASES.md:103-115`):**
+
+- **Location:** `backend/app/services/evidence_retrieval.py` — `VERIFIED (repository: file exists at that path)`.
+- **Why `app/services/` not `app/analysis/`:** the module docstring records the confirmed Phase 13 design decision: “*this lives in `app/services/` (alongside `patient_context_builder.py` / `llm_service.py` / `langgraph_workflow.py` from spec section 6) rather than `app/analysis/`, since its job is to retrieve and structure supporting evidence, not to detect findings or compute a score*” — `VERIFIED (repository: `evidence_retrieval.py:5-12`)`. This mirrors the `services/` vs `analysis/` distinction established by Phase 13 and documented in `PROJECT_PHASES.md` Phase 13 notes — `VERIFIED (repository: `PROJECT_PHASES.md:103-115`)`.
+
+*Not exposed via any HTTP route until Phase 14 LangGraph wiring* — `VERIFIED (repository: `evidence_retrieval.py:62-64` “Not exposed via any HTTP route yet… wired in Phase 14” + `ls backend/app/api/v1/evidence*` → no route).
+
+### 12.3 Inputs and outputs
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:91-132`, `298-328` + `backend/app/services/langgraph_workflow.py:226-231`):**
+
+| Aspect | Verified detail |
+|---|---|
+| **Function** | `async def retrieve_evidence(patient_id: UUID, db: AsyncSession, safety_score_result: SafetyScoreResult) -> EvidenceBundle` — `VERIFIED (repository: `evidence_retrieval.py:298-302`)` |
+| **Inputs** | `patient_id` (UUID of the patient being analyzed), `db` (request-scoped `AsyncSession` closed over from the LangGraph node factory), `safety_score_result: SafetyScoreResult` (already-computed deterministic output from Phase 12 including all finding lists and penalties) — `VERIFIED (repository: `evidence_retrieval.py:303-315` docstring “one `FindingEvidence` per finding, grouped by category”)` |
+| **Outputs** | `EvidenceBundle(interaction_evidence: list[FindingEvidence], adr_evidence: list[FindingEvidence], adherence_evidence: list[FindingEvidence])` where each `FindingEvidence(category, finding, medical_evidence, personal_evidence)` carries the original finding object for per-finding traceability — `VERIFIED (repository: `evidence_retrieval.py:108-132`)` |
+| **LangGraph wiring** | `evidence_retrieval` node is `async def node(state): bundle = await retrieve_evidence(state["patient_id"], db, state["safety_score_result"]); return {"evidence_bundle": bundle}` — `VERIFIED (repository: `langgraph_workflow.py:226-231`)`; downstream `llm_explanation` consumes `(patient_context, safety_score_result, evidence_bundle, timeline_context)` — `VERIFIED (repository: `langgraph_workflow.py:197-218`)` |
+
+### 12.4 Medical evidence construction
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:19-31`, `137-168`, `289-295` + `backend/tests/test_evidence_retrieval.py:137-195`):**
+
+- **No duplicate retrieval:** medical evidence is **structured from already-fetched finding fields**, not re-queried. For `DrugInteractionFinding` the finding already carries `mechanism`/`recommendation`/`source` because `detect_drug_interactions()` joined `interaction_rules`; for `ADRFinding` it carries `reaction_description`/`frequency_class`/`source` because `detect_adrs()` joined `adr_rules` — `VERIFIED (repository: `evidence_retrieval.py:19-31` “does NOT re-query those tables; it only structures the finding's existing fields”)`. Verified by `grep -n "select.*InteractionRule\|select.*AdrRule" backend/app/services/evidence_retrieval.py` → `0` results — `VERIFIED (empirical experiment via repository grep)`.
+- **Interaction medical evidence:** `def _interaction_medical_evidence(finding: DrugInteractionFinding) -> list[EvidenceItem]` appends `EvidenceItem(kind="medical", statement=finding.mechanism, source, occurred_at=None)` if `mechanism` and similarly for `recommendation` — `VERIFIED (repository: `137-154`)`. Thus 0, 1, or 2 items per finding depending on whether those fields are present on the seeded rule.
+- **ADR medical evidence:** `def _adr_medical_evidence(finding: ADRFinding) -> list[EvidenceItem]` returns a single item with `statement = reaction_description (+ " (frequency: …)" if frequency_class)` — `VERIFIED (repository: `157-168`)`.
+- **Adherence medical evidence:** always `[]` — there is no rules table backing an adherence fact — `VERIFIED (repository: `289-295` `return FindingEvidence(..., medical_evidence=[], ...)`)` and docstring `26-31`.
+- **Empirical:** `test_interaction_medical_evidence_includes_mechanism_and_recommendation:137` asserts 2 medical items with `kind==medical`, `occurred_at is None`, `source=="FDA Label"`; `test_adr_medical_evidence_includes_reaction_and_frequency:169` asserts 1 item containing “Bleeding / bruising” + “common”; `test_adherence_finding_has_no_medical_evidence:195` asserts `medical_evidence==[]` — `VERIFIED (empirical experiment)` where tests run (requires live DB + seeded `002_seed_data.sql`).
+
+### 12.5 Personal evidence retrieval
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:33-75`, `171-236` + `backend/tests/test_evidence_retrieval.py:225-356`):**
+
+- **Finding → medication instance mapping:** interaction/ADR findings are drug-based (`drug_a_id`/`drug_b_id` / `drug_id`) but personal timeline events are medication-instance-based. The bridge is `async def _active_medication_ids_for_drugs(patient_id, drug_ids, db) -> list[UUID]` which does `select(Medication.id).where(patient_id==..., status=="active", drug_id.in_(drug_ids))` — `VERIFIED (repository: `171-192`)` — scoped to `status=="active"` consistent with Phases 10-12 — `VERIFIED (repository: `171-182` docstring).
+- **Per-finding scoped lookup:** `async def _personal_evidence_for_medications(patient_id, medication_ids, db) -> list[EvidenceItem]` — `VERIFIED (repository: `194-236`)`:
+  1. First fetches `select(Medication.condition_id).where(id.in_(medication_ids), condition_id.isnot(None))` to collect linked condition ids — `VERIFIED (repository: `207-212`)`.
+  2. Builds `match_clauses = [ and_(event_type.in_(_MEDICATION_ID_ON_REF_ID), ref_id.in_(medication_ids)), and_(event_type.in_(_MEDICATION_ID_ON_PAYLOAD), payload["medication_id"].astext.in_(medication_id_strs)) ]` plus optionally `and_(event_type=="condition_status_changed", ref_id.in_(condition_ids))` — `VERIFIED (repository: `214-231`)`.
+  3. Executes `select(TimelineEvent).where(patient_id==..., or_(*match_clauses)).order_by(event_time.desc())` — `VERIFIED (repository: `234-236`)` and maps each row to `EvidenceItem(kind="personal", statement=f"{event_title} — {event_description}" if description else event_title, source=None, occurred_at=event.event_time)` — `VERIFIED (repository: `237-248`)`.
+- **Early exits:** if `drug_ids` empty → `return []` without query; if `medication_ids` empty → `return []` — `VERIFIED (repository: `182-203`).
+- **Empirical:** `test_personal_evidence_includes_medication_started_event:225`, `test_personal_evidence_includes_dose_events:250`, `test_personal_evidence_includes_linked_symptom:277`, `test_personal_evidence_includes_linked_condition_status_change:299` — `VERIFIED (empirical experiment)` where run.
+
+### 12.6 Timeline evidence usage
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:83-87`, `37-50` + `001_initial_schema.sql:125,165` + `backend/tests/test_evidence_retrieval.py:326`):**
+
+- **Relevant `event_type` set (spec §5 canonical list, filtered to medication/condition-relevant):** `_MEDICATION_ID_ON_REF_ID = ("medication_started", "medication_discontinued")` and `_MEDICATION_ID_ON_PAYLOAD = ("dose_taken", "dose_missed", "dose_skipped", "symptom_reported")` — `VERIFIED (repository: `83-87`)`; docstring enumerates the same five matches plus `condition_status_changed` via `ref_id` against `medications.condition_id` — `VERIFIED (repository: `37-50`)`.
+- **Why this filter:** `dose_taken`/`dose_missed`/`dose_skipped` events reference the *dose* as `ref_id` with `payload.medication_id` holding the medication link (per `timeline_writer.py` calls in `app/api/v1/schedule.py`); `medication_started`/`medication_discontinued` reference the medication directly via `ref_id`; `symptom_reported` via `payload.medication_id`; `condition_status_changed` via `ref_id` of the medication’s linked condition — `VERIFIED (repository: `37-50` comment)`.
+- **Ordering:** personal evidence is `order_by(event_time.desc())` — most recent first — opposite of `TimelineContext`’s `ASC` narrative order — `VERIFIED (repository: `234-236`)` vs `timeline_engine.py:44-53` `ASC`.
+- **Exclusion verified:** unrelated third active medication’s events do **not** leak into a finding that does not involve it — `VERIFIED (empirical experiment: `test_personal_evidence_excludes_unrelated_medication_events:326`)` and `test_personal_evidence_scoped_to_active_medication_for_adherence_finding:356`.
+
+### 12.7 Evidence bundle structure
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:91-132` dataclasses):**
+
+```python
+@dataclass(frozen=True)
+class EvidenceItem:        # VERIFIED (repository: 91-107)
+    kind: "medical" | "personal"
+    statement: str          # medical: mechanism/recommendation/reaction; personal: event_title + description
+    source: str | None      # medical: e.g. "FDA Label" (from rule); personal: None
+    occurred_at: datetime | None  # medical: None (no when); personal: event_time
+
+@dataclass(frozen=True)
+class FindingEvidence:     # VERIFIED (repository: 108-121)
+    category: "drug_interaction" | "adr" | "adherence"
+    finding: DrugInteractionFinding | ADRFinding | AdherenceFinding  # original object, not just id
+    medical_evidence: list[EvidenceItem]
+    personal_evidence: list[EvidenceItem]
+
+@dataclass(frozen=True)
+class EvidenceBundle:      # VERIFIED (repository: 123-132)
+    interaction_evidence: list[FindingEvidence]
+    adr_evidence: list[FindingEvidence]
+    adherence_evidence: list[FindingEvidence]
+```
+
+- `EvidenceItem.occurred_at` is `None` for medical (a rule fact has no “when”) and `event.event_time` for personal — `VERIFIED (repository: `91-107` docstring + `_interaction_medical_evidence:137-154` `occurred_at=None` vs `_personal_evidence_for_medications:237-248` `occurred_at=event.event_time`)`.
+- Traceability: `FindingEvidence.finding` is the original finding object mirroring `SafetyScoreResult`’s `PenaltyEntry.source` pattern — `VERIFIED (repository: `53-62` docstring)` and `test_interaction_medical_evidence:137` asserts `finding_evidence.finding in score_result.interaction_findings`.
+
+### 12.8 Grounding guarantees
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:308-328` + `backend/app/services/llm_service.py:45-59`, `87-118`):**
+
+- **What evidence provides:** deterministic, per-finding `EvidenceBundle` + `TimelineContext` + `PatientContext` + `SafetyScoreResult` are the **grounding context** the LLM is instructed to explain only — `VERIFIED (repository: `llm_service.py:8-18` docstring “only explains the already-computed deterministic result… never diagnoses, invents …”)` and `_SYSTEM_INSTRUCTIONS:87-118` hard rules “*Do NOT invent, alter, or second-guess any drug interaction, adverse drug reaction, or safety score/risk level… Base every statement only on the patient snapshot, findings, and evidence given*” — `VERIFIED (repository: `llm_service.py:87-118`)`.
+- **How grounding is enforced:** **prompt-level instructions + structural schema validation only** — `VERIFIED (repository: `llm_service.py:45-59` “Grounding is enforced at the prompt level only … plus structural schema validation of the response shape. No semantic/keyword-overlap grounding check is performed … deliberately scoped out as unreliable for an MVP”)`. The hard guarantee is `VERIFIED (repository: `llm_service.py:233-312` `_parse_and_validate` checks `summary`/`reasoning`/`recommendations` non-empty strings, `confidence_score` int 0-100 (bool rejected), `confidence_level` in `(low,moderate,high)`)`.
+- **What is NOT enforced:** no semantic or keyword-overlap check against evidence text — its absence is `VERIFIED (repository: `grep -n "semantic.*grounding\|keyword.*overlap" backend/app/services/` → only the docstring stating it was scoped out)`. This is an explicit architectural decision, not an oversight — `VERIFIED (repository: `llm_service.py:52-59` comment)`.
+
+### 12.9 What the service explicitly does NOT do
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:19-31`, `37-50`, `308-328` + negative greps):**
+
+| Explicitly not done | Repository evidence |
+|---|---|
+| Does not re-query `interaction_rules` / `adr_rules` | `VERIFIED (repository: `19-31` “does NOT re-query those tables” + `grep -n "select.*InteractionRule\|select.*AdrRule" evidence_retrieval.py` → 0)` |
+| Does not compute severity, `safety_score`, or `risk_level` | `VERIFIED (repository: `308-328` “Deterministic only — performs no writes, invents nothing … never reaches beyond…” + `grep -n "safety_score\|risk_level" evidence_retrieval.py` → only type import)` |
+| Does not fetch the full patient timeline — only per-finding scoped `or_(*match_clauses)` | `VERIFIED (repository: `37-50` “never the patient's entire timeline” + `234-236` `or_(*match_clauses)` scoped query)` |
+| Does not write or mutate `timeline_events`, `medication_doses`, or any table | `VERIFIED (repository: `grep -n "INSERT\|UPDATE\|\.add\|\.commit\|log_timeline" backend/app/services/evidence_retrieval.py` → 0)` |
+| Does not call the LLM or generate explanations | `VERIFIED (repository: `grep -n "llm_service\|Gemi\|OpenRouter" evidence_retrieval.py` → 0)` |
+| Does not synthesize a medical claim beyond the finding’s own fields | `VERIFIED (repository: `_interaction_medical_evidence:137-154` only copies `mechanism`/`recommendation` as `statement`)` |
+
+### 12.10 Database access patterns
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:71`, `185-236` + `001_initial_schema.sql:165` + SQLAlchemy docs):**
+
+- **Read-only:** two read query families — `select(Medication.id/condition_id).where(patient_id==..., status=="active", drug_id.in_(...))` and `select(TimelineEvent).where(patient_id==..., or_(*match_clauses)).order_by(event_time.desc())` — `VERIFIED (repository: `71` imports `and_, or_, select` + `185-236` code)`; no `INSERT`/`UPDATE`/`DELETE` in the file — `VERIFIED (repository: `grep -n "insert\|update\|delete" evidence_retrieval.py` → 0, case-insensitive)`.
+- **JSONB access:** `TimelineEvent.payload["medication_id"].astext.in_(medication_id_strs)` — `VERIFIED (repository: `222`)` — uses SQLAlchemy’s `JSONB` `astext` accessor which emits PostgreSQL `payload->>'medication_id'` — `VERIFIED (official documentation)` for SQLAlchemy PostgreSQL JSON APIs.
+- **Scoping:** every query filters on `patient_id == patient_id` — `VERIFIED (repository: `185-236`)` — so cross-patient leakage is prevented at the query level (same ownership boundary as §9, but here via already-authorized `patient_id` passed from the workflow).
+- **Index support:** `idx_timeline_patient(patient_id, event_time desc)` on `timeline_events` — `VERIFIED (repository: `001_initial_schema.sql:165` `create index idx_timeline_patient …`)` — directly supports the `where(patient_id==...) order_by(event_time.desc())` pattern used here — `VERIFIED (official documentation)` for PostgreSQL B-tree composite indexes on `(patient_id, event_time desc)` accelerating both filter and ordering.
+
+### 12.11 Performance characteristics
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:298-328` loop structure + `001_initial_schema.sql:165` + `PROJECT_PHASES.md` notes):**
+
+- **Query count is per-finding N+1:** `retrieve_evidence` loops `for finding in safety_score_result.{interaction,adr,adherence}_findings: await _build_*_evidence(patient_id, finding, db)` — each finding triggers one `_active_medication_ids_for_drugs` query (1 `select(Medication)`) + one `_personal_evidence_for_medications` which itself does up to two queries (condition_ids lookup + `select(TimelineEvent ...)`) — `VERIFIED (repository: `298-328` loop + `171-236` helpers)`. A patient with 0 findings issues 0 evidence queries — `VERIFIED (repository: `115-143` early-exit test and `182-203` `if not medication_ids: return []`)`.
+- **No pagination or limit:** personal evidence `select(TimelineEvent)…order_by(event_time.desc())` has no `.limit()` — `VERIFIED (repository: `234-236` no `limit`)` — consistent with `TimelineContext`’s uncapped design (`timeline_engine.py:29-33`) and `GET /patients/{id}/timeline`’s no-pagination precedent.
+- **Small-cardinality assumption:** per-patient active medication counts stay small regardless of total `medications` table size (per §6.3 deferred composite index rationale) — the `IN`-lists `drug_ids`/`medication_ids` are therefore small; expanding them at scale is bounded by the patient, not the table — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:105` deferred `medications(patient_id, status)` index reasoning).
+- **No additional index added for this feature:** the existing `idx_timeline_patient` is relied upon; no `payload->>'medication_id'` expression index is created here — `VERIFIED (repository: `grep -n "create index" 001_initial_schema.sql` shows only that index for timeline)`.
+- **Empirical measurement:** `EXPLAIN ANALYZE` at scale has **not** been run in this review — `UNVERIFIED / REQUIRES RESEARCH` for actual latency as finding count grows.
+
+### 12.12 Interaction with the LangGraph workflow
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:12-22`, `226-242`, `328-339`, `339-356` + LangGraph official docs):**
+
+| Aspect | Verified detail |
+|---|---|
+| **Graph position** | `evidence_retrieval` is node 3 of 6, immediately after `safety_score_engine` and before `timeline_engine` — `VERIFIED (repository: `langgraph_workflow.py:17-18` docstring list + `331-339` `add_edge("safety_score_engine","evidence_retrieval")` + `add_edge("evidence_retrieval","timeline_engine")`)` — timeline as unscoped narrative is kept separate from finding-scoped evidence — `VERIFIED (repository: `langgraph_workflow.py:32-36` comment) |
+| **Node factory** | `def _evidence_retrieval_node(db: AsyncSession): async def node(state): bundle = await retrieve_evidence(state["patient_id"], db, state["safety_score_result"]); return {"evidence_bundle": bundle}` — `VERIFIED (repository: `226-231`)`; closes over request `db` — `VERIFIED (repository: `46-62` “DB session is intentionally NOT part of AnalysisState”)` |
+| **State keys consumed/produced** | Consumes `state["patient_id"]` + `state["safety_score_result"]` (populated by prior node); produces `state["evidence_bundle"]: EvidenceBundle` consumed next by `llm_explanation` | 
+
+**Official documentation:** `langgraph.graph.StateGraph` (`add_node`, `add_edge`, `compile`, `ainvoke`) — `VERIFIED (official documentation)` via `backend/requirements.txt` `langgraph==0.2.60` and `langgraph_workflow.py:90` import.
+
+### 12.13 Failure behavior
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:137-168`, `182-203`, `285-328` + `backend/tests/test_evidence_retrieval.py:115-195`):**
+
+| Condition | Behavior | Evidence |
+|---|---|---|
+| `SafetyScoreResult` has zero findings (clean patient) | Returns `EvidenceBundle(interaction_evidence=[], adr_evidence=[], adherence_evidence=[])` — loops run 0 iterations | `VERIFIED (repository: `298-328` comprehension over empty lists) + `VERIFIED (empirical experiment: `test_no_findings_yields_empty_bundle:115` asserts all three `[]`)` |
+| Finding’s `drug_ids` map to no active `medication.id` (e.g. med discontinued since scoring) | `_active_medication_ids_for_drugs` returns `[]` (query returns 0 rows) → `_personal_evidence_for_medications` early-returns `[]` → `personal_evidence=[]` (medical evidence still present) | `VERIFIED (repository: `182-203` `if not drug_ids/medication_ids: return []`)` |
+| No matching `timeline_events` for the scoped `or_(*match_clauses)` | `select(TimelineEvent).where(...or_...)` returns 0 rows → `personal_evidence=[]` (empty, not `None`) | `VERIFIED (repository: `234-248` list comp over `result.scalars().all()` may be empty)` |
+| Finding has no `mechanism`/`recommendation` or `frequency_class` | Medical helper returns fewer/adjusted items: interaction with only `mechanism` → 1 item; ADR always at least 1 (`reaction_description`) | `VERIFIED (repository: `137-168` conditional appends)` + `VERIFIED (empirical experiment: `test_adr_medical_evidence:169` asserts single item contains frequency)` |
+| DB error or missing patient | Exception propagates — no partial `EvidenceBundle` is returned; graph’s `evidence_retrieval` node would fail the `ainvoke` run before `persist` | `VERIFIED (repository: no try/except in `retrieve_evidence` — `298-328`)`; graph-level handling is `langgraph_workflow.py:59-66` (only `llm_explanation` is caught) |
+
+*No fabrication:* adherence never fabricates medical evidence (`medical_evidence=[]` even when `personal_evidence` exists) — `VERIFIED (repository: `289-295`)` + `test_adherence_finding_has_no_medical_evidence`.
+
+### 12.14 Current limitations and implementation status
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py` header + `PROJECT_PHASES.md` + `001_initial_schema.sql` + `langgraph_workflow.py` + `llm_service.py`):**
+
+- **Implemented (Phase 13, verified):** Plain SQL retrieval as described above — shipped and tested (integration tests require live DB) — `VERIFIED (repository: file exists + `PROJECT_PHASES.md:103-115` Phase 13 `Evidence Retrieval` checked)`.
+- **pgvector is deferred — not yet implemented:** header states “*Retrieval (MVP): Plain SQL (personal history + interaction rules) — pgvector added later without node changes*” — `VERIFIED (repository: `evidence_retrieval.py:12`)`; `001_initial_schema.sql` has no `vector` extension or `evidence` table with embeddings — `VERIFIED (repository: `grep -n "vector\|pgvector" 001_initial_schema.sql` → 0)`; future addition is intended to be additive without changing this node’s interface — `UNVERIFIED / REQUIRES RESEARCH` for vector design.
+- **Not exposed via HTTP until Phase 14:** until the workflow wiring, callers used the engines directly — `VERIFIED (repository: `evidence_retrieval.py:62-64`).
+- **Never exposed as standalone `GET /evidence`:** no such route exists — `VERIFIED (repository: `ls backend/app/api/v1/evidence*` → no file)`.
+- **No confidence scoring here:** confidence is self-reported by the LLM and validated only for well-formedness in `llm_service.py` — `VERIFIED (repository: `llm_service.py:61-71`).
+- **Historical scope:** personal evidence only surfaces `timeline_events` that are already persisted via Phase 7/9 writers; if no `symptom_reported` or `dose_taken` was logged, personal evidence for that finding is simply empty — `VERIFIED (repository: `208-236` query only what exists)`.
+
+### 12.15 Explainability boundary — detection → evidence → explanation → persistence
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:12-66`, `197-273` + `backend/app/services/evidence_retrieval.py:1-19,53-62,308-328` + `backend/app/services/llm_service.py:8-18,87-118,362-384` + `backend/app/services/patient_context_builder.py`):**
+
+*This subsection documents the architectural guarantee that the AI layer cannot influence the deterministic layer — it enriches and explains only.*
+
+```
+  Detection              Evidence              Explanation           Persistence
+ (Phases 10-12)     →  (Phase 13)        →  (Phase 15)         →  (Phase 14 Persist)
+ `detect_*` /       `retrieve_evidence`    `generate_explanation`  `_persist_node`
+  `calculate_safety`  wraps each            consumes (patient_      writes analysis_runs
+   finds severity     finding with          context, safety_score_   deterministic_result
+   from rules as-is   medical (rule        result, evidence_        (from SafetyScoreResult
+                      fields) +             bundle, timeline_       only) + safety_score/
+                      personal (scoped      context) →              risk_level + llm_* 
+                      timeline_events)      LLMExplanationResult    nullable; timeline_context
+                                           (summary/reasoning/      NOT in deterministic_result
+                                            recommendations/         → VERIFIED (repository:
+                                            confidence)              langgraph_workflow.py:42-50)
+                                            — VERIFIED (repository:
+                                            llm_service.py:362-384)
+```
+
+| Guarantee | Repository evidence | Classification |
+|---|---|---|
+| **Evidence Retrieval never changes deterministic findings** — it takes `safety_score_result` as read-only input and returns `FindingEvidence(finding=original_finding, ...)` wrapping the original object without mutating `severity`, `reaction_description`, `adherence_rate`, `safety_score`, or `risk_level` | `VERIFIED (repository: `evidence_retrieval.py:108-121` `FindingEvidence.finding: DrugInteractionFinding | ADRFinding | AdherenceFinding` (the original) + `298-328` loops create new wrappers, never assign to `finding.severity` etc. + `grep -n "finding\.severity\s*=" evidence_retrieval.py` → 0)` | **VERIFIED (repository)** |
+| **Evidence enriches only** — `medical_evidence` copies `mechanism`/`recommendation`/`reaction_description` as `statement` with `kind="medical"`; `personal_evidence` copies `event_title`/`event_description` with `kind="personal"` — no new clinical conclusion is produced | `VERIFIED (repository: `137-168` medical builders only `statement=finding.<field>` + `237-248` personal `statement=f"{event.event_title} — {event.event_description}"`)` | **VERIFIED (repository)** |
+| **LLM consumes deterministic findings + evidence bundle + timeline context but cannot modify what is persisted as deterministic** — `generate_explanation` signature is `(patient_context, safety_score_result, evidence_bundle, timeline_context) -> LLMExplanationResult` and `langgraph_workflow.py:197-218` `llm_explanation` node stores the LLM result in `llm_result`/`llm_error` separately from `safety_score_result`; `_persist_node` writes `deterministic_result = _serialize_safety_score_result(safety_score_result)` (deterministic only) and `llm_summary`/`llm_reasoning`/`llm_recommendations`/`confidence_*` from `llm_result` as separate nullable columns | `VERIFIED (repository: `llm_service.py:362-384` signature + `langgraph_workflow.py:197-218` node + `231-241` `AnalysisRun(deterministic_result=..., safety_score=..., risk_level=..., llm_summary=llm_result.summary if llm_result else None...)`)` | **VERIFIED (repository)** |
+| **`analysis_runs.deterministic_result` remains the authoritative deterministic output regardless of generated explanation** — it is serialized from `SafetyScoreResult` alone via `_serialize_safety_score_result` (which iterates `interaction_findings`/`adr_findings`/`adherence_findings`/`penalties`) without reading `llm_result` or `timeline_context`; `llm_*` columns are stored beside it, not merged into it | `VERIFIED (repository: `langgraph_workflow.py:65-94` `_serialize_safety_score_result` takes only `SafetyScoreResult` and explicitly excludes `PenaltyEntry.source` and never touches `llm_result` + `42-50` docstring “`timeline_context` is deliberately NOT included” + `test_langgraph_workflow.py:test_deterministic_result_contains_expected_findings_and_excludes_timeline` asserts `"timeline_context" not in det` + `223-241` `AnalysisRun` construction)` | **VERIFIED (repository)** + **VERIFIED (empirical experiment)** where `test_langgraph_workflow.py` runs |
+| **Separation is structural, not just prompt-based:** detection is in `app/analysis/*`, evidence in `app/services/evidence_retrieval.py`, explanation in `app/services/llm_service.py`/`llm_providers.py` — cross-imports are one-way (evidence imports findings types; LLM imports bundles; workflow imports all) and never cyclic — `VERIFIED (repository: `ls backend/app/analysis/` vs `ls backend/app/services/` + `grep -rn "from app.analysis\|from app.services" backend/app/services/evidence_retrieval.py` shows only `from app.analysis.*` one-way)` | **VERIFIED (repository)** |
+
+*Result:* the AI layer can **fail** (all providers fail → `llm_result: None`, `llm_error` populated — `VERIFIED (repository: `langgraph_workflow.py:205-216`)`) and the deterministic pipeline **still persists** — the `persist` node commits `safety_score`/`risk_level`/`deterministic_result` regardless — `VERIFIED (repository: `langgraph_workflow.py:223-262` `persist` runs after `llm_explanation` unconditionally)`. Deterministic `Detection → Evidence → Explanation → Persistence` remains intact.
+
+---
+
+*Sections 13–19 to follow.*
