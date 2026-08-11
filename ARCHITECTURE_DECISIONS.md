@@ -1320,4 +1320,163 @@ async def _sweep_missed_doses(patient_id: UUID, db: AsyncSession) -> None:
 
 ---
 
-*Sections 15–19 to follow.*
+## 15. Configuration, Secrets & Environment
+
+**Scope and evidence labeling:** every normative statement in §15 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative Pydantic/SQLAlchemy/httpx/FastAPI/LangGraph docs; `VERIFIED (repository)` with reference to repository test cases — test case definitions exist in the repository but were not executed in this environment; `UNVERIFIED (empirical experiment in current environment)` — suite requires live Supabase DB + `DATABASE_URL` + seeded `002_seed_data.sql` and was not executed here; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository (e.g. production latency, confidence calibration, pooler/RLS future). Implementation is the source of truth. No future env var, replica, or infra mechanism is documented as implemented beyond what the repository contains.
+
+### 15.1 Purpose — single cached settings object, never hardcode secrets
+
+**VERIFIED (repository: `backend/app/core/config.py:1-15` + `30-79` + `backend/.env.example:1-15`):**
+
+`Settings(BaseSettings)` is the single runtime configuration object. It loads from environment variables (real env vars in deployment, `backend/.env` locally via `SettingsConfigDict(env_file=BASE_DIR / ".env", env_file_encoding="utf-8")`) and is accessed via cached `get_settings()` — `VERIFIED (repository: `config.py:22` `BASE_DIR = Path(__file__).resolve().parents[2]` (`backend/`) + `56` `model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", ...)` + `77-79` `@lru_cache def get_settings(): return Settings()`)`. Module docstring states “*Loads settings from environment variables (.env locally, real env vars in deployment). Never hardcode secrets here*” — `VERIFIED (repository: `config.py:1-15`)`.
+
+The repository defines **9 env vars** (see §15.2) plus one **derived** property `supabase_jwks_url`; the application reads them as `settings.<field>` — never from a second settings object or a separate `SUPABASE_JWKS_URL` env var (none exists — `VERIFIED (repository: `grep -n "SUPABASE_JWKS_URL" backend/app/core/config.py backend/.env.example` → `0`)**).
+
+### 15.2 Repository location and architectural responsibility
+
+**VERIFIED (repository: `backend/app/core/config.py:1-15` + `backend/.env.example:1-15` + `backend/app/db/session.py:11` + `backend/app/core/security.py:64-66` + `backend/app/api/v1/auth.py:25-30` + `backend/app/services/llm_providers.py:51-54` + `ls`):**
+
+| File | Responsibility | Evidence |
+|---|---|---|
+| `backend/app/core/config.py` | Defines `class Settings(BaseSettings)` + cached `get_settings()` + derived `supabase_jwks_url`; documents that `supabase_jwt_secret` is deprecated and `LLM keys default to ""` (fail-closed, see §15.6) | `VERIFIED (repository: `1-15` docstring + `30-79` class + derived property)` |
+| `backend/.env.example` | Template documenting all required keys with placeholder values (`password`, `https://xxxxxxxx.supabase.co`, empty `SUPABASE_JWT_SECRET`, `HTTP_TIMEOUT_SECONDS=10.0`) and comments pointing to Supabase project settings | `VERIFIED (repository: `1-15` template exists)` |
+| `backend/.env` | Real local values (`postgresql+asyncpg://postgres:***@db....supabase.co:5432/postgres`, `SUPABASE_URL=https://***.supabase.co`, `SUPABASE_ANON_KEY=***`, `SUPABASE_JWT_SECRET=***`) — not a template; `.gitignore` contains `.env` so it is never committed | `VERIFIED (repository: `ls backend/.env` exists + `grep -n "\.env" backend/.gitignore` → `.env`)` |
+| `backend/app/db/session.py` | Consumes `settings.database_url` via `create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)` with `AsyncSessionLocal(expire_on_commit=False)` and `async def get_db()` yielding and closing | `VERIFIED (repository: `11-22`)` |
+| `backend/app/core/security.py` | Consumes `settings.supabase_jwks_url` and `settings.supabase_url` (issuer) for JWKS verification | `VERIFIED (repository: `64-66` + `88-93`, `123`)` |
+| `backend/app/api/v1/auth.py` | Consumes `settings.supabase_url`, `settings.supabase_anon_key`, `settings.http_timeout_seconds` for the Supabase Auth proxy (`_supabase_headers`) | `VERIFIED (repository: `25-30` + `34-40`)` |
+| `backend/app/services/llm_providers.py` | Consumes `settings.gemini_api_key`/`gemini_model`/`openrouter_api_key`/`openrouter_model`/`llm_timeout_seconds` per-provider | `VERIFIED (repository: `51-54` + `136`, `222`, `165`, `236`)` |
+
+*All consumers import via `from app.core.config import get_settings; settings = get_settings()` — `VERIFIED (repository: `grep -rn "from app.core.config import get_settings" backend/app/` → 4 consumers).*
+
+### 15.3 Inputs and outputs — the 9 env vars, derived JWKS URL, and cached instance
+
+**VERIFIED (repository: `backend/app/core/config.py:32-79` + `backend/.env.example:1-15` + `backend/app/db/session.py:11` + Pydantic `@lru_cache` docs — `VERIFIED (official documentation)`):**
+
+| Env var / property | Type / default | Description | Evidence |
+|---|---|---|---|
+| `DATABASE_URL` | `str` **required** (no `=`) | Async Postgres URL — deployment example `postgresql+asyncpg://postgres:password@db.xxxxxxxx.supabase.co:5432/postgres` — `VERIFIED (repository: `config.py:32` required vs `33-55` optional)` | `32` |
+| `SUPABASE_URL` | `str = ""` | Project URL `https://xxxxxxxx.supabase.co` — `VERIFIED (repository: `33`)` | `33` |
+| `SUPABASE_ANON_KEY` | `str = ""` | Anon key for Auth proxy `apikey` header | `34` |
+| `SUPABASE_JWT_SECRET` | `str = ""` | **Deprecated, inert** — see §15.4 | `38` |
+| `HTTP_TIMEOUT_SECONDS` | `float = 10.0` | Timeout for Supabase Auth `httpx.AsyncClient` | `35` |
+| `GEMINI_API_KEY` | `str = ""` (`gemini_api_key`) | Empty = “not configured” → `LLMProviderError` at `complete()` | `42` |
+| `GEMINI_MODEL` | `str = "gemini-2.0-flash"` | Configurable model name, not hardcoded | `43` |
+| `OPENROUTER_API_KEY` | `str = ""` (`openrouter_api_key`) | Empty = “not configured” | `47` |
+| `OPENROUTER_MODEL` | `str = "meta-llama/llama-3.1-8b-instruct:free"` | Configurable fallback model | `48` |
+| `LLM_TIMEOUT_SECONDS` | `float = 30.0` (`llm_timeout_seconds`) | Shared timeout for Gemini + OpenRouter `httpx` calls | `54` |
+| `supabase_jwks_url` (derived) | `str` property | `""` if `supabase_url` empty else `f"{supabase_url}/auth/v1/.well-known/jwks.json"` — **not a separate env var** | `57-75` property + docstring `10-15` + `grep SUPABASE_JWKS_URL` → `0` |
+
+**Outputs:** a cached `Settings` instance via `@lru_cache def get_settings() -> Settings: return Settings()` — parsed once per process; every consumer reuses `settings = get_settings()` at import — `VERIFIED (repository: `77-79`)` and `VERIFIED (official documentation)` for `functools.lru_cache` singleton caching.
+
+*Deployment note from `config.py:40-55` docstring: “*Model names are configurable rather than hardcoded since free-tier model availability changes over time; the defaults below are reasonable starting points, not guarantees*” — `VERIFIED (repository).*
+
+### 15.4 Required vs optional — can initialize with optional config unset
+
+**VERIFIED (repository: `backend/app/core/config.py:32-55` + `backend/app/core/security.py:88-93` + `backend/app/api/v1/auth.py:34-40` + `backend/app/services/llm_providers.py:139-140`, `225-226` + `backend/tests/test_security.py:93` repository test case):**
+
+- **`DATABASE_URL` is required (no default)** — `database_url: str` on line `32` has no `= ""` — `VERIFIED (repository: `32`)`. All other Supabase/LLM keys default to `""` or to the documented defaults (`10.0`, `30.0`, model names) — `VERIFIED (repository: `33-55`)`.
+- **The application can initialize with optional configuration unset; features requiring those settings fail at call time rather than during settings construction** — `VERIFIED (repository: `config.py:1-15` docstring + `40-55` “*Empty string means ‘not configured’ — GeminiProvider fails closed … rather than raising at settings-load time*” + `security.py:88-93` `if not settings.supabase_jwks_url: raise 500` only inside `_get_jwks_client()` + `auth.py:34-40` `if not settings.supabase_url or not settings.supabase_anon_key: raise 500` only inside `_supabase_headers()` + `llm_providers.py:139-140` `if not settings.gemini_api_key: raise LLMProviderError(...)` only inside `complete()`)*.* This wording is intentionally narrow — it does **not** imply every runtime path functions normally with optional config absent, only that `Settings()` construction succeeds.
+
+*Empirical:* `test_decode_missing_config_raises_500:93` (empty `supabase_url` → `HTTPException(500)` at `_get_jwks_client()` call time) and `test_llm_providers.py` missing `GEMINI_API_KEY` → `LLMProviderError` at `complete()` — `VERIFIED (repository)` with references to repository test cases; `UNVERIFIED (empirical experiment in current environment)` for this run where DB-dependent suites were not executed.
+
+### 15.5 Supabase Auth config — derived JWKS URL, not a separate env var
+
+**VERIFIED (repository: `backend/app/core/config.py:10-15` + `57-75` + `backend/app/core/security.py:88-93`, `123` + `grep SUPABASE_JWKS_URL` → 0):**
+
+`supabase_jwks_url` is a **derived property**, not a separate env var — `VERIFIED (repository: `config.py:10-15` “*supabase_jwks_url is a derived property, not a separate env var*” + `57-75` implementation `if not self.supabase_url: return ""` / `return f"{self.supabase_url}/auth/v1/.well-known/jwks.json"`)`. Supabase publishes the JWKS at the fixed well-known path under the project’s own URL — `VERIFIED (repository: `config.py:12` comment)`. The verifier uses `PyJWKClient(settings.supabase_jwks_url, cache_keys=True)` and validates `audience="authenticated"` + `issuer=f"{settings.supabase_url}/auth/v1"` — `VERIFIED (repository: `security.py:88-93` + `123`)`.
+
+- **No separate `SUPABASE_JWKS_URL` env var exists** — `grep -n "SUPABASE_JWKS_URL" backend/app/core/config.py backend/.env.example` → `0` — `VERIFIED (repository)`; also no additional `SUPABASE_JWKS_URL` definition via `grep -rn "SUPABASE_JWKS_URL" backend/` → `0`.
+
+### 15.6 `SUPABASE_JWT_SECRET` is deprecated and inert — retained for backward compatibility
+
+**VERIFIED (repository: `backend/app/core/config.py:19-24` + `33-38` + `backend/app/core/security.py` full-file `grep` → 0 reads + `backend/.env.example:7`):**
+
+`supabase_jwt_secret: str = ""` remains only with the docstring:
+
+> “*DEPRECATED … JWT verification now uses JWKS … so this field is no longer read by any verification code path. It is kept (rather than removed) purely for backward compatibility with existing `.env` files that still set it*” — `VERIFIED (repository: `config.py:19-24` + `33-38`)`.
+
+- **`SUPABASE_JWT_SECRET` is retained for backward compatibility with existing configuration files; the repository does not reference it during JWT verification** — `VERIFIED (repository: `grep -rn "supabase_jwt_secret" backend/app/` → only `config.py` field definition + `.env.example` line + never read in `security.py` — `grep -rn "supabase_jwt_secret" backend/app/core/security.py` → `0` reads)**.* The stronger inference “removing it would be breaking” is **not** claimed — only retention and non-reference are `VERIFIED`.
+
+### 15.7 Database engine — `settings.database_url` passthrough vs deployment example
+
+**Distinguished:**
+
+| What is repository-verified | Evidence |
+|---|---|
+| **Repository:** engine **receives `settings.database_url`** — the code stores a string and passes it to `create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)` with `AsyncSessionLocal(expire_on_commit=False)` and `async def get_db()` yielding and closing — `VERIFIED (repository: `config.py:32` `database_url: str` (no driver enforcement) + `session.py:13` `create_async_engine(settings.database_url, ...)` + `session.py:1-22` full file)` | — |
+| **Deployment example:** the example files **use `postgresql+asyncpg://`** — `DATABASE_URL=postgresql+asyncpg://postgres:password@db.xxxxxxxx.supabase.co:5432/postgres` in `backend/.env.example:1` and `DATABASE_URL=postgresql+asyncpg://postgres:***@db....supabase.co:5432/postgres` in `backend/.env` — `VERIFIED (repository: example file contents)` | — |
+
+*The repository does **not** assert that every deployment must use `postgresql+asyncpg://` — it only verifies that the engine receives the configured `settings.database_url` string, while the deployment example happens to use that scheme — `VERIFIED (repository)` for the distinction.*
+
+SQLAlchemy `create_async_engine` accepting a URL string and `asyncpg` as the async driver are `VERIFIED (official documentation)` for SQLAlchemy.
+
+### 15.8 LLM keys and models — configurable, not hardcoded, shared timeouts
+
+**VERIFIED (repository: `backend/app/core/config.py:40-55` + `backend/app/services/llm_providers.py:136`, `222`, `165`, `236` + `backend/app/services/llm_service.py:299` + `backend/app/api/v1/auth.py:110` + `httpx` docs — `VERIFIED (official documentation)`):**
+
+- `gemini_api_key`/`gemini_model` and `openrouter_api_key`/`openrouter_model` default as in §15.3; `llm_timeout_seconds` (`30.0`) is shared for both providers while `http_timeout_seconds` (`10.0`) is for Supabase Auth — `VERIFIED (repository: `config.py:40-55`)`.
+- `GeminiProvider.model` is `return settings.gemini_model` and `OpenRouterProvider.model` is `return settings.openrouter_model` — **read fresh from settings on each call, never hardcoded** — `VERIFIED (repository: `llm_providers.py:136` + `222`)` — used for logging `model_used`.
+- `GeminiProvider._request_once` sends `headers = {"x-goog-api-key": settings.gemini_api_key, ...}` and `OpenRouterProvider.complete` sends `headers = {"Authorization": f"Bearer {settings.openrouter_api_key}"}` — `VERIFIED (repository: `llm_providers.py:165` + `236`)`.
+- Both providers are called via `httpx.AsyncClient(timeout=timeout_seconds)` where `timeout_seconds` is `settings.llm_timeout_seconds` (LLM) or `settings.http_timeout_seconds` (Supabase) — `VERIFIED (repository: `llm_service.py:299` + `auth.py:110` + `llm_providers.py:133-155`)` and `VERIFIED (official documentation)` for `httpx.AsyncClient(timeout=)`.
+
+### 15.9 Settings is a cached singleton — no per-request re-parse
+
+**VERIFIED (repository: `backend/app/core/config.py:77-79` + `backend/app/db/session.py:11` + `backend/app/core/security.py:64-66` + `backend/app/api/v1/auth.py:25-30` + `backend/app/services/llm_providers.py:51-54` + `functools.lru_cache` docs — `VERIFIED (official documentation)`):**
+
+`@lru_cache def get_settings() -> Settings: return Settings()` — so `Settings()` is parsed **once per process**; every consumer does `settings = get_settings()` at import and reuses the cached singleton (e.g. `settings.database_url`, `settings.supabase_url`, `settings.gemini_api_key`) — `VERIFIED (repository: `77-79` + consumer imports)`.
+
+- **Repository verifies:** `@lru_cache` and cached singleton — `VERIFIED (repository: `77-79` + `grep -n "lru_cache" config.py` → `@lru_cache`)**;* `VERIFIED (official documentation)` for `functools.lru_cache` singleton caching.
+- **Repository tests demonstrate monkeypatching (separate from architectural behavior):** `test_security.py:27` does `monkeypatch.setattr(security.settings, "supabase_url", TEST_SUPABASE_URL)` and `test_auth_api.py:40` does `monkeypatch.setattr(settings, "supabase_url", "https://example...")` — `VERIFIED (repository)` with references to repository test cases as *examples* of patching the cached instance — **monkeypatching is not a required mechanism, only a test seam** — the architectural guarantee is the cached singleton; tests happen to use `monkeypatch.setattr` on that instance.
+
+### 15.10 Secrets handling — template vs real file; reviewed modules avoid logging
+
+**VERIFIED (repository: `backend/.env.example:1-15` + `backend/.gitignore` + `backend/app/api/v1/auth.py:1-12` + `backend/app/services/llm_service.py:42-50`):**
+
+- **Template vs real file:** `backend/.env.example` documents all keys with placeholder values (`password`, `https://xxxxxxxx.supabase.co`, empty `SUPABASE_JWT_SECRET`, `HTTP_TIMEOUT_SECONDS=10.0`) and comments (“*Get this from Supabase project settings …*”) — `VERIFIED (repository: `1-15`)`; real `backend/.env` contains actual `postgres:...` URL and keys but `.gitignore` contains `.env` so it is never committed — `VERIFIED (repository: `grep -n "\.env" backend/.gitignore` → `.env` + `ls backend/.env` exists)`.
+- **Narrow logging guarantee (not a global “never logs secrets” claim):** **The reviewed authentication and LLM modules explicitly document avoiding logging passwords, tokens, prompts, explanations, and patient identifiers** — `VERIFIED (repository: `auth.py:1-12` docstring “*Email addresses are logged … passwords and tokens are never logged, in request bodies or responses*” + `llm_service.py:42-50` “*Only metadata — never the prompt, the patient snapshot/evidence that fed it, the generated explanation, or any patient identifier. Token usage fields are added to `extra` only when the provider actually reported them*” + `llm_providers.py:36-45` `LLMProviderError` never logs raw token)**.* This is a **reviewed-modules** guarantee, not a repository-wide global claim.*
+
+### 15.11 Environment differences — local `.env` vs deployment env var precedence
+
+**VERIFIED (repository: `backend/app/core/config.py:22`, `56` + Pydantic Settings precedence docs — `VERIFIED (official documentation)`):**
+
+`SettingsConfigDict(env_file=BASE_DIR / ".env", env_file_encoding="utf-8")` where `BASE_DIR = Path(__file__).resolve().parents[2]` (`backend/`) — `VERIFIED (repository: `22` + `56`)` — loads `backend/.env` **only if present**; in deployment real env vars **override** via `BaseSettings` precedence (`environment variable > dotenv file > defaults`) per Pydantic Settings docs — `VERIFIED (official documentation)` for Pydantic Settings env precedence. No `DATABASE_URL` fallback logic beyond that precedence is coded — `VERIFIED (repository: `grep -n "env_file" config.py` → 1 hit)`.
+
+*`get_settings()` itself does not branch on `ENV` / `DEBUG` — no `if settings.env == "production"` logic exists — `VERIFIED (repository: `grep -n "ENV\|DEBUG\|environment.*production" config.py` → 0).*
+
+### 15.12 Failure behavior — two distinct modes, not merged
+
+**VERIFIED (repository: `backend/app/core/config.py:32` + `backend/app/db/session.py:11-13` + `backend/app/core/security.py:88-93` + `backend/app/services/llm_providers.py:139-140`, `225-226` + Pydantic `ValidationError` + SQLAlchemy `create_async_engine` docs — `VERIFIED (official documentation)`):**
+
+| Mode | Trigger | What raises | When | Evidence |
+|---|---|---|---|---|
+| **Missing required variable** | `DATABASE_URL` not set (no default) | `pydantic.ValidationError` from `Settings()` construction — at import time (`settings = get_settings()` in `session.py` before any request) | Settings construction, before any request | `VERIFIED (repository: `config.py:32` `database_url: str` required vs `33-55` optional defaults + Pydantic `BaseSettings` required-field validation — `VERIFIED (official documentation)` for `ValidationError`) |
+| **Malformed URL** | `DATABASE_URL=not-a-url` or missing `postgresql+asyncpg://` scheme or invalid host | `create_async_engine(settings.database_url, ...)` raises (SQLAlchemy `ArgumentError` / `ModuleNotFoundError` for unknown driver) | Engine initialization at `session.py:13`, still before any request but after `Settings()` succeeds | `VERIFIED (repository: `session.py:13` `create_async_engine(settings.database_url, ...)` executed at import; not merged with `ValidationError` case — two distinct failure types)** — `VERIFIED (official documentation)` for `create_async_engine` raising on malformed URL |
+| **Optional Supabase config unset** | `SUPABASE_URL=""` or `SUPABASE_ANON_KEY=""` | `HTTPException(500, "Server is not configured with Supabase URL/anon key.")` from `_supabase_headers()` or `HTTPException(500, "Server is not configured with a Supabase URL.")` from `_get_jwks_client()` | **Call time** — first `POST /auth/signup`/`/auth/login` or first authenticated request — per `auth.py:34-40` + `security.py:88-93` | `VERIFIED (repository: `auth.py:34-40` 500 only when `_supabase_headers()` called + `security.py:88-93` 500 only when `_get_jwks_client()` called)` |
+| **Optional LLM keys unset** | `GEMINI_API_KEY=""` or `OPENROUTER_API_KEY=""` | `LLMProviderError("GEMINI_API_KEY is not configured.")` / `("OPENROUTER_API_KEY is not configured.")` from `provider.complete()` | **Call time** — only inside `GeminiProvider.complete()` / `OpenRouterProvider.complete()` at LLM call time — `VERIFIED (repository: `llm_providers.py:139-140` + `225-226`)` | `VERIFIED (repository)` |
+
+*Repository test cases:* `test_decode_missing_config_raises_500:93` asserts call-time `500` for empty `supabase_url` and `test_llm_providers.py` missing-key → `LLMProviderError` at `complete()` — `VERIFIED (repository)` with references to repository test cases; `UNVERIFIED (empirical experiment in current environment)` for this run where DB-dependent suites were not executed.
+
+### 15.13 Comparison to other config approaches (not adopted) — no additional infra env vars
+
+**VERIFIED (repository: `backend/app/core/config.py:32-55` + `backend/.env.example:1-15` + `grep` for absence):**
+
+The repository defines a **single `DATABASE_URL` configuration value and contains no configuration for replicas, poolers, Redis, Celery, Sentry, or similar infrastructure** — `VERIFIED (repository: `config.py:32-55` only 9 env vars defined (`database_url`, `supabase_url`, `supabase_anon_key`, `supabase_jwt_secret`, `http_timeout_seconds`, `gemini_api_key`, `gemini_model`, `openrouter_api_key`, `openrouter_model`, `llm_timeout_seconds`) + `backend/.env.example:1-15` same 9 + `grep -rn "REDIS\|CELERY\|SENTRY\|REPLICA\|POOLER\|REDIS_URL\|CELERY_BROKER\|SENTRY_DSN\|LOG_LEVEL" backend/app/core/config.py backend/.env.example` → `0`)*.*
+
+*No `LOG_LEVEL`, `ENV`, or `DEBUG` env var exists — `VERIFIED (repository: `grep -rn "LOG_LEVEL\|ENV\|DEBUG" config.py` → 0 for env-driven level).* Timeout handling is via two separate configurable values: `http_timeout_seconds` (`10.0`) for Supabase Auth and `llm_timeout_seconds` (`30.0`) for LLM providers — `VERIFIED (repository: `35` + `54`)`.
+
+**UNVERIFIED / REQUIRES RESEARCH** for pooler/RLS future and timeout tuning at scale — explicitly not claimed as optimal.
+
+### 15.14 Current limitations and implementation status
+
+**VERIFIED (repository: `backend/app/core/config.py` + `backend/.env.example` + `backend/app/db/session.py` + `backend/app/services/llm_providers.py` + `backend/app/services/llm_service.py` + `langgraph_workflow.py`):**
+
+- **Implemented (Phase 2/15, verified):** single cached `Settings(BaseSettings)` with `@lru_cache`, `BASE_DIR/.env` loading, 9 env vars + derived `supabase_jwks_url`, fail-closed-at-call-time for Supabase/LLM, fail-at-`Settings()`-construction for required `DATABASE_URL` vs malformed-URL engine failure, configurable models/timeouts, deprecated `supabase_jwt_secret` inert — all as cited above — `VERIFIED (repository)`.
+- **`supabase_jwt_secret` inert but retained** — no code reads it; removing it would require updating existing `.env` files but is not a code dependency — `VERIFIED (repository: `config.py:19-24` + `grep` → 0 reads)`.
+- **Single `DATABASE_URL` only** — no read-replica or Supabase pooler `auth.uid()` propagation is configured (see §8.9/§9.6 RLS `UNVERIFIED` — the backend’s `postgres` role may bypass RLS unless `FORCE` is set; this remains `UNVERIFIED` as before).
+- **No `LOG_LEVEL`/`ENV` branching in settings** — `VERIFIED (repository: `grep -n "LOG_LEVEL\|ENV" config.py` → 0)`; `echo=False` in `session.py:13` is production default — `VERIFIED (repository: `session.py:13`)*.*
+- **No secrets rotation logic in code** — rotation is operational (update env vars and restart), not coded as `Settings` logic — `VERIFIED (repository: `grep -rn "rotation\|rotate" backend/app/core/config.py` → 0)`.
+- **LLM keys are fail-closed, not fail-open:** with `GEMINI_API_KEY=""` and `OPENROUTER_API_KEY=""` the deterministic pipeline (`calculate_safety_score` → `persist` → `analysis_runs` + `analysis_run` event) **still persists** with `llm_*` columns `NULL` — `VERIFIED (repository: `langgraph_workflow.py:197-218` catches `LLMExplanationError` → `llm_result: None` + `223-262` `persist` writes `llm_summary if llm_result else None`)**;* this is the intended production behavior with optional LLM config unset.
+
+---
+
+*Sections 16–19 to follow.*
