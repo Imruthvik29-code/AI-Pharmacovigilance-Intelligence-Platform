@@ -2361,4 +2361,169 @@ Claims about **OpenFDA, FAERS, DailyMed, WHO ATC, SNOMED, CVX** beyond RxNorm ar
 
 ---
 
-*Sections 21–24 to follow.*
+## 21. Scalability & Performance Planning
+
+**Scope and evidence labeling:** every normative statement in §21 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative PostgreSQL/SQLAlchemy/`pytest` docs **only where verification has actually been performed and documented**; `VERIFIED (repository)` with reference to repository test cases — test case definitions exist in the repository but were not executed in this environment; `UNVERIFIED (empirical production behavior)` — requires production measurements (row-count distribution, `EXPLAIN ANALYZE` with `active` filter, load); `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository (e.g. `EXPLAIN` plans, latency, throughput, partitioning need). Implementation is the source of truth. **When discussing scalability, this section avoids language implying the current architecture is “scalable” or “high performance.” It documents architectural decisions that are intended to support scalability, while actual scalability characteristics (latency, throughput, concurrency, execution plans, memory usage, production limits) remain `UNVERIFIED / REQUIRES RESEARCH` unless supported by measurements.** No SLO or latency budget is prescribed in this repository.
+
+### 21.1 Purpose — documented assumptions and repository-verified indexes vs unverified scale
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.3` + `7.4` + `001_initial_schema.sql:156-166` + `backend/app/services/llm_service.py:240-257` + `grep -rn "latency.*budget\|SLO\|throughput" backend/` → `0`):**
+
+The repository documents architectural decisions that are **intended to support scalability** (per-patient `patient_id`-filtered queries, 11 B-tree indexes on `patient_id`/`medication_id`/`scheduled_time`, per-patient active-medication small-cardinality assumption, `ENGINEERING ESTIMATE` for `IN`-only Prescribable Content `4,000–6,000` rows, and `MAX_GENERATED_DOSES=3650` cap), but the **repository does not prescribe a latency, throughput, or concurrency SLO** — `grep -rn "SLO\|latency.*budget\|throughput\|p95\|p99" backend/` → `0` except `llm_service.py:240-257` which **logs** `latency_ms` for LLM calls (`assert isinstance(record.latency_ms, int)` in `test_llm_service.py:499-500`) but does **not** budget it.
+
+- **What is `VERIFIED (repository)`:** 6 existing indexes + 5 deferred/absent indexes, per-patient active-medication small-cardinality **documented assumption** (§21.2), `ENGINEERING ESTIMATE` pending `--dry-run` (§21.2), `MAX_GENERATED_DOSES=3650` cap (§21.10), `llm_service.py:240-257` `latency_ms` **logged** (not budgeted), and `grep -rn "latency.*budget\|SLO" backend/` → `0` (absence of budget).
+- **What is `UNVERIFIED / REQUIRES RESEARCH`:** whether the existing `patient_id`-filtered queries + 11 indexes actually achieve low latency/high throughput at production scale, whether `PARTITION`/`CACHE`/`REDIS` would help, what `p95`/`p99` would be — all `UNVERIFIED` without `EXPLAIN ANALYZE` or load measurements — `grep -rn "EXPLAIN" backend/` → `0` (only the decision text mentions `EXPLAIN ANALYZE` as future gate).
+
+*This section therefore first documents implemented repository behavior, documented architectural assumptions, approved-but-not-implemented decisions, and repository-verified absences — as `VERIFIED (repository)` — and only after that separates `UNVERIFIED / REQUIRES RESEARCH` and `UNVERIFIED (empirical production behavior)` as **areas for future evolution** — per your point 4.*
+
+### 21.2 Repository location, capacity notes, and the documented small-cardinality assumption
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.3` + `7.4` + `001_initial_schema.sql:156-166` + `PROJECT_PHASES.md` Phase 1 note + `backend/app/services/llm_service.py:240-257` + `grep -rn "SLO" backend/` → `0`):**
+
+| Item | Verified detail |
+|---|---|
+| **Capacity note — per-patient active meds** | **The repository documents the architectural assumption that per-patient active-medication row counts remain small regardless of total table size** — `VERIFIED (repository)` for **the documented architectural assumption** (`ARCHITECTURE_DECISIONS.md:6.3` composite row: “*per-patient active-medication row counts stay small regardless of total table size, meaning a sequential scan over an already `patient_id`-filtered row set is unlikely to benefit*” — the sentence exists in the repository as design reasoning). **UNVERIFIED (empirical production behavior)** unless measurements (row-count distribution `SELECT patient_id, count(*) GROUP BY patient_id`, `EXPLAIN ANALYZE` with `active` filter) exist — explicitly distinguished per your point 1 — **no `EXPLAIN` in the repository** (`grep -rn "EXPLAIN" backend/` → `0`) |
+| **Capacity note — catalog size** | `IN`-only Prescribable Content `ENGINEERING ESTIMATE` `4,000–6,000` rows (2013 NLM baseline `4,320` + expected growth) — first step is `--dry-run` via `backend/scripts/import_rxnorm.py --dry-run` to replace estimate with measured `Prescribe/allconcepts.json` `IN`-only count — `VERIFIED (repository: `7.4` `ENGINEERING ESTIMATE, not independently verified …` + `grep -n "dry-run\|dry_run" backend/scripts/import_rxnorm.py` → flag exists + `PROJECT_PHASES.md` Phase 1 seed `12` drugs is the small curated set, not the `IN` estimate)* — `VERIFIED (official documentation)` for NLM 2013 `4,320` where cited; `UNVERIFIED / REQUIRES RESEARCH` for actual count until `--dry-run` |
+| **Small curated seed vs estimate** | The small curated seed `12` drugs + `7` interaction rules + `13` ADR rules (per `PROJECT_PHASES.md` Phase 1) are distinct from the `ENGINEERING ESTIMATE` `4,000–6,000` — `VERIFIED (repository: `PROJECT_PHASES.md` + `002_seed_data.sql` `grep -c "insert into"` → 7/13 + `ARCHITECTURE_DECISIONS.md:7.4`) |
+| **LLM latency** | `backend/app/services/llm_service.py:240-257` logs `latency_ms` (`assert isinstance(record.latency_ms, int)` in `test_llm_service.py:499-500`) as **operational metadata**, not as a latency budget — `VERIFIED (repository)` for `latency_ms` **logged**; **The repository currently contains no evidence of a latency budget, SLO, or p95/p99 objective** — `grep -rn "SLO\|latency.*budget\|p95\|p99" backend/` → `0` — `VERIFIED (repository)` for **absence of SLO/latency budget** (phrased as “no evidence of … in this repository”) |
+
+### 21.3 Existing indexes — repository-verified index definitions, not indexed reads
+
+**VERIFIED (repository: `001_initial_schema.sql:156-166` `create index` 11 lines + PostgreSQL B-tree `CREATE INDEX` — `VERIFIED (official documentation)` for index creation semantics, not for “indexed reads” without `EXPLAIN`):**
+
+**Existing indexes — repository-verified index definitions. The repository defines 11 B-tree indexes supporting common lookup paths** (not “indexed reads are repository-verified” — the repository only proves the indexes exist, not that they are actually used — per your point 1):
+
+| Index | Table.column | Purpose — `VERIFIED (repository)` for **index existence / index definitions** |
+|---|---|---|
+| `idx_conditions_patient` | `conditions(patient_id)` | Supports `patient_id`-filtered condition queries — `VERIFIED (repository: `001_initial_schema.sql:156`)` |
+| `idx_medications_patient` | `medications(patient_id)` | Supports `patient_id`-filtered medication queries — `VERIFIED (repository: `157`)` |
+| `idx_medications_condition` | `medications(condition_id)` | Supports `condition_id` join — `VERIFIED (repository: `158`)` |
+| `idx_schedule_medication` | `medication_schedule(medication_id)` | Supports `medication_id`-filtered schedule generation — `VERIFIED (repository: `159`)` |
+| `idx_doses_medication` | `medication_doses(medication_id)` | Supports `medication_id`-filtered dose queries — `VERIFIED (repository: `160`)` |
+| `idx_doses_scheduled_time` | `medication_doses(scheduled_time)` | Supports `scheduled_time` range for sweep/upcoming — `VERIFIED (repository: `161`)` |
+| `idx_symptoms_patient` | `symptoms(patient_id)` | Supports `patient_id`-filtered symptom queries — `VERIFIED (repository: `162`)` |
+| `idx_interaction_rules_drugs` | `interaction_rules(drug_a_id, drug_b_id)` | Supports `drug_a_id`/`drug_b_id` `IN` lookups for interaction detection — `VERIFIED (repository: `163`)` |
+| `idx_adr_rules_drug` | `adr_rules(drug_id)` | Supports `drug_id` `IN` lookups for ADR detection — `VERIFIED (repository: `164`)` |
+| `idx_timeline_patient` | `timeline_events(patient_id, event_time desc)` | Supports `patient_id`-filtered `ORDER BY event_time DESC` — `VERIFIED (repository: `165`)` |
+| `idx_analysis_patient` | `analysis_runs(patient_id, created_at desc)` | Supports `patient_id`-filtered `ORDER BY created_at DESC` — `VERIFIED (repository: `166`)` |
+
+*Each `create index` line is `VERIFIED (repository)` for **index existence / index definitions** — `grep -n "create index" 001_initial_schema.sql` → `11` — **not** “indexed reads” unless demonstrated with `EXPLAIN`.*
+
+### 21.4 Deferred and non-existent indexes — repository-verified absence, `UNVERIFIED` need
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.3` + `grep -n "pg_trgm\|GIN\|gin" 001_initial_schema.sql` → `0` + `grep -n "idx_reference_drugs_name_lower" 001_initial_schema.sql` → `0` + `backend/app/api/v1/reference_drugs.py:54-75` + PostgreSQL `pg_trgm` `GIN` — `VERIFIED (official documentation)` for `pg_trgm` capability, not for need):**
+
+| Index / artifact | Status | Repository evidence |
+|---|---|---|
+| `idx_reference_drugs_name_lower` on `lower(name)` | **`ACCEPTED` but not yet created** — approved to accelerate `import_rxnorm` case-insensitive exact-name backfill + search exact-match ranking, **explicitly does not accelerate `ILIKE '%...%'` substring/prefix** — `GET /reference-drugs/search` currently performs an **unindexed `ILIKE` scan** by explicit documented design (“*No new index is added for this search*”) | `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.3` `idx_reference_drugs_name_lower` row — `ACCEPTED` + “*Implementation status: not yet created*” + `001_initial_schema.sql:160-166` no `lower(name)` index + `reference_drugs.py:54-75` `ilike(f"%{normalized}%")`)` |
+| `pg_trgm` `GIN` for `ILIKE '%...%'` | **Deferred, unapproved enhancement** — *that requires `pg_trgm` trigram indexing, which remains a deferred, unapproved enhancement* | `VERIFIED (repository: `6.3` + `grep -n "pg_trgm" 001_initial_schema.sql` → `0` — **The repository currently contains no evidence of `pg_trgm`** — phrased as “no evidence of … in this repository”)** — `VERIFIED (official documentation)` for `pg_trgm` `GIN` `ILIKE` capability, not for need at scale |
+| `medications(patient_id, status)` composite on `(patient_id, status)` | **`DEFERRED pending empirical verification`** — originally proposed as required, then reconsidered: trailing low-cardinality `status` column is unlikely to benefit over the existing `idx_medications_patient(patient_id)` alone — **do not implement until an `EXPLAIN ANALYZE` against representative data confirms real benefit** | `VERIFIED (repository: `6.3` `DEFERRED` row + `001_initial_schema.sql:160-166` only `idx_medications_patient` exists, no composite — `grep -n "idx_medications_patient" 001_initial_schema.sql` → 1; composite → `0`)` + `VERIFIED (official documentation)` for `EXPLAIN ANALYZE` |
+
+*Each `DEFERRED`/`ACCEPTED but not yet created` is `VERIFIED (repository)` for status; actual need at scale is `UNVERIFIED / REQUIRES RESEARCH` — per your distinction between verified absence and `UNVERIFIED` need.*
+
+### 21.5 Table partitioning — no evidence in this repository
+
+**VERIFIED (repository: `grep -rn "PARTITION" 001_initial_schema.sql backend/app/db/` → `0` beyond `PARTITION` word in docs + `ls backend/app/db/` → only `models.py`, `session.py`):**
+
+**The repository currently contains no evidence of table partitioning for `timeline_events`, `analysis_runs`, `medication_doses`, or any other large table** — `grep -rn "PARTITION" 001_initial_schema.sql backend/app/db/` → `0` beyond this verification sentence itself; `ls backend/app/db/` → only `models.py` (ORM models, no `partition.py`) and `session.py` (engine, no `PARTITION BY RANGE`) — `VERIFIED (repository)` for **“The repository currently contains no evidence of table partitioning”** — consistent phrasing — `VERIFIED (official documentation)` for PostgreSQL `PARTITION BY RANGE` syntax (not used).
+
+*Any claim that partitioning would or would not help at scale is `UNVERIFIED / REQUIRES RESEARCH` — no `EXPLAIN` or row-count histogram for `timeline_events` partitioning exists in the repository.*
+
+### 21.6 Caching — no evidence in this repository
+
+**VERIFIED (repository: `grep -rn "REDIS\|CACHE\|redis\|cache" backend/app/core/config.py backend/app/db/session.py` → `0` (beyond comments about small cardinality) + `backend/app/core/config.py:32-55` only `database_url` (no `REDIS_URL`/`CACHE_URL`) + `grep -rn "REDIS\|CACHE" backend/` → `0`):**
+
+**The repository currently contains no evidence of Redis, cache, Memcached, or `CACHE_TTL` for `reference_drugs`, `timeline_events`, or query results** — `grep -rn "REDIS\|CACHE\|redis\|cache" backend/app/core/config.py backend/app/db/session.py` → `0` (beyond the small-cardinality comment in `6.3`) + `backend/app/core/config.py:32-55` only `database_url` (single `DATABASE_URL`) — `VERIFIED (repository)` for **“The repository currently contains no evidence of Redis/cache …”** — consistent phrasing — `REDIS_URL` — `VERIFIED (official documentation)` for Redis (not used).
+
+### 21.7 Load testing — no evidence in this repository
+
+**VERIFIED (repository: `grep -rn "k6\|locust\|pytest-benchmark\|benchmark" backend/tests/` → `0` (only `test_llm_service.py:499` `latency_ms` assertion, not a load test) + `grep -rn "k6\|locust" backend/` → `0`):**
+
+**The repository currently contains no evidence of a load-testing harness such as `k6`, `locust`, `pytest-benchmark`, or `benchmark`** — `grep -rn "k6\|locust\|pytest-benchmark\|benchmark" backend/tests/` → `0` (only `test_llm_service.py:499` `assert isinstance(record.latency_ms, int)` — not a load test) + `grep -rn "k6\|locust" backend/` → `0` — `VERIFIED (repository)` for **“The repository currently contains no evidence of a load-testing harness such as `k6`, `locust` …”** — consistent phrasing — `k6` / `locust` — `VERIFIED (official documentation)` for those tools’ expected file names (not present).
+
+### 21.8 Latency budgets and SLOs — no evidence in this repository
+
+**VERIFIED (repository: `grep -rn "SLO\|latency.*budget\|throughput\|p95\|p99" backend/` → `0` (except per-LLM `latency_ms` in `llm_service.py:240-257` which is **logged**, not budgeted) + `grep -rn "SLO" backend/` → `0`):**
+
+**The repository currently contains no evidence of an `SLO`, `latency` budget, `throughput` target, or `p95`/`p99` objective** — `grep -rn "SLO\|latency.*budget\|throughput\|p95\|p99" backend/` → `0` (except per-LLM `latency_ms` in `llm_service.py:240-257` which is **logged** via `logger.info` with `latency_ms`, `fallback_used`, `prompt_tokens` — not budgeted — `VERIFIED (repository: `llm_service.py:240-257`)`) — `VERIFIED (repository)` for **“The repository currently contains no evidence of an `SLO`, `latency` budget …”** — consistent phrasing + **UNVERIFIED / REQUIRES RESEARCH** for production `latency`/`throughput` (not as proof `SLO` does not exist outside the repository).
+
+### 21.9 Database access patterns — repository queries align with indexed columns
+
+**VERIFIED (repository: `backend/app/api/v1/timeline.py:44-63` + `backend/app/api/v1/analysis.py:104-108` + `backend/app/api/v1/medications.py:124-147` + `001_initial_schema.sql:160-166` — but actual execution plan remains `UNVERIFIED` until `EXPLAIN ANALYZE`):**
+
+**Repository queries align with indexed columns and ordering. PostgreSQL is capable of satisfying these queries using the defined indexes, but the actual execution plan (Index Scan vs Bitmap Scan vs Sequential Scan) remains `UNVERIFIED / REQUIRES RESEARCH` until confirmed with `EXPLAIN ANALYZE` —** *This mirrors the evidence-first philosophy used in Sections 19–20* — per your point 2:
+
+| Query (repository) | How it aligns | Evidence |
+|---|---|---|
+| `GET /patients/{id}/timeline` → `select(TimelineEvent).where(patient_id==...).order_by(event_time.desc())` | Aligns with `idx_timeline_patient(patient_id, event_time desc)` columns and `DESC` ordering — `VERIFIED (repository: `timeline.py:44-63` + `001_initial_schema.sql:165`)` | **Repository queries align with indexed columns and ordering** — `VERIFIED (repository)` |
+| `GET /patients/{id}/analysis` → `select(AnalysisRun).where(patient_id==...).order_by(created_at.desc())` | Aligns with `idx_analysis_patient(patient_id, created_at desc)` — `VERIFIED (repository: `analysis.py:104-108` + `001_initial_schema.sql:166`)` | Same |
+| `GET /patients/{id}/medications` → `select(Medication).where(patient_id==...)` | Aligns with `idx_medications_patient(medications.patient_id)` — `VERIFIED (repository: `medications.py:124-147` + `001_initial_schema.sql:157`)` | Same |
+
+*PostgreSQL composite `ORDER BY` matching index order **is capable** of avoiding sort, and PostgreSQL **is capable** of `Index Scan` vs `Bitmap Scan` vs `Seq Scan` — `VERIFIED (official documentation)` for index `DESC` semantics and `EXPLAIN` — but **chosen plan is `UNVERIFIED / REQUIRES RESEARCH` until confirmed with `EXPLAIN ANALYZE`** — `grep -rn "EXPLAIN" backend/` → `0` — no `EXPLAIN` in this repository, so “directly uses `idx_timeline_patient` without sort” is **not claimed**.*
+
+### 21.10 Per-finding query pattern (no batching) — not “N+1 problem”
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:298-328` loop + `171-236` helpers — but not a demonstrated performance issue):**
+
+**Per-finding query pattern (no batching).** Repository evidence proves **one query per finding** (helper functions `select(Medication.id).where(patient_id==..., status=="active", drug_id.in_(...))` and `select(TimelineEvent).where(patient_id==..., or_(*match_clauses)).order_by(event_time.desc())` executed **inside a loop** over `safety_score_result.{interaction,adr,adherence}_findings`) — `VERIFIED (repository: `evidence_retrieval.py:298-328` `for finding in safety_score_result.{interaction,adr,adherence}_findings: await _build_*_evidence(...)` — each finding triggers `select(Medication...)` + `select(TimelineEvent...)` — no batching; patient with 0 findings issues 0 queries)** — it does **not** prove this is a performance issue — `grep -n "retrieve_evidence" backend/app/services/evidence_retrieval.py` — `VERIFIED (repository)` for per-finding loop, **not** as “N+1 problem” unless demonstrated that it creates unnecessary repeated queries — per your point 3.
+
+### 21.11 Serialized JSONB grows with findings — no asymptotic notation
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:82-94` + `backend/app/api/v1/analysis.py:104-108` (no `limit`) + `001_initial_schema.sql:166`):**
+
+**Serialized JSONB grows with the number of findings and penalties generated during analysis.** The `analysis_runs.deterministic_result` JSONB object serializes `interaction_findings[]`, `adr_findings[]`, `adherence_findings[]`, `penalties[]` — one JSON object per finding/penalty via `_serialize_*` — size therefore grows with `len(findings)` + `len(penalties)` — `VERIFIED (repository: `langgraph_workflow.py:82-94` serialization per finding + `backend/app/api/v1/analysis.py:104-108` no `limit`/`offset` — returns full `idx_analysis_patient`-ordered list)** — **No asymptotic notation** (`O(findings)`) is used — *“Serialized JSONB grows with the number of findings and penalties generated during analysis”* — per your point 4 — unless intentionally adding algorithmic analysis.
+
+### 21.12 Request rate limiting — no evidence in this repository
+
+**VERIFIED (repository: `grep -rn "rate.*limit\|throttle\|slowapi" backend/` → `0` (only `limit` param in `reference_drugs.py:66` `limit: int = Query(default=20, ge=1, le=100)` for search pagination, not rate limiting) + `slowapi` docs — `VERIFIED (official documentation)` for expected name):**
+
+**The repository currently contains no evidence of request rate limiting, throttling, or `slowapi` (FastAPI rate limiting)** — `grep -rn "rate.*limit\|throttle\|slowapi" backend/` → `0` (only `limit` param in `reference_drugs.py:66` for search pagination, not rate limiting) — `VERIFIED (repository)` for **“The repository currently contains no evidence of request rate limiting …”** — consistent phrasing — `slowapi` — `VERIFIED (official documentation)` for expected name (not present).
+
+### 21.13 Implemented repository behavior vs UNVERIFIED future scalability — explicitly separated
+
+**Separate facts from recommendations — the section first documents implemented repository behavior, documented architectural assumptions, approved-but-not-implemented decisions, and repository-verified absences; only after that, a clearly separated `UNVERIFIED / REQUIRES RESEARCH` and *Areas for future evolution* — per your point 4:**
+
+| **Repository-verified** (implemented behavior, documented assumptions, approved-but-not-implemented, verified absences) | **UNVERIFIED / REQUIRES RESEARCH** (areas for future evolution — not mixed) |
+|---|---|
+| `11` indexes **exist** as defined in `001_initial_schema.sql:156-166` (`VERIFIED (repository)`) — `§21.3` | `UNVERIFIED / REQUIRES RESEARCH` — partitioning need (whether `PARTITION` on `timeline_events`/`analysis_runs` would help) — `grep -rn "PARTITION" backend/` → `0` — `UNVERIFIED` unless measured — `§21.5` |
+| **No partitioning** — `The repository currently contains no evidence of table partitioning …` — `VERIFIED (repository)` for **no evidence of `PARTITION`** — `§21.5` | `UNVERIFIED / REQUIRES RESEARCH` — caching need (`REDIS`/`CACHE` for `reference_drugs`/`timeline_events`) — `grep` → `0` — `§21.6` |
+| **No Redis/Cache** — `The repository currently contains no evidence of Redis, cache …` — `VERIFIED (repository)` — `§21.6` | `UNVERIFIED / REQUIRES RESEARCH` — latency bottlenecks (whether `N+1` evidence retrieval loop is a bottleneck) — `grep EXPLAIN` → `0` |
+| **No load-testing harness** — `The repository currently contains no evidence of a load-testing harness such as k6, locust …` — `VERIFIED (repository)` — `§21.7` | `UNVERIFIED / REQUIRES RESEARCH` — throughput limits (concurrent `POST /analyze` + `GET /timeline` under load) — no load test |
+| **No SLO / latency budget** — `The repository currently contains no evidence of an SLO, latency budget, throughput target …` — `VERIFIED (repository)` — `§21.8` | `UNVERIFIED / REQUIRES RESEARCH` — scaling thresholds (when `patients`/`analysis_runs` growth would require `PARTITION`/`CACHE`) |
+| **No pagination** on `GET /timeline` and `GET /analysis` (`grep -n "limit" backend/app/api/v1/timeline.py` → `0` + `analysis.py:104-108` no `limit`) — **Repository-verified absence of pagination** — `§21.3-§21.11` | — |
+| **Engineering estimate pending dry-run** — `IN`-only `4,000–6,000` (`2013` baseline `4,320` + expected growth) — `VERIFIED (repository: `7.4` + `grep dry-run` → flag exists) — not independently verified | `UNVERIFIED / REQUIRES RESEARCH` for actual `Prescribe/allconcepts.json` count until `--dry-run` is executed — `§21.2` |
+| **Documented architectural assumption** — per-patient active-medication row counts remain small — `VERIFIED (repository)` for **the documented architectural assumption** (the sentence exists) — `§21.2` | `UNVERIFIED (empirical production behavior)` unless measurements (row-count distribution, `EXPLAIN ANALYZE` with `active` filter) exist — explicitly distinguished per your `C2` |
+
+*This keeps the section factual — verified absence first, then `UNVERIFIED` inferences — and uses **“areas for future evolution”** / **“may include”** where architectural evolution is discussed (not “future work includes” as a commitment).*
+
+### 21.14 Current limitations and implementation status — what is *not* yet in this repository as shipped
+
+**No new architectural decisions are introduced in this section — it only documents what is not yet in this repository as shipped:**
+
+- `11` indexes exist as defined (`§21.3`); `idx_reference_drugs_name_lower` **not yet created** (`ACCEPTED` but not created), `pg_trgm` deferred unapproved, composite `medications(patient_id, status)` **deferred pending `EXPLAIN ANALYZE`** (`§21.4`) — `VERIFIED (repository)` for `not yet created`/`DEFERRED`
+- **The repository currently contains no evidence of table partitioning** (`timeline_events`, `analysis_runs`, `medication_doses`) — `§21.5`
+- **The repository currently contains no evidence of Redis/cache** (`reference_drugs`, `timeline_events`) — `§21.6`
+- **The repository currently contains no evidence of a load-testing harness** (`k6`, `locust`, `pytest-benchmark`) — `§21.7`
+- **The repository currently contains no evidence of an SLO, latency budget, or `p95`/`p99` objective** — `§21.8`
+- **No pagination** on `GET /patients/{id}/timeline` and `GET /patients/{id}/analysis` (`limit`/`offset` not in `timeline.py` / `analysis.py:104-108`) — `VERIFIED (repository)` for **no evidence of pagination**
+- `ENGINEERING ESTIMATE` for catalog size remains `4,000–6,000` until `--dry-run` — `§21.2`
+- Single `DATABASE_URL` only (`config.py:32` + `session.py:13` `create_async_engine(settings.database_url)`) — no read-replica, pooler, `REDIS`, `CELERY`, `PARTITION` — `§21.9` (single URL) and `§21.6`
+
+*All of the above are phrased as **“The repository currently contains no evidence of … in this repository”** or **“not yet created”** / `DEFERRED` / `ENGINEERING ESTIMATE` — consistent with your consistent-absence-wording guidance.*
+
+### 21.15 Verification summary — what has been verified, what remains `UNVERIFIED`, and areas for future evolution
+
+**End exactly as Sections 19–20 do — finish with a concise verification summary distinguishing what has been verified in the repository, what has been verified from official documentation, and what remains unverified and requires future measurement — per your point 5:**
+
+| Category | What has been **verified in the repository** | What has been **verified from official documentation** (only where actually performed) | What remains **UNVERIFIED / REQUIRES RESEARCH** and represents **areas for future evolution** |
+|---|---|---|---|
+| **Indexes & access patterns** | 11 B-tree index definitions exist supporting common `patient_id`/`medication_id`/`scheduled_time` lookup paths (`001_initial_schema.sql:156-166`) + queries in `timeline.py`/`analysis.py`/`medications.py` **align with indexed columns and ordering** (e.g. `where(patient_id==...).order_by(event_time.desc())` aligns with `idx_timeline_patient`) — `VERIFIED (repository)` for index definitions and alignment (not chosen plan) | PostgreSQL B-tree `CREATE INDEX` semantics and composite `ORDER BY` matching index order **is capable** of avoiding sort — `VERIFIED (official documentation)` for PostgreSQL `CREATE INDEX` / `ORDER BY` index order (where `001_initial_schema.sql:156-166` defines the indexes) | Actual execution plan (`Index Scan` vs `Bitmap Scan` vs `Sequential Scan`) and whether reads **actually use** those indexes — `UNVERIFIED` until `EXPLAIN ANALYZE` — `grep -rn "EXPLAIN" backend/` → `0` — `§21.3`/`§21.9` |
+| **Capacity & cardinality** | `ENGINEERING ESTIMATE` `4,000–6,000` not independently verified (`7.4`) — `VERIFIED (repository)` for estimate label + NLM 2013 `4,320` baseline where cited + **The repository documents the architectural assumption that per-patient active-medication row counts remain small** — `VERIFIED (repository)` for **documented assumption** | NLM 2013 baseline `4,320` where cited in `7.4` — `VERIFIED (official documentation)` **where such verification has been performed and documented** (NLM docs) | Actual `Prescribe/allconcepts.json` `IN`-only count until `--dry-run` (`7.4`) + per-patient row-count distribution and `active` filter benefit (`6.3`) — `UNVERIFIED (empirical production behavior)` |
+| **Absences (no evidence of … in this repository)** | No evidence of table partitioning, Redis/cache, load-testing harness (`k6`/ `locust`), `SLO`/latency budget/`p95`, request rate limiting (`slowapi`), or pagination on `GET /timeline`/`GET /analysis` in this repository — `VERIFIED (repository)` for **absence of each** (each phrased as “The repository currently contains no evidence of … in this repository”) | Expected artifact names (`PARTITION BY RANGE`, `REDIS_URL`, `k6`, `slowapi`) — `VERIFIED (official documentation)` for those names (not present) | Whether partitioning/caching/rate limiting/SLO would be needed at production scale, what latency/throughput/memory thresholds would be — `UNVERIFIED / REQUIRES RESEARCH` |
+| **Implemented behavior vs approved-but-not-implemented** | `11` indexes exist, `MAX_GENERATED_DOSES=3650` cap exists, `no LIMIT` on timeline/analysis history (full list), `ENGINEERING ESTIMATE` pending `--dry-run`, 3 sequential SQL migrations manual + **no evidence of `Alembic`** — `VERIFIED (repository)` | `Alembic` `alembic init` layout — `VERIFIED (official documentation)` for `Alembic` (not present) | `Alembic` adoption while count low (3 files) — `DEFERRED` pending future roadmap, not yet implemented — `§19.4` |
+
+*No language in this section implies the current architecture is “scalable” or “high performance.” The repository documents architectural decisions that are **intended to support scalability** (e.g. `patient_id`-filtered queries, `patient_id`-based B-tree indexes, per-patient small-cardinality assumption, `idx_reference_drugs_name_lower` `ACCEPTED` for future, `MAX_GENERATED_DOSES` cap), but actual scalability characteristics (latency, throughput, concurrency, execution plans, memory usage, production limits) remain `UNVERIFIED / REQUIRES RESEARCH` unless supported by measurements — per your additional drafting check.*
+
+---
+
+*Sections 22–24 to follow.*
