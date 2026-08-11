@@ -874,4 +874,218 @@ class EvidenceBundle:      # VERIFIED (repository: 123-132)
 
 ---
 
-*Sections 13–19 to follow.*
+## 13. Persistence & Analysis Results
+
+**Scope and evidence labeling:** every normative statement in §13 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative PostgreSQL/SQLAlchemy/LangGraph docs; `VERIFIED (repository)` with reference to repository test cases — test case definitions exist in the repository but were not executed in this environment; `UNVERIFIED (empirical experiment in current environment)` — suite requires live Supabase DB + `DATABASE_URL` + seeded `002_seed_data.sql` and was not executed here; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository (e.g. production latency, confidence calibration). Implementation is the source of truth. No future persistence, indexing, or scoring mechanism is documented as implemented beyond what the repository contains.
+
+### 13.1 Purpose — versioned, auditable analysis results
+
+**VERIFIED (repository: `001_initial_schema.sql:140-151` + `backend/app/api/v1/analysis.py:1-12` + `backend/tests/test_analysis_api.py:60,106` repository test cases):**
+
+`analysis_runs` exists to store **versioned, auditable results** of the LangGraph pipeline — one row per `POST /patients/{id}/analyze`. The same patient analyzed twice produces two rows (versioned by `created_at`), not an update. Deterministic findings (`safety_score`, `risk_level`, `deterministic_result`) are the authoritative output; `llm_*` fields are optional explanation stored alongside, not merged into the deterministic JSONB — `VERIFIED (repository: `analysis.py:1-12` “*persists a row to `analysis_runs` regardless of whether the LLM step succeeded*” + `langgraph_workflow.py:65-94` serialization)**. `GET /patients/{id}/analysis` returns the full history ordered `created_at DESC` (most recent first) per spec §2 “Analysis report view … versioned” — `VERIFIED (repository: `analysis.py:99-116` `order_by(created_at.desc())`)`.
+
+*Test case definitions* `test_analyze_creates_persisted_run:60` and `test_list_analysis_runs_ordered_most_recent_first:106` exist in the repository — `VERIFIED (repository)` with references to repository test cases; `UNVERIFIED (empirical experiment in current environment)` because the suite was not executed here (requires live DB).
+
+### 13.2 Repository location and table definition
+
+**VERIFIED (repository: `001_initial_schema.sql:140-151` `create table analysis_runs (...)` + `backend/app/db/models.py:230-253` `class AnalysisRun` + `models.py:11-28` `ENUM(..., create_type=False)`):**
+
+| Layer | Evidence |
+|---|---|
+| **Migration (source of truth)** | `001_initial_schema.sql:140-151` — `id uuid primary key default gen_random_uuid()`, `patient_id uuid not null references patients(id) on delete cascade`, `analysis_version text not null default 'v1.0'`, `deterministic_result jsonb`, `safety_score int`, `risk_level risk_level_enum`, `llm_summary text`, `llm_reasoning text`, `llm_recommendations text`, `confidence_score int`, `confidence_level confidence_level_enum`, `created_at timestamptz not null default now()` — `VERIFIED (repository)` |
+| **ORM mapping** | `backend/app/db/models.py:230-253` `class AnalysisRun` maps 1:1 onto the table; header `1-9` states “*These map 1:1 onto the tables/enums defined in 001_initial_schema.sql … does not define or alter schema*” — `VERIFIED (repository)`; all 7 ENUM bindings use `create_type=False` so SQLAlchemy never creates/alters types — `VERIFIED (repository: `models.py:11-28`)` |
+| **PostgreSQL types** | `jsonb`, `uuid`, `risk_level_enum`, `confidence_level_enum`, `timestamptz` per PostgreSQL docs — `VERIFIED (official documentation)` for `JSONB`, `UUID`, `ENUM`, `TIMESTAMPTZ` |
+
+*No `vector` extension or evidence table exists* — `grep -n "vector\|pgvector" 001_initial_schema.sql` → `0` — `VERIFIED (repository)`.
+
+### 13.3 Inputs and outputs — persist node
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:220-262`, `339-356` + `backend/app/api/v1/analysis.py:76-84`):**
+
+| Aspect | Verified detail |
+|---|---|
+| **Node** | `_persist_node(db: AsyncSession)` factory closing over request `db` — `VERIFIED (repository: `220-262`)` |
+| **Inputs** | `state["safety_score_result"]: SafetyScoreResult` (from `safety_score_engine` node) + `state.get("llm_result"): LLMExplanationResult | None` (from `llm_explanation` node; `None` on `NotImplementedError`/`LLMExplanationError`) + `state["patient_id"]: UUID` + `db` closure — `VERIFIED (repository: `220-231` parameter unpacking)` |
+| **Outputs** | `state["analysis_run_id"]: UUID` (new `uuid.uuid4()` for the `AnalysisRun` row) returned via `final_state["analysis_run_id"]` from `await graph.ainvoke({"patient_id": patient_id})` — `VERIFIED (repository: `339-356` `run_analysis` + `260-262` `return {"analysis_run_id": analysis_run.id}`)`; API layer re-fetches via `select(AnalysisRun).where(id==analysis_run_id)` — `VERIFIED (repository: `analysis.py:80-84`)` |
+| **LangGraph wiring** | `persist` is final node: `builder.add_node("persist", _persist_node(db))` + `builder.add_edge("llm_explanation", "persist")` + `builder.add_edge("persist", END)` — `VERIFIED (repository: `312-337`)` |
+
+### 13.4 Serialization boundaries — what is and is not persisted in `deterministic_result`
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:46-94` helpers + `42-50` docstring + `220-273` persist):**
+
+- **What IS serialized to `analysis_runs.deterministic_result`:** `def _serialize_safety_score_result(result: SafetyScoreResult) -> dict` builds a JSON-safe dict by iterating only `SafetyScoreResult` — `VERIFIED (repository: `82-94`):`
+
+```python
+{
+  "safety_score": result.safety_score,              # VERIFIED (repository: 82)
+  "risk_level": result.risk_level,                  # VERIFIED (repository: 83)
+  "starting_score": result.starting_score,          # VERIFIED (repository: 84)
+  "total_points_deducted": result.total_points_deducted,  # 85
+  "interaction_findings": [_serialize_interaction_finding(f) for f in ...],  # 86-88
+  "adr_findings": [_serialize_adr_finding(f) for f in ...],                  # 89
+  "adherence_findings": [_serialize_adherence_finding(f) for f in ...],      # 90-91
+  "penalties": [_serialize_penalty(p) for p in result.penalties],            # 92
+}
+```
+
+Each `_serialize_*` helper converts UUIDs via `str(...)` and copies finding fields (`drug_a_id`, `drug_a_name`, `severity`, `mechanism`, `recommendation`, `source`, etc.) — `VERIFIED (repository: `65-94` helpers)`.
+
+- **What is NOT serialized there:**
+  - `PenaltyEntry.source` (live `DrugInteractionFinding | ADRFinding | AdherenceFinding` object) is **excluded** — comment “*Excludes PenaltyEntry.source (the live finding object reference) since it is not JSON-serializable and is only needed for in-memory traceability*” — `VERIFIED (repository: `46-62`)` and `_serialize_penalty:86-94` returns only `category`, `description`, `severity`, `points`.
+  - `timeline_context: TimelineContext` is **deliberately NOT included** — docstring “*timeline_context is deliberately NOT included in that JSONB blob. The `timeline_events` table is already the single source of truth*” — `VERIFIED (repository: `42-50`)`.
+  - `llm_result` / `evidence_bundle` / `patient_context` are **never read** by `_serialize_safety_score_result` — its sole parameter is `SafetyScoreResult` — `VERIFIED (repository: `82-94` signature)`.
+  - **Empirical:** `test_deterministic_result_contains_expected_findings_and_excludes_timeline:210` asserts `"timeline_context" not in det` and `penalties` lack `source` — `VERIFIED (repository)` with reference to repository test case; `UNVERIFIED (empirical experiment in current environment)` for this run.
+
+### 13.5 JSONB structure and dual storage
+
+**VERIFIED (repository: `langgraph_workflow.py:82-94` + `001_initial_schema.sql:143-145` + `models.py:237-241`) + `VERIFIED (official documentation)` for `JSONB`:**
+
+| Column | Type | Content | Source |
+|---|---|---|---|
+| `deterministic_result` | `jsonb` | JSON object with 8 top-level keys: `safety_score` (int), `risk_level` (`"low"|"moderate"|"high"`), `starting_score` (int), `total_points_deducted` (int), `interaction_findings[]` (each `interaction_rule_id`, `drug_a_id`, `drug_a_name`, `drug_b_id`, `drug_b_name`, `severity`, `mechanism`, `recommendation`, `source`), `adr_findings[]` (each `adr_rule_id`, `drug_id`, `drug_name`, `reaction_description`, `severity`, `frequency_class`, `source`), `adherence_findings[]` (each `medication_id`, `drug_name`, `taken`, `missed`, `skipped`, `due`, `adherence_rate`), `penalties[]` (each `category`, `description`, `severity`, `points`) — `VERIFIED (repository: `65-94` serialization helpers define these keys)` | `langgraph_workflow.py:82-94` |
+| `safety_score` | `int` | Duplicated top-level column — `safety_score_result.safety_score` — `VERIFIED (repository: `233-234` `safety_score=safety_score_result.safety_score`)` | `001_initial_schema.sql:144` |
+| `risk_level` | `risk_level_enum` (`low`/`moderate`/`high`) | Duplicated top-level column — `safety_score_result.risk_level` | `001_initial_schema.sql:144` + `models.py:238` |
+| `analysis_version` | `text` default `'v1.0'` | Hardcoded literal `analysis_version="v1.0"` — `VERIFIED (repository: `229` + `001_initial_schema.sql:142`) | — |
+| `patient_id`, `id`, `created_at` | `uuid`, `timestamptz` | `uuid.uuid4()`, `patient_id` from state, `datetime.now(timezone.utc)` | `langgraph_workflow.py:227-232` |
+
+*PostgreSQL `JSONB` stores the `deterministic_result` as binary JSON with GIN-index capability (no GIN index is created here) — `VERIFIED (official documentation)` for `JSONB` per PostgreSQL docs. The `jsonb` column is the **versioned snapshot**; the top-level `safety_score`/`risk_level` columns enable indexed filtering without JSONB extraction — a dual-storage trade-off verified by the code writing both.*
+
+### 13.6 Audit trail
+
+**VERIFIED (repository: `backend/app/analysis/safety_score_engine.py:103-162` + `langgraph_workflow.py:65-94` + `backend/tests/test_safety_score_engine.py:358` repository test case):**
+
+- **In-memory audit trail:** `SafetyScoreResult` exposes `starting_score` (always `BASE_SCORE=100`), `total_points_deducted` (sum of penalties), plus the three raw finding lists and `penalties: list[PenaltyEntry]` — `VERIFIED (repository: `safety_score_engine.py:144-162`)`.
+- **Per-penalty traceability:** `PenaltyEntry(category, description, severity, points, source)` where `source` is the **live finding object** (`DrugInteractionFinding | ADRFinding | AdherenceFinding`) so a caller can render why a penalty was applied without re-querying — `VERIFIED (repository: `safety_score_engine.py:103-112` docstring “*source is intentionally the original finding object … so a caller can render a full human-readable explanation without re-querying*”)`.
+- **Serialized audit trail:** `deterministic_result.penalties[]` retains `category`/`description`/`severity`/`points` (human-readable `description` already documents the why; `source` excluded as above) alongside the full finding arrays — `VERIFIED (repository: `langgraph_workflow.py:86-94` `_serialize_penalty` + `82-94` full dict)`.
+- **Repository test case:** `test_penalty_entries_reference_their_source_finding:358` asserts `penalty.source is finding` — `VERIFIED (repository)` with reference to repository test case; `UNVERIFIED (empirical experiment in current environment)`.
+
+### 13.7 Deterministic vs LLM persistence — separate columns, deterministic authoritative
+
+**VERIFIED (repository: `langgraph_workflow.py:231-241` `AnalysisRun` construction + `001_initial_schema.sql:144-149` nullable `llm_*` + `backend/app/services/llm_service.py:61-71` docstring):**
+
+```python
+analysis_run = AnalysisRun(
+    id=uuid.uuid4(),                                          # VERIFIED (repository: 227)
+    patient_id=state["patient_id"],                            # VERIFIED (repository: 228)
+    analysis_version="v1.0",                                   # VERIFIED (repository: 229)
+    deterministic_result=_serialize_safety_score_result(safety_score_result),  # VERIFIED (repository: 230)
+    safety_score=safety_score_result.safety_score,             # VERIFIED (repository: 233)
+    risk_level=safety_score_result.risk_level,                 # VERIFIED (repository: 234)
+    llm_summary=llm_result.summary if llm_result else None,    # VERIFIED (repository: 235)
+    llm_reasoning=llm_result.reasoning if llm_result else None,          # 236
+    llm_recommendations=llm_result.recommendations if llm_result else None, # 237
+    confidence_score=llm_result.confidence_score if llm_result else None,   # 238
+    confidence_level=llm_result.confidence_level if llm_result else None,   # 239
+    created_at=now,                                            # VERIFIED (repository: 232)
+)
+```
+
+- **Deterministic columns** (`deterministic_result`, `safety_score`, `risk_level`) are **always** persisted from `SafetyScoreResult` — the sole source of truth.
+- **LLM columns** (`llm_summary`, `llm_reasoning`, `llm_recommendations`, `confidence_score`, `confidence_level`) are **nullable** (`Text`/`Integer`/`confidence_level_enum` in `001_initial_schema.sql:144-149` + `models.py:238-248`) and are `None` when `llm_result is None` (all providers failed or output failed validation) — `VERIFIED (repository: `231-241` conditional `if llm_result else None`)`.
+- **Repository test cases:** `test_llm_fields_populated_when_provider_succeeds:118` and `test_llm_fields_null_when_all_providers_fail:167` assert populated vs `NULL` LLM columns — `VERIFIED (repository)` with references to repository test cases; `UNVERIFIED (empirical experiment in current environment)`.
+
+*The API layer logs `llm_explanation_available: llm_result is not None` in the `analysis_run` timeline event payload — `VERIFIED (repository: `langgraph_workflow.py:248-252` `payload={"safety_score": ..., "llm_explanation_available": llm_result is not None}`) — but this flag is metadata, not a merge of LLM output into the deterministic result.*
+
+### 13.8 Idempotency — intentionally non-idempotent versioning
+
+**VERIFIED (repository: `langgraph_workflow.py:227-232` + `backend/app/api/v1/analysis.py:62-84` + negative grep + repository test cases):**
+
+- **Each `POST /patients/{id}/analyze` creates a new row** with `id = uuid.uuid4()` even for identical `patient_id` and identical deterministic inputs — `VERIFIED (repository: `langgraph_workflow.py:227` `id=uuid.uuid4()` + `api/v1/analysis.py:62-84` handler always calls `await run_analysis(patient_id, db)` with no `SELECT ... IF EXISTS` guard).
+- **This is an intentional versioning decision. No repository evidence exists for deduplication, request hashing, optimistic locking, or idempotency keys** — `VERIFIED (repository):` `grep -rn "ON CONFLICT\|UPSERT\|ON_CONFLICT\|dedupl\|request.*hash\|optimistic.*lock\|idempotency.*key\|Idempotency-Key" backend/app/services/langgraph_workflow.py backend/app/api/v1/analysis.py backend/app/db/` → `0` results — *The implementation intentionally creates a new analysis record for every execution. No repository evidence exists for deduplication, request hashing, optimistic locking, or idempotency keys.*
+- **History is versioned by `created_at`** and `GET /patients/{id}/analysis` returns all rows `order_by(AnalysisRun.created_at.desc())` (most recent first) — `VERIFIED (repository: `analysis.py:104-108`)`.
+- **Repository test cases:** `test_running_twice_creates_two_separate_versioned_runs:270` asserts two rows with different `id`s and distinct `created_at` ordering — `VERIFIED (repository)` with reference to repository test case; `UNVERIFIED (empirical experiment in current environment)` for this run.
+
+### 13.9 Transaction boundaries
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:243-262` `_persist_node` + `backend/app/services/timeline_writer.py:1-28` + `001_initial_schema.sql:140-151` + SQLAlchemy docs):**
+
+```python
+db.add(analysis_run)                                              # VERIFIED (repository: 243)
+await log_timeline_event(                                         # VERIFIED (repository: 244-252)
+    db, patient_id=..., event_type="analysis_run", ref_id=analysis_run.id,
+    event_title=f"Safety analysis run: {risk_level} risk ({safety_score}/100)",
+    payload={"safety_score": ..., "risk_level": ..., "llm_explanation_available": ...},
+)
+await db.commit()                                                 # VERIFIED (repository: 259)
+await db.refresh(analysis_run)                                    # VERIFIED (repository: 260)
+```
+
+- **Both rows committed together:** `AnalysisRun` + its `analysis_run` `timeline_events` row are staged via `db.add` and committed in a **single transaction** via one `await db.commit()` in `_persist_node` — `VERIFIED (repository: `243-262`)`.
+- **`timeline_writer.py` never commits:** `def log_timeline_event(db, ...): db.add(TimelineEvent(...))` — docstring “*only calls `db.add(...)` and never commits, so every timeline event is written in the same transaction as the entity write that triggered it*” — `VERIFIED (repository: `timeline_writer.py:1-28` + `grep -n "commit\|refresh" backend/app/services/timeline_writer.py` → `0`)`.
+- **No other node writes:** `patient_context_builder`, `safety_score_engine`, `evidence_retrieval`, `timeline_engine`, `llm_explanation` perform only reads via `select` — `VERIFIED (repository: `grep -n "\.add\|commit\|INSERT" backend/app/services/langgraph_workflow.py` outside `_persist_node` → 0 + `grep -n "commit" backend/app/analysis/*.py` → 0)`.
+- **Atomicity:** `analysis_run` and its timeline event succeed or fail together — if `db.commit()` raises (e.g. constraint violation), neither row is persisted — per SQLAlchemy `AsyncSession` `add`/`commit` semantics — `VERIFIED (official documentation)` for `add`/`commit`/`refresh`.
+- **Empirical:** `test_analysis_run_logs_timeline_event:252` asserts timeline event exists after successful `run_analysis` — `VERIFIED (repository)` with reference to repository test case; `UNVERIFIED (empirical experiment in current environment)`.
+
+### 13.10 Deterministic result authoritative regardless of LLM
+
+**VERIFIED (repository: `langgraph_workflow.py:65-94` + `197-218` + `231-241` + `backend/tests/test_langgraph_workflow.py:167` repository test case):**
+
+- **Deterministic serialization reads only `SafetyScoreResult`:** `_serialize_safety_score_result(result: SafetyScoreResult)` iterates `interaction_findings`/`adr_findings`/`adherence_findings`/`penalties` without ever reading `llm_result` or `timeline_context` — `VERIFIED (repository: `65-94` signature and body)`.
+- **LLM failure still persists deterministic:** `_llm_explanation_node` catches `NotImplementedError` (defensive) and `LLMExplanationError` (every provider failed or output failed validation) → `{"llm_result": None, "llm_error": str(exc)}` and logs `warning` — `VERIFIED (repository: `197-218`)`; `_persist_node` then writes `llm_summary`/`llm_reasoning`/`llm_recommendations`/`confidence_score`/`confidence_level` as `None` — `VERIFIED (repository: `231-241` `if llm_result else None`)` — but `deterministic_result`/`safety_score`/`risk_level` are still populated from `safety_score_result`.
+- **Deterministic-fatal vs LLM-tolerant:** any other unexpected exception propagates and fails the whole `graph.ainvoke` run — no `analysis_runs` row is committed — `VERIFIED (repository: `197-218` only those two exceptions caught + docstring `59-66` “*any other, unexpected exception propagates and fails the whole graph run*”)**. `llm_error` is stored only in `AnalysisState`, never in `analysis_runs` columns — `VERIFIED (repository: `46-62` `AnalysisState` has `llm_error: str | None` but `AnalysisRun` model has no `llm_error` column).
+- **Repository test case:** `test_llm_fields_null_when_all_providers_fail:167` asserts LLM columns `NULL` while deterministic `safety_score`/`deterministic_result` still present — `VERIFIED (repository)` with reference; `UNVERIFIED (empirical experiment in current environment)`.
+
+### 13.11 Database access patterns and indexes
+
+**VERIFIED (repository: `001_initial_schema.sql:166` + `backend/app/api/v1/analysis.py:80`, `104-108` + `langgraph_workflow.py:243-262` + `backend/app/db/models.py:230-253`):**
+
+| Access | SQL (verified) | Index / type | Source |
+|---|---|---|---|
+| **Write `analysis_runs`** | `db.add(AnalysisRun(...))` + `db.commit()` + `refresh` in `_persist_node` — `VERIFIED (repository: `243-262`)` | `gen_random_uuid()` default on `id`, `now()` on `created_at` — `001_initial_schema.sql:141` | — |
+| **Write `timeline_events` (analysis_run event)** | `db.add(TimelineEvent(patient_id, event_type="analysis_run", ref_id=analysis_run.id, ...))` staged in same transaction — `VERIFIED (repository: `244-252`)` | `idx_timeline_patient(patient_id, event_time desc)` already exists, not used for this write | — |
+| **Read single run** | `select(AnalysisRun).where(AnalysisRun.id == final_state["analysis_run_id"])` — `VERIFIED (repository: `analysis.py:80`)` | Primary key lookup on `analysis_runs.id` — `VERIFIED (official documentation)` for PK B-tree | — |
+| **Read history** | `select(AnalysisRun).where(AnalysisRun.patient_id == patient_id).order_by(AnalysisRun.created_at.desc())` — `VERIFIED (repository: `analysis.py:104-108`)` | `create index idx_analysis_patient on analysis_runs(patient_id, created_at desc)` — `VERIFIED (repository: `001_initial_schema.sql:166`)` — composite B-tree supports `WHERE patient_id` + `ORDER BY created_at DESC` without sort — `VERIFIED (official documentation)` for PostgreSQL composite index semantics | — |
+| **Read pattern for `deterministic_result`** | No server-side JSONB query in this path — `deterministic_result` is written as Python `dict` via `JSONB` column and read as `dict` via SQLAlchemy’s `JSONB` type — `VERIFIED (repository: `models.py:237` `deterministic_result: Mapped[dict | None] = mapped_column(JSONB)`)` | PostgreSQL `JSONB` binary JSON — `VERIFIED (official documentation)`; no GIN index is created on `deterministic_result` — `grep -n "deterministic_result" 001_initial_schema.sql` → only column definition | — |
+
+### 13.12 Performance characteristics
+
+**Repository-verified vs UNVERIFIED — explicitly distinguished:**
+
+| **Repository verified** (`VERIFIED (repository)`) | **UNVERIFIED / REQUIRES RESEARCH** |
+|---|---|
+| - Composite index `idx_analysis_patient(patient_id, created_at desc)` **exists** — `VERIFIED (repository: `001_initial_schema.sql:166`)` | - Query **latency** for history list at large history size — `UNVERIFIED` (no `EXPLAIN ANALYZE` in repo) |
+| - `GET /patients/{id}/analysis` has **no `LIMIT` / `OFFSET` / pagination** — returns full history — `VERIFIED (repository: `analysis.py:104-108` no `limit`/`offset`/`page`)` | - **Throughput** under concurrent `POST /analyze` (LangGraph + LLM latency dominates) — `UNVERIFIED` |
+| - `deterministic_result` JSONB payload **size grows with findings** — one JSON object per `interaction_findings`/`adr_findings`/`adherence_findings`/`penalties` entry — `VERIFIED (repository: `langgraph_workflow.py:82-94` comprehension per finding)` | - **Memory behaviour** for large `EvidenceBundle` + `TimelineContext` in `AnalysisState` — `UNVERIFIED` |
+| - No `ORDER BY` sort step needed when using `idx_analysis_patient` for the history query (index stores `created_at DESC` per patient) — per PostgreSQL composite index “supports `ORDER BY` matching index order” — `VERIFIED (official documentation)` for index `DESC` semantics, but **actual `EXPLAIN` output not in repo** | - PostgreSQL **execution plans** (`Index Scan` vs `Index Only Scan` vs `Sort`) — `UNVERIFIED` (no `EXPLAIN` in repo) |
+| | - **Scalability under production workloads** (many patients × many runs) — `UNVERIFIED` |
+
+*No benchmark is implied by the documentation — the table above states existence of the index and absence of pagination, not latency.*
+
+### 13.13 Interaction with LangGraph workflow — persist as final node
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:281-337` `_build_graph` + `339-356` `run_analysis` + LangGraph official docs):**
+
+| Aspect | Verified detail |
+|---|---|
+| **Node registration** | `builder.add_node("patient_context_builder", _patient_context_node(db))` through `builder.add_node("persist", _persist_node(db))` — 6 nodes — `VERIFIED (repository: `312-318`)` |
+| **Edges** | `builder.add_edge(START, "patient_context_builder")` → `add_edge("patient_context_builder", "safety_score_engine")` → `add_edge("safety_score_engine", "evidence_retrieval")` → `add_edge("evidence_retrieval", "timeline_engine")` → `add_edge("timeline_engine", "llm_explanation")` → `add_edge("llm_explanation", "persist")` → `add_edge("persist", END)` — `VERIFIED (repository: `328-337`)`; `persist` is final before `END` |
+| **State flow into persist** | `persist` receives `state["safety_score_result"]` (from `safety_score_engine`) and `state.get("llm_result")` (from `llm_explanation`) — `VERIFIED (repository: `220-231`)`; prior nodes never write `analysis_run_id` — only `persist` returns it |
+| **Return to caller** | `run_analysis` does `graph = _build_graph(db)` → `final_state = await graph.ainvoke({"patient_id": patient_id})` → `return final_state` (now containing `analysis_run_id`) — `VERIFIED (repository: `339-356`)` |
+| **LangGraph API** | `StateGraph(AnalysisState)` / `add_node` / `add_edge` / `compile` / `ainvoke` — `VERIFIED (official documentation)` via `langgraph==0.2.60` in `backend/requirements.txt` and `langgraph_workflow.py:90` import |
+
+### 13.14 Failure behavior — LLM-tolerant vs deterministic-fatal
+
+**VERIFIED (repository: `langgraph_workflow.py:59-66` docstring + `197-218` `_llm_explanation_node` + `223-262` `_persist_node` + repository test cases):**
+
+| Failure | What happens | What persists |
+|---|---|---|
+| **LLM all providers fail or output fails validation** (`LLMProviderError` / `LLMExplanationError` per provider or `_parse_and_validate` failure) | `_llm_explanation_node` catches `NotImplementedError` (defensive) + `LLMExplanationError` → logs `warning` “*LLM explanation unavailable…*” → returns `{"llm_result": None, "llm_error": str(exc)}` — `VERIFIED (repository: `197-218`)`; graph continues to `persist` | `analysis_runs` row committed with `deterministic_result`/`safety_score`/`risk_level` populated, `llm_*` columns `NULL` — `VERIFIED (repository: `231-241` `if llm_result else None` + repository test case `test_llm_fields_null_when_all_providers_fail:167`)` |
+| **Unexpected exception in any node except `llm_explanation`** (e.g. `detect_drug_interactions` raises `sqlalchemy` error or `build_patient_context` fails) | Exception propagates and fails `graph.ainvoke` — no `try/except` covers it — docstring “*any other, unexpected exception propagates and fails the whole graph run*” — `VERIFIED (repository: `59-66`)`; `persist` is never reached | **Nothing committed** — `persist`’s `db.commit()` never runs — `VERIFIED (repository: `197-218` only those two exceptions caught)` |
+| **DB constraint / commit failure in `persist`** | `await db.commit()` raises — `AnalysisRun` + `analysis_run` timeline event not persisted (single transaction rolled back) — per SQLAlchemy `AsyncSession` semantics — `VERIFIED (official documentation)` for `commit` failure | Nothing persisted |
+
+*LLM columns being `NULL` is the expected “success with partial explanation” state, not an error — the deterministic pipeline is designed to always persist regardless of LLM outcome — `VERIFIED (repository: `langgraph_workflow.py:59-66` “*deterministic pipeline always persists regardless of this step's outcome*”)**.*
+
+### 13.15 Current limitations and implementation status
+
+**VERIFIED (repository: `langgraph_workflow.py:229` + `001_initial_schema.sql:140-151` + `backend/app/api/v1/analysis.py:96-108` + `backend/app/services/llm_service.py:61-71`, `283-312`):**
+
+- **Implemented (Phase 14, verified):** `analysis_runs` table, `idx_analysis_patient`, ORM mapping, `_serialize_safety_score_result`, `_persist_node` single transaction, `analysis_run` timeline event, `POST /analyze` (`201` + re-fetch) and `GET /analysis` (`DESC` history) — `VERIFIED (repository: cited above)`.
+- **`analysis_version` hardcoded:** `analysis_version="v1.0"` literal in `_persist_node` (`229`) and `analysis_version text not null default 'v1.0'` in `001_initial_schema.sql:142` — `VERIFIED (repository: `grep -rn "analysis_version" backend/` → only `"v1.0"` literal — no increment/deprecation logic).
+- **No `DELETE`/`PUT` on `analysis_runs`:** `backend/app/api/v1/analysis.py` exposes only `POST` + `GET`; no `delete`/`put` decorator for `analysis_runs` — `VERIFIED (repository: `grep -n "def test\|router\.\|@router" analysis.py` + `grep -n "delete\|put" backend/app/api/v1/analysis.py` → 0 for this resource)`. `timeline_events` `ON DELETE CASCADE` already handles patient deletion (via `patients.id` FK) — `VERIFIED (repository: `001_initial_schema.sql:141` `on delete cascade`)`.
+- **No pagination on history:** `GET /analysis` returns full list — `VERIFIED (repository: `analysis.py:104-108` no `limit`/`offset`/`page`)` — listed as repository-verified in §13.12; scale behaviour `UNVERIFIED`.
+- **Confidence is self-reported by the LLM:** **`VERIFIED (repository):` The application validates only the structure, type, and permitted range of `confidence_score` and `confidence_level`. It does not independently compute, calibrate, or verify the confidence values returned by the LLM. Therefore, these fields represent the LLM's self-reported confidence rather than a deterministic confidence metric** — `VERIFIED (repository: `llm_service.py:61-71` docstring “*self-reported by the model … this module does NOT recompute, clamp, or override*” + `283-312` `_parse_and_validate` checks `isinstance(score,bool) or not isinstance(score,int) or not (0<=score<=100)` and `level in ("low","moderate","high")` only — `grep -rn "confidence.*compute\|confidence.*calibrat\|confidence.*recomput" llm_service.py` → `0`)`. Accuracy/calibration of `confidence_score`/`confidence_level` is `UNVERIFIED / REQUIRES RESEARCH`.
+- **LLM explanation not required for persistence:** `llm_summary`/`llm_reasoning`/`llm_recommendations`/`confidence_*` are `NULL` when all providers fail — by design, not a defect — `VERIFIED (repository: `langgraph_workflow.py:231-241`)`.
+
+---
+
+*Sections 14–19 to follow.*
