@@ -54,28 +54,25 @@ An AI-powered medication safety and pharmacovigilance platform. The system track
 ---
 
 ## 5. Architecture Overview
-
-```
-[Patient Data Layer]  patients, conditions, medications, symptoms
-        |
-        v
-[Reference Data Layer]  reference_drugs (RxNorm-sourced), interaction_rules, adr_rules (hand-curated)
-        |
-        v
-[Deterministic Analysis Layer]  drug_interaction_engine, adr_engine, adherence_engine -> safety_score_engine
-        |
-        v
-[Evidence Retrieval]  structures medical + personal evidence per finding
-        |
-        v
-[Timeline Engine]  narrative context, unscoped
-        |
-        v
-[LLM Explanation Layer]  Gemini primary / OpenRouter fallback, explains only
-        |
-        v
-[Persistence]  analysis_runs, timeline_events
-```
+[Patient Data Layer] patients, conditions, medications, symptoms
+|
+v
+[Reference Data Layer] reference_drugs (RxNorm-sourced), interaction_rules, adr_rules (hand-curated)
+|
+v
+[Deterministic Analysis Layer] drug_interaction_engine, adr_engine, adherence_engine -> safety_score_engine
+|
+v
+[Evidence Retrieval] structures medical + personal evidence per finding
+|
+v
+[Timeline Engine] narrative context, unscoped
+|
+v
+[LLM Explanation Layer] Gemini primary / OpenRouter fallback, explains only
+|
+v
+[Persistence] analysis_runs, timeline_events
 
 All patient-facing writes flow through ownership-checked REST endpoints. All reference data (drug catalog, interaction rules, ADR rules) is populated offline, never at request time.
 
@@ -173,7 +170,7 @@ An earlier design draft proposed a `term_type` column (RxNorm Term Type, or TTY,
 
 ### 8.1 Token verification model
 
-**VERIFIED** (`backend/app/core/security.py`, `backend/app/core/config.py`): Supabase Auth issues access tokens signed asymmetrically. The module docstring states this was confirmed directly against this project's own live-issued tokens, not against Supabase's general documentation alone, and records the specific observed claims: `alg: ES256`, `aud: authenticated`, `iss: {SUPABASE_URL}/auth/v1`, and a `kid` header present in this project's JWKS response. This documentation treats that claim as accurate as recorded in the repository; it has not been independently re-verified against a live token by this review.
+**VERIFIED (implementation) / UNVERIFIED (live-project observation)** (`backend/app/core/security.py`, `backend/app/core/config.py`): the verifier is configured for ES256-signed access tokens with `aud: authenticated`, `iss: {SUPABASE_URL}/auth/v1`, and a `kid` resolved through the project's JWKS response. The module docstring states these values were confirmed directly against this project's own live-issued tokens, not against Supabase's general documentation alone, but that project-specific live observation has not been independently re-verified by this review and is not treated here as a repository-verified fact.
 
 **Final decision:** verification is performed against Supabase's published JWKS (JSON Web Key Set) endpoint, not a shared HS256 secret. `Settings.supabase_jwks_url` (`backend/app/core/config.py`) is a **derived** property — `f"{supabase_url}/auth/v1/.well-known/jwks.json"` — not a separate configured value, since Supabase publishes this at a fixed, well-known path under the project's own URL. There is therefore nothing new to configure beyond `SUPABASE_URL`, which the deployment already requires for the Auth proxy in `api/v1/auth.py`. Authentication is outside Part 1's scope (database schema and drug catalog architecture), so no cross-reference to Part 1 applies here.
 
@@ -183,7 +180,7 @@ An earlier design draft proposed a `term_type` column (RxNorm Term Type, or TTY,
 
 **Final decision:** `_ALLOWED_ALGORITHMS = ["ES256"]` is hardcoded in `security.py` rather than read from the resolved JWK's own `alg` field.
 
-**Rationale (recorded in the module docstring, verified as accurate against the code):** signature verification always uses the algorithm bound to the specific JWK object `PyJWKClient` resolves, regardless of this allow-list — so the hardcoding does not weaken verification below what the resolved key already enforces. Its actual purpose is to make the one algorithm this codebase is willing to accept explicit and auditable in source, rather than implicit in whatever Supabase's JWKS response happens to declare at runtime. A future Supabase migration off ES256 would cause `jwt.decode(..., algorithms=["ES256"])` to reject a token signed with a new algorithm — a deliberate hard failure requiring a reviewed code change, rather than silent acceptance of a new algorithm the codebase has never evaluated.
+**Rationale (recorded in the module docstring, verified as accurate against the code):** signature verification receives `signing_key.key`, the raw public key from the JWK object `PyJWKClient` resolves, not the `PyJWK` object itself. PyJWT therefore checks the token header's `alg` against `_ALLOWED_ALGORITHMS` and selects the ES256 verifier from that allowed header value; it does not additionally enforce equality with the resolved JWK's own `alg` metadata. The hardcoding makes the one algorithm this codebase is willing to accept explicit and auditable in source, rather than implicit in whatever Supabase's JWKS response happens to declare at runtime. A future Supabase migration off ES256 would cause `jwt.decode(..., algorithms=["ES256"])` to reject a token signed with a new algorithm — a deliberate hard failure requiring a reviewed code change, rather than silent acceptance of a new algorithm the codebase has never evaluated.
 
 **Trade-off accepted:** this is a live availability risk if Supabase ever rotates its signing algorithm without this codebase being updated in lockstep — every request would start failing 401 until the allow-list is manually revised. This is treated as an acceptable trade-off in exchange for auditability; no monitoring/alerting mechanism for this scenario exists in the repository.
 
@@ -191,11 +188,11 @@ An earlier design draft proposed a `term_type` column (RxNorm Term Type, or TTY,
 
 **VERIFIED** (`backend/requirements.txt`): `pyjwt[crypto]>=2.13.0,<3.0.0`, not a bare `pyjwt[crypto]`.
 
-**Rationale:** the module docstring states PyJWT versions 2.9.0–2.12.1 carry a known algorithm allow-list bypass in the `PyJWKClient`/`PyJWK` decode path this module uses (cited as CVE-2026-48523), fixed in 2.13.0. This is a security-motivated version floor, not an arbitrary pin, and it directly protects the algorithm-pinning guarantee in §8.2 — an allow-list bypass in the underlying library would make `_ALLOWED_ALGORITHMS` meaningless regardless of how carefully it's set in this codebase's own code.
+**Rationale:** PyJWT versions 2.9.0–2.12.1 carry a known algorithm allow-list bypass when `jwt.decode` receives a `PyJWK` key (cited as CVE-2026-48523), fixed in 2.13.0. This module uses `PyJWKClient` to resolve the signing key but passes `signing_key.key`, the raw public key, to `jwt.decode`, so its current decode call does not use the CVE-affected `PyJWK` path and the version floor does not directly protect the raw-key algorithm-pinning behavior described in §8.2. The `>=2.13.0,<3.0.0` requirement remains the approved dependency decision.
 
 ### 8.4 Issuer / audience validation
 
-**VERIFIED**: `jwt.decode(...)` is called with `audience="authenticated"` and `issuer=f"{settings.supabase_url}/auth/v1"`, plus `options={"require": ["exp", "aud", "iss"]}` — all three claims are mandatory on the token, not merely checked if present. Both the audience string and issuer URL pattern are stated as confirmed against this project's real issued tokens (module docstring), not assumed from generic Supabase documentation.
+**VERIFIED (implementation) / UNVERIFIED (live-project observation)**: `jwt.decode(...)` is called with `audience="authenticated"` and `issuer=f"{settings.supabase_url}/auth/v1"`, plus `options={"require": ["exp", "aud", "iss"]}` — all three claims are mandatory on the token, not merely checked if present. The module docstring states that the audience string and issuer URL pattern were confirmed against this project's real issued tokens, but that project-specific live observation remains unverified as recorded in §8.1.
 
 ### 8.5 JWKS client caching
 
@@ -231,7 +228,7 @@ Part 1 §6.1 records that Row Level Security is enabled on every patient-scoped 
 
 Standard PostgreSQL RLS semantics (a general database-engine behavior, not a repository-specific claim) exempt a table's owner from its own RLS policies unless `FORCE ROW LEVEL SECURITY` is explicitly set. Whether the `postgres` role used by this backend is the owner of these tables — and therefore exempt from the policies defined in `001_initial_schema.sql` — has not been confirmed against the live database from within this repository.
 
-**UNVERIFIED / REQUIRES RESEARCH:** whether Supabase RLS provides any enforcement against this backend's own connection, given the above. This does not weaken the ownership guarantee the API already provides: the `(id, user_id)` filter pattern used by every router (documented in Section 9) is enforced in application code, independent of whatever RLS does or does not additionally enforce at the database layer. RLS's practical role in this architecture — defense-in-depth against this backend's own queries, versus protection intended for a different (PostgREST/client-side) access path this backend does not use — is recorded here as an open question, not resolved.
+**UNVERIFIED / REQUIRES RESEARCH:** whether Supabase RLS provides any enforcement against this backend's own connection, given the above. This does not weaken the ownership guarantee the API already provides: direct `Patient.user_id` filters, prior parent-ownership checks, or joins through `Patient.user_id` are used by every patient-scoped router (documented in Section 9) and enforced in application code, independent of whatever RLS does or does not additionally enforce at the database layer. RLS's practical role in this architecture — defense-in-depth against this backend's own queries, versus protection intended for a different (PostgREST/client-side) access path this backend does not use — is recorded here as an open question, not resolved.
 
 ---
 
