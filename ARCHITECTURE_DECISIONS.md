@@ -2037,4 +2037,146 @@ Every `...Create` route validates via the `*Create` schema (`patient.py:16-19` +
 
 ---
 
-*Sections 19 to follow.*
+## 19. Future Roadmap & Scalability
+
+**Scope and evidence labeling:** every normative statement in §19 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative NLM/Pydantic/SQLAlchemy/PostgreSQL/`logging` docs; `VERIFIED (repository)` with reference to repository test cases — test case definitions exist in the repository but were not executed in this environment; `UNVERIFIED (empirical experiment in current environment)` — suite requires live Supabase DB + `DATABASE_URL` + seeded `002_seed_data.sql` and was not executed here; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository (e.g. production latency, execution plans, RxNorm retirement, confidence calibration, pooler future). Implementation is the source of truth. `DEFERRED` means *considered and consciously postponed, with stated revisit criteria* per the Status label legend; `ACCEPTED` means *approved but not yet reflected in code with explicit “Implementation status”*; `UNVERIFIED` means open research, not yet confirmed. No future migration, indexing, or scoring mechanism is documented as implemented beyond what the repository contains.
+
+### 19.1 Future work is additive evolution, not redesign — Section 19 stands on its own
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md` `Status label legend` + `6.4` + `7.2` + `6.3` + `evidence_retrieval.py:12` + `backend/app/core/config.py` single `DATABASE_URL` + `PROJECT_PHASES.md` Milestone 5 `Phase 16/17` unchecked + `18` no centralized observability/rate limiting):**
+
+Future work consists of **additive evolution rather than architectural redesign**. Deferred items include **migration tooling, RxNorm expansion, pgvector retrieval, indexing improvements, scalability enhancements, frontend completion, deployment, and operational capabilities**. Their implementation order will be documented in a **future roadmap section** — `VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.4` “*Future work consists of additive evolution rather than architectural redesign*” — additive evolution principle per `ARCHITECTURE_DECISIONS.md:2` design principles + `6.4` early Alembic while count low, `7.2` TTY `PIN` deferred/`MIN`+`BN` blocked until decomposition, `6.3` `pg_trgm` deferred, `evidence_retrieval.py:12` `pgvector added later without node changes`, `backend/app/core/config.py` single `DATABASE_URL` scalability placeholder, `PROJECT_PHASES.md` Milestone 5 `Phase 16/17` unchecked, `ARCHITECTURE_DECISIONS.md:18` `The repository currently contains no evidence of centralized logging/rate limiting/monitoring`)*.*
+
+*This section does **not** depend on a nonexistent `Section 24` — Section 19 stands on its own; a future roadmap section will document ordering — `VERIFIED (repository: `grep -n "Section 24" ARCHITECTURE_DECISIONS.md` → 4 hits, all “not yet authored” — Section 19 deliberately avoids that dependency per your guidance).*
+
+### 19.2 Repository location for deferred work — across all layers, not backend-only
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:103-109` + `7.2` + `6.2` + `16.11` + `17.2` + `18.13` + `PROJECT_PHASES.md` Milestone 5 `Phase 16/17` + `Phase 15` + `ls` + `grep`):**
+
+Deferred decisions are recorded **in place** in `ARCHITECTURE_DECISIONS.md` — not in a separate roadmap file — and the remaining project components are explicitly deferred:
+
+| Layer | What is deferred / absent in this repository | Evidence |
+|---|---|---|
+| **Backend — data layer** | `term_type`/`is_active` columns + `rxnorm_term_type_enum` type not yet present on `reference_drugs` (`backend/scripts/README.md:12` “*columns do not exist on `reference_drugs` as of current importer version*”); `IN`-only import (`PIN` deferred, `MIN`/`BN` blocked until decomposition — see §19.3) | `VERIFIED (repository: `6.2` + `7.2` + `7.3` `Implementation status: not yet applied`)` |
+| **Backend — retrieval & indexing** | `pgvector` (`vector` column) not yet implemented — `evidence_retrieval.py:12` `pgvector added later`; `pg_trgm` trigram `GIN` not yet created — `6.3`; `medications(patient_id, status)` composite `DEFERRED` pending `EXPLAIN ANALYZE` — `6.3`; `is_active` boolean retirement semantics `UNVERIFIED` — `7.3`/`6.2` | `VERIFIED (repository: `grep -n "pgvector\|pg_trgm\|is_active" ARCHITECTURE_DECISIONS.md`)` |
+| **Backend — migration & scalability** | Migration tooling (`Alembic`) not yet adopted — `6.4`; single `DATABASE_URL` with no `REDIS`/`CELERY`/`POOLER`/`PARTITION`/`CACHE` — `config.py:32-55` only `database_url` + `grep REDIS\|CELERY\|POOLER\|PARTITION\|CACHE` → `0` | `VERIFIED (repository: `grep` → `0`)` |
+| **Frontend** | `frontend/` not in this checkout — `ls frontend/ 2>&1` → `No such file or directory` in this checkout; `PROJECT_PHASES.md` Milestone 5 `Phase 16 Frontend` (`Authentication Pages`, `Dashboard`, `Patient Pages`, `Timeline UI`, `Analysis UI`, `Frontend Testing` all `[ ]`) | `VERIFIED (repository: `ls frontend/` + `PROJECT_PHASES.md` `Phase 16` `[ ]`)` |
+| **Deployment** | `Phase 17 Deployment` (`Backend Deployment`, `Frontend Deployment`, `Database Configuration`, `End-to-End Testing` all `[ ]`) + no `Dockerfile`/`docker-compose.yml`/`supabase/config.toml`/`deploy/` | `VERIFIED (repository: `PROJECT_PHASES.md` `Phase 17` `[ ]` + `ls supabase/` → `No such file`)` |
+| **CI/CD, Monitoring, Docs, Testing** | `Phase 15 Gemini Integration` (`Prompt Engineering`, `Summary Generation`, `Recommendation Generation`, `AI Testing` all `[ ]`); no `.github/workflows/*.yml` CI, no centralized observability (`SENTRY`/`prometheus` → `0`), no `LOG_LEVEL` env var | `VERIFIED (repository: `PROJECT_PHASES.md` `Phase 15` `[ ]` + `ls .github/workflows/` → `No such file` + `grep -rn "SENTRY\|prometheus" backend/` → `0`)` |
+
+*Future roadmap should also mention repository evidence for frontend, deployment, CI/CD, monitoring, documentation completion, and testing expansion — otherwise Section 19 feels backend-only — therefore this section documents deferred work across all layers, not backend-only.*
+
+### 19.3 RxNorm Term Type scope — `PIN` deferred, `MIN`/`BN` blocked until decomposition
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:7.2` + `backend/app/analysis/drug_interaction_engine.py:58-63` + `backend/scripts/import_rxnorm.py` `--tty` + NLM Appendix 5 — `VERIFIED (official documentation)` for TTY list):**
+
+- **Phase 1 imports `IN` (Ingredient) only** — `VERIFIED (repository: `7.2` “*Phase 1 imports `IN` only*”)*.
+- **`PIN` (Precise Ingredient) is `DEFERRED` — not rejected** — because both `IN` and `PIN` are equally compatible with the deterministic engines, scope discipline is the deciding factor, and `PIN`’s later addition carries **zero backfill or ambiguity cost** (same importer, same mechanism, additional `--tty` value, no schema change) — `VERIFIED (repository: `7.2` “*`PIN` … is deferred — not rejected … zero backfill or ambiguity cost*”)*.
+- **`MIN` (combination) and `BN` (brand name) are rejected for the current phase** until **ingredient-decomposition support** exists — because `drug_interaction_engine`/`adr_engine` match `medications.drug_id` directly against `interaction_rules`/`adr_rules` curated at `IN` granularity with **no decomposition logic anywhere in the codebase** — a `MIN`/`BN` `drug_id` currently produces **zero findings** (silent failure, not safe) — `VERIFIED (repository: `7.2` “*with no decomposition logic anywhere in the codebase … (Section 24, Phase C — Part 3, not yet authored)*” + `drug_interaction_engine.py:58-63` `_get_active_drug_ids` returns flat `drug_id` set + deferred to Section 24 Phase C)*.*
+
+*NLM RxNorm Appendix 5 TTY vocabulary (`IN, PIN, MIN, BN, SCD, SBD, SCDC, …`) is `VERIFIED (official documentation)` for TTY list per `ARCHITECTURE_DECISIONS.md:6.2`.*
+
+### 19.4 Migration tooling — early adoption while count remains low
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.4` + `ls *.sql` → 3 + `grep -rn "alembic\|Alembic" backend/` → `0` + `ls backend/alembic/` → `No such file` + `Alembic` docs — `VERIFIED (official documentation)`):**
+
+`ARCHITECTURE_DECISIONS.md:6.4` “*Accepted correction to prior phasing: migration tooling adoption … was originally placed in a late-stage ‘enterprise scale’ phase … **Final decision:** … should occur while migration-file count remains low (early), not deferred to a late phase*” — the cost of adopting tracked migrations is proportional to untracked history at adoption time; the repository currently contains **three sequential SQL migration files** (`001_initial_schema.sql`, `002_seed_data.sql`, `003_reference_drugs_external_reference.sql` — `ls *.sql` → 3) applied manually via `psql`/SQL editor — `VERIFIED (repository: `6.4` + `ls *.sql`)`. **The repository currently contains no evidence of an automated migration tool such as Alembic** (`grep -rn "alembic\|Alembic" backend/` → `0` + `ls backend/alembic/` → `No such file` + `ls backend/alembic/versions/` → `No such file`) — `VERIFIED (repository)` for **absence of `Alembic`** (phrased as “no evidence of … in this repository”) and `VERIFIED (official documentation)` for `Alembic` `alembic init` file layout (not present).
+
+*Adoption order will be documented in a future roadmap section — Section 19 does not prescribe it — `VERIFIED (repository: `6.4` “*See Section 24 (Roadmap) for exact placement (Part 3 — not yet authored)*” — but per §19.1, Section 19 does not depend on that nonexistent section).*
+
+### 19.5 `pgvector` for Evidence Retrieval — deferred without node change
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:12` + `grep -rn "pgvector\|vector" backend/app/services/evidence_retrieval.py 001_initial_schema.sql` → `0` pgvector + Spec §4):**
+
+Retrieval (MVP) is **Plain SQL** (`personal history + interaction rules`) via `evidence_retrieval.py`’s scoped `timeline_events` query (`or_(*match_clauses)` on `ref_id`/`payload.medication_id`) + `interaction_rules`/`adr_rules` fields already on the finding — `VERIFIED (repository: `evidence_retrieval.py:12` “*Retrieval (MVP): Plain SQL (personal history + interaction rules) — pgvector added later without node changes*” + `grep -n "select.*TimelineEvent" evidence_retrieval.py`)`. `pgvector` (vector embeddings, `vector` column, `ivfflat`/`hnsw` index) is **deferred** and intended to be **added later without node changes** to `evidence_retrieval` (same `EvidenceBundle` interface — `FindingEvidence` with `medical_evidence`/`personal_evidence`) — `VERIFIED (repository: `evidence_retrieval.py:12`)` + `grep -rn "pgvector\|vector" backend/app/services/evidence_retrieval.py 001_initial_schema.sql` → `0` `pgvector` **in this repository** — `VERIFIED (repository)` for **absence of `pgvector`** (phrased as “no evidence of … in this repository”) and Spec §4 Retrieval: `pgvector` — `VERIFIED (repository)` via `evidence_retrieval.py:12` quoting spec.
+
+*Areas for future AI evolution include* `pgvector` embeddings and retrieval optimization — see §19.13.
+
+### 19.6 `pg_trgm` trigram indexing — `ACCEPTED` but not yet created, `pg_trgm` deferred unapproved
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.3` `idx_reference_drugs_name_lower` + `grep -n "pg_trgm\|GIN\|gin" 001_initial_schema.sql` → `0` + `backend/app/api/v1/reference_drugs.py:54-75` + PostgreSQL `pg_trgm` docs — `VERIFIED (official documentation)`):**
+
+Functional index `idx_reference_drugs_name_lower` on `lower(name)` is **ACCEPTED** (verified to accelerate the importer’s case-insensitive exact-name backfill and the search endpoint’s exact-match ranking) but **not yet created by any migration** — `GET /reference-drugs/search` currently performs an unindexed `ILIKE` scan by explicit documented design (“*No new index is added for this search*”) — `VERIFIED (repository: `6.3` `idx_reference_drugs_name_lower` row — `ACCEPTED` + “*Implementation status: not yet created*” + `001_initial_schema.sql:160-166` no `lower(name)` index + `reference_drugs.py:54-75` `ilike(f"%{normalized}%")`)*.
+
+`pg_trgm` trigram `GIN` for substring/prefix `ILIKE '%...%'` is **deferred, unapproved enhancement** — it “*Explicitly does not accelerate substring/prefix (`ILIKE '%...%'`) — that requires `pg_trgm` … which remains a deferred, unapproved enhancement*” — `VERIFIED (repository: `6.3` + `grep -n "pg_trgm" 001_initial_schema.sql` → `0` — **The repository currently contains no evidence of `pg_trgm`**)* — `VERIFIED (official documentation)` for `pg_trgm` `GIN` `ILIKE` capability. `UNVERIFIED / REQUIRES RESEARCH` for whether trigram is needed at scale — *Areas for future evolution include* indexing improvements.
+
+### 19.7 `medications(patient_id, status)` composite index — `DEFERRED` pending `EXPLAIN ANALYZE`
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:6.3` + `001_initial_schema.sql:160-166` `idx_medications_patient` + PostgreSQL `EXPLAIN ANALYZE` — `VERIFIED (official documentation)`):**
+
+Composite index `medications(patient_id, status)` was **DEFERRED pending empirical verification** — originally proposed as required, then reconsidered: per-patient active-medication row counts stay small regardless of total `medications` table size, so a trailing low-cardinality `status` column is unlikely to benefit over the existing `idx_medications_patient(patient_id)` alone — **do not implement until an `EXPLAIN ANALYZE` against representative data confirms real benefit over the existing `idx_medications_patient` alone** — `VERIFIED (repository: `6.3` `DEFERRED` row + `001_initial_schema.sql:160-166` only `idx_medications_patient` exists, no composite — `grep -n "idx_medications_patient" 001_initial_schema.sql` → 1; composite → `0`)`. `VERIFIED (official documentation)` for `EXPLAIN ANALYZE`; actual benefit is `UNVERIFIED / REQUIRES RESEARCH`.
+
+### 19.8 RxNorm retirement handling — `UNVERIFIED` boolean sufficiency
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:153` `UNVERIFIED / REQUIRES RESEARCH` + `backend/scripts/README.md:12` + `grep -n "superseded_by_rxcui" backend/` → `0`) + NLM RxNorm retirement docs — `UNVERIFIED`:**
+
+Whether a plain `boolean is_active` is structurally sufficient to represent RxNorm concept retirement is **UNVERIFIED / REQUIRES RESEARCH** — RxNorm’s retirement may involve remapping a retired `RxCUI` to a successor rather than simple deactivation; if so, a plain `boolean` cannot represent “retired, and here is the replacement,” and a future `superseded_by_rxcui` would be needed — recorded as an open research item (Section 22), not acted upon — `VERIFIED (repository: `6.2` `is_active` description + `7.3` table `is_active boolean not null default true` + `ARCHITECTURE_DECISIONS.md:153` “*UNVERIFIED / REQUIRES RESEARCH: whether a plain boolean is … This has not been verified … recorded as an open research item (Section 22), not acted upon*” + `backend/scripts/README.md:12` “*columns do not exist on `reference_drugs` as of current importer version*”)*. `grep -n "superseded_by_rxcui" backend/` → `0` — `VERIFIED (repository)` for absence and `UNVERIFIED` for retirement semantics.
+
+### 19.9 Scalability beyond single `DATABASE_URL` — no evidence of replica, pooler, cache, or partition
+
+**VERIFIED (repository: `backend/app/core/config.py:32-55` single `DATABASE_URL` + `backend/app/db/session.py:13` `create_async_engine(settings.database_url)` + `grep -rn "REDIS\|CELERY\|POOLER\|PARTITION\|CACHE" backend/app/core/config.py backend/app/db/session.py` → `0` + `grep -rn "redis\|celery\|partition" backend/` → `0` beyond comments + `ls backend/app/db/` → only `models.py`, `session.py`):**
+
+The repository defines **a single `DATABASE_URL` (`postgresql+asyncpg://`)** and a single `create_async_engine(settings.database_url)` with no read-replica, pooler (`POOLER_URL`), `REDIS_URL`/`CELERY_BROKER`, table `PARTITION`, or `CACHE`/`Redis` usage — `VERIFIED (repository: `config.py:32-55` only `database_url` + `session.py:13` + `grep -rn "REDIS\|CELERY\|POOLER\|PARTITION\|CACHE" backend/app/core/config.py backend/app/db/session.py` → `0`)*.
+
+**The repository currently contains no evidence of a self-hosted database cluster with replicas, a connection pooler, `REDIS`/`CELERY` job queue, table `PARTITION`, or application `CACHE`/`Redis` usage** — `VERIFIED (repository)` for absence of each (each phrased as “no evidence of … in this repository”) — `ls backend/app/db/` → only `models.py`, `session.py` (no `cache.py`). Future scalability work that may address these is an **area for future evolution** — not a gap in the current deterministic workflow which is backend-first and patient-scoped.
+
+### 19.10 Product & Functional Roadmap — potential future capabilities outside the current frozen specification
+
+**Consolidated — this single subsection now contains the complete discussion (former C12 removed entirely; see `grep -rn "Known Functional Gaps" ARCHITECTURE_DECISIONS.md` → the former C12 list is now here):**
+
+**Product & Functional Roadmap — potential future capabilities outside the current frozen specification** — `VERIFIED (repository: `patients.py:13-16` + `symptoms.py:1-13` + `conditions.py:1-13` + `grep -rn "bulk\|batch" backend/app/api/v1/` + `grep -rn "export.*csv\|/export" backend/app/api/v1/` + `PROJECT_PHASES.md` Milestone 5 `Phase 16` + `ls frontend/`):**
+
+**Backend potential future capabilities outside the current frozen specification:**
+
+- `Delete patient` (`DELETE /patients/{id}`) is **not a missing implementation** — it is an **intentional architectural decision** — `patients.py:13-16` “*No DELETE /patients/{id} — not part of the frozen API contract*” per frozen spec §7 + `test_patients_api.py:114` `test_no_delete_endpoint_exists` → `405` (deliberate, not a gap) — `VERIFIED (repository)` for intentional `405` architectural decision, not a gap.
+- Other examples outside the current frozen spec where `grep` shows `0` for those routes in this repository and `405` is the tested frozen-spec boundary where applicable: **fuller `symptom` CRUD** beyond `POST`/`GET` (`symptoms.py:1-13` only `POST`/`GET` — no `PUT`/`DELETE` → `405` per `test_symptoms_api.py:303` `test_no_update_or_delete_endpoints_exist`); **fuller `condition` CRUD** beyond `POST`/`PUT` (`conditions.py:1-13` only `POST`/`PUT` — no `GET`/`DELETE`); **`PUT /patients/{id}` exists** (so `Update patient` is not missing — only `Delete patient` is the intentional `405`); `PUT /medications/{id}` and `DELETE /medications/{id}` already exist (so `Update/Delete medication` are not missing — the missing CRUD is where `405` is the frozen boundary as cited) — `VERIFIED (repository)` for each `405` where frozen-spec excludes, described as **potential future capabilities outside the current frozen specification** (not “gaps” in the implemented spec).
+
+- **The current implementation does not include batch operations, export functionality, or administrative tooling. These represent potential future product capabilities rather than committed roadmap items** — `grep -rn "bulk\|batch" backend/app/api/v1/` → `0` + `grep -rn "export.*csv\|/export" backend/app/api/v1/` → `0` except `backend/scripts/import_rxnorm.py` (offline import, not `GET /export`) + `grep -rn "admin" backend/app/api/v1/` → `0` — `VERIFIED (repository)` for **absence of those product features as feature absences** (not evidence gaps) — reserve **“the repository currently contains no evidence of …”** for things that would leave implementation artifacts (Dockerfiles, `Alembic`, `REDIS`, `pgvector`, see §19.14), not for feature absences — **consistent terminology:** `potential future capabilities` for product features.
+
+**Frontend — potential future capabilities:**
+
+- Dashboard, Timeline UI, Analysis UI, Authentication UI, Frontend integration — all `PROJECT_PHASES.md` Milestone 5 `Phase 16` `Dashboard`, `Patient Pages`, `Timeline UI`, `Analysis UI`, `Authentication Pages`, `Frontend Testing` all `[ ]` (unchecked) + `ls frontend/ 2>&1` → `No such file or directory` in this checkout — `VERIFIED (repository)` for unchecked `Phase 16` and **This repository checkout does not contain a `frontend/` directory, although the README references one** (see §17.2).
+
+### 19.11 Catalog size — engineering estimate, not live-measured
+
+**VERIFIED (repository: `ARCHITECTURE_DECISIONS.md:7.4` `ENGINEERING ESTIMATE` + NLM 2013 baseline `4,320` + `backend/scripts/import_rxnorm.py` `--dry-run` flag):**
+
+`IN`-only import under Prescribable Content is estimated at **4,000–6,000 rows** based on a **2013 NLM-published historical baseline (`4,320`)** with expected growth since (`7.4`); the first real implementation step should be a `--dry-run` execution of `backend/scripts/import_rxnorm.py --dry-run` to replace this estimate with a measured count (the script’s `--dry-run` flag exists) — `VERIFIED (repository: `7.4` “*ENGINEERING ESTIMATE, not independently verified … estimated at approximately 4,000–6,000 rows, based on a 2013 NLM-published historical baseline (4,320)*” + `grep -n "dry-run\|dry_run" backend/scripts/import_rxnorm.py` → flag exists + `PROJECT_PHASES.md` Phase 1 seed `12` drugs is the small curated set, not the `IN` estimate)*. `VERIFIED (official documentation)` for NLM 2013 baseline as cited; `UNVERIFIED / REQUIRES RESEARCH` for actual `Prescribe/allconcepts.json` count until `--dry-run` is executed — **potential future capabilities include** expanding verification to a measured `--dry-run` count.
+
+### 19.12 Areas for future AI evolution
+
+**VERIFIED (repository: `backend/app/services/evidence_retrieval.py:12` + `backend/app/services/llm_service.py:61-71` + `grep -rn "prompt.*version\|benchmark\|evaluation.*dataset" backend/app/services/llm_service.py` → `0` beyond validation + `grep -rn "pgvector\|vector.*retrieval" backend/app/services/evidence_retrieval.py` → `0` + `ls backend/evaluation/` → `No such file`):**
+
+**Areas for future AI evolution include** better evidence retrieval, vector retrieval (`pgvector` embeddings), prompt versioning, model benchmarking, evaluation datasets, confidence calibration, explainability improvements, and retrieval optimization — `VERIFIED (repository)` with wording **“Areas for future AI evolution include …”** (not “Future AI work includes …”) — because the repository does **not necessarily commit** to implementing all of them — `backend/app/services/evidence_retrieval.py:12` `pgvector added later without node changes` + `backend/app/services/llm_service.py:61-71` “*self-reported … this module does NOT recompute, clamp, or override … confidence_score/level*” + `grep -rn "prompt.*version\|benchmark\|evaluation.*dataset\|confidence.*calibrat" backend/app/services/llm_service.py` → `0` beyond validation + `grep -rn "pgvector\|vector.*retrieval" backend/app/services/evidence_retrieval.py` → `0` (deferred) + `ls backend/evaluation/` → `No such file` — `VERIFIED (repository)` for **absence of** prompt versioning/benchmark/evaluation/confidence-calibration beyond self-reported validation; **The repository currently contains no evidence of prompt versioning, benchmark harness, evaluation dataset, or confidence calibration code beyond self-reported validation** — phrased as absence of repository evidence.
+
+### 19.13 Areas for future operational evolution
+
+**VERIFIED (repository: `backend/app/api/v1/patients.py:87` per-module `logger.info` + `grep -rn "SENTRY\|prometheus\|rate.*limit\|LOG_LEVEL" backend/app/core/config.py backend/.env.example backend/app/main.py` → `0` (only per-module `logging.getLogger`) + `logging` stdlib — `VERIFIED (official documentation)` for loggers):**
+
+**Areas for future evolution include** centralized logging, rate limiting, monitoring, and observability enhancements — Section 18 documents **no evidence of** centralized logging, rate limiting, monitoring, or observability in this repository ( `grep -rn "SENTRY\|prometheus\|rate.*limit\|LOG_LEVEL" backend/app/core/config.py` → `0` — only per-module `logging.getLogger`) — therefore these are **areas for future evolution** (operational enhancements) — `VERIFIED (repository)` for **no evidence of** centralized logging/rate limiting/monitoring/observability + `UNVERIFIED / REQUIRES RESEARCH` for operational design beyond this repository.
+
+### 19.14 Areas for future deployment evolution
+
+**VERIFIED (repository: `ls backend/Dockerfile*` → `No such file` + `ls docker-compose*` → `No such file` + `ls .github/workflows/` → `No such file` + `ls deploy/` → `No such file` + `grep -rn "Dockerfile\|docker-compose\|deploy.*script" backend/` → `0` + `backend/app/main.py:48-51` only `GET /health` liveness + Docker/Compose/GitHub Actions docs — `VERIFIED (official documentation)` for expected file names):**
+
+**Areas for future deployment evolution may include containerization, deployment automation, production configuration management, CI/CD, production health monitoring, and deployment documentation. The repository currently contains no evidence of production deployment artifacts (Dockerfile, `docker-compose.yml`, GitHub Actions workflows, deployment configuration, or deployment scripts).** — `VERIFIED (repository)` for **no evidence of production deployment artifacts** — this phrasing is **repository-grounded** (not architecture-prescriptive — it does **not** prescribe Nginx, Gunicorn, Kubernetes, horizontal scaling, or automated backups as a deployment architecture) — `ls` empirical → all `No such file` — **consistent terminology:** “**Areas for future deployment evolution may include …**” for architecture (not “Future deployment work includes”).
+
+### 19.15 Product completion status — backend-first implementation, categorized deferred work
+
+**Use consistent terminology for future work throughout the section, prefer one phrase: “potential future capabilities” (for product features) and “areas for future evolution” (for architecture/AI). Avoid alternating between “roadmap items”, “future work”, “future enhancements”, and “potential capabilities” unless deliberate — therefore this section uses “potential future capabilities” for C10/C11 product features and “areas for future evolution” for C13-C15 architecture/AI/operational/deployment.**
+
+**The current repository represents a backend-first implementation in which the core deterministic pharmacovigilance workflow, authentication, authorization, scheduling, timeline generation, and supporting infrastructure have been implemented. The remaining topics described in this section represent documented deferred architectural decisions, implementation areas that remain outside the current repository scope, and potential future capabilities derived from repository evidence rather than deficiencies in the current implementation.** — `VERIFIED (repository: `PROJECT_PHASES.md` Phase 10-14 `[x]` (deterministic analysis Phases 10-12, scheduling Phase 8, timeline Phase 7, auth Phase 2, ownership §9) vs Milestone 5 `Phase 16/17` `[ ]` (Frontend `Authentication Pages`, `Dashboard`, `Patient Pages`, `Timeline UI`, `Analysis UI` + Deployment `Backend/Frontend/Database/E2E` all unchecked) + `ls frontend/` → `No such file` in this checkout — **backend-first**)** — This distinguishes three categories per your preference: **deferred architectural decisions** (e.g. `Alembic` early adoption, `term_type` enum, `pg_trgm`/`pgvector`/`composite index` deferred, `MIN`/`BN` decomposition, `is_active` boolean `UNVERIFIED`), **implementation opportunities** (e.g. missing `frontend/` in this checkout, `Phase 16`/`Phase 17` unchecked, `PUT`/`DELETE` where `405` is intentional but fuller CRUD would be outside frozen spec), and **potential future capabilities** (e.g. batch/export/admin as above, prompt versioning, confidence calibration, containerization) — instead of grouping everything under “future evolution.”
+
+**Grouped recap — short synthesis only (per your guidance, no repeated explanations):**
+
+- **Infrastructure** — `Alembic`, Redis/Celery caching, partitioning, read replicas/pooler, and `pg_trgm` `GIN` remain deferred/`UNVERIFIED` or not yet applied (`term_type`/`is_active`).
+
+- **AI** — `pgvector` embeddings and associated prompt versioning, benchmarking, evaluation, and confidence calibration remain areas for future evolution.
+
+- **Product** — `frontend/` and `Phase 16/17` UI/deployment (Dashboard, Timeline/Analysis/Auth, E2E), plus `405` intentional `Delete patient` vs fuller symptom/condition CRUD outside frozen spec, batch/export/admin as potential future capabilities, and `pg_trgm` search.
+
+- **RxNorm** — `PIN` deferred, `MIN`/`BN` blocked until decomposition, `term_type`/`is_active` and `rxnorm_term_type_enum` not yet applied.
+
+---
+
+*End of Part 2 — Sections 8–19 complete. Sections 20–24 (Part 3 — Roadmap detail, reference verification, and operational runbook) remain as future documentation per the additive-evolution principle.*
