@@ -338,4 +338,144 @@ Application-layer filters in §9.3 are the **repository-verified** enforcement b
 
 ---
 
-*Sections 10–19 to follow.*
+## 10. Deterministic Analysis Layer
+
+**Scope and evidence labeling:** every normative statement in §10 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) cited; `VERIFIED (official documentation)` — authoritative docs; `VERIFIED (empirical experiment)` — observed by running the test/command cited; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository. Implementation is the source of truth. No planned features are documented as implemented; where behavior is incomplete it is explicitly noted.
+
+### 10.1 Architecture overview — purpose, inputs, outputs, position
+
+**VERIFIED (repository: `backend/app/analysis/drug_interaction_engine.py:1-15`, `adr_engine.py:1-15`, `adherence_engine.py:1-24`, `safety_score_engine.py:1-19`, `timeline_engine.py:1-16`, `backend/app/services/langgraph_workflow.py:1-62`, `PROJECT_PHASES.md:79-115`):**
+
+- **Purpose:** compute all safety-relevant conclusions deterministically from curated reference data and persisted patient data, without LLM inference — `VERIFIED (repository: `drug_interaction_engine.py:3-9` "LLM must never invent drug interactions", `adr_engine.py:3-9` "LLM must never invent ADRs", `safety_score_engine.py:9-19` "LLM must NEVER calculate safety scores")`.
+- **Inputs:** `patient_id: UUID` + `AsyncSession` + persisted rows: `medications` (filtered to `status == "active"`), `interaction_rules`, `adr_rules`, `medication_doses`/`medication_schedule`, `timeline_events` — `VERIFIED (repository: `drug_interaction_engine.py:58-63`, `adr_engine.py:68-73`, `adherence_engine.py:111-127`, `timeline_engine.py:44-53`)`.
+- **Outputs:** per-engine finding lists (`DrugInteractionFinding`, `ADRFinding`, `AdherenceFinding`), composed `SafetyScoreResult` (`safety_score: 0-100`, `risk_level: low|moderate|high`, `penalties: list[PenaltyEntry]` with full audit trail), and `TimelineContext` (chronologically ordered `TimelineEntry` list) — `VERIFIED (repository: `safety_score_engine.py:103-162`, `timeline_engine.py:27-42`)`.
+- **Position in end-to-end pipeline:** Deterministic Layer sits between **Patient Data Layer** (patients/conditions/medications/symptoms/timeline_events persisted via ownership-checked REST endpoints) and **Evidence Retrieval / LLM Explanation Layer** — `VERIFIED (repository: `langgraph_workflow.py:12-22` pipeline order `patient_context_builder → safety_score_engine → evidence_retrieval → timeline_engine → llm_explanation → persist`; spec p5/p8 mapping in `safety_score_engine.py:1-7` and `PROJECT_PHASES.md:103-115`)`.
+
+### 10.2 Execution flow — verified implementation
+
+**VERIFIED (repository: `backend/app/services/langgraph_workflow.py:12-22`, `270-356`, `backend/app/api/v1/analysis.py:62-84`, `backend/app/analysis/safety_score_engine.py:231-258`):**
+
+1. **Request entry point:** `POST /patients/{patient_id}/analyze` in `backend/app/api/v1/analysis.py:62-84` — `VERIFIED (repository: `analysis.py:46` `_assert_patient_owned` before invoking workflow)`. The handler calls `await run_analysis(patient_id, db)` and then re-fetches the persisted `AnalysisRun` by `analysis_run_id` — `VERIFIED (repository: `analysis.py:76-82`)`.
+2. **Engine invocation order (LangGraph StateGraph, linear):** `START → patient_context_builder → safety_score_engine → evidence_retrieval → timeline_engine → llm_explanation → persist → END` — `VERIFIED (repository: `langgraph_workflow.py:328-336` `add_edge` chain)`.
+3. **Data flow between engines:**
+   - `patient_context_builder` builds `PatientContext` (patient + active conditions/medications/symptoms) — `VERIFIED (repository: `langgraph_workflow.py:176-180`, `backend/app/services/patient_context_builder.py`)`.
+   - `safety_score_engine` internally calls `detect_drug_interactions()` + `detect_adrs()` + `analyze_adherence()` and composes `SafetyScoreResult` — `VERIFIED (repository: `safety_score_engine.py:231-258`)`. No duplicate direct calls from the graph — `VERIFIED (repository: `langgraph_workflow.py:18-32` "Safety Score node is not three separate engine calls")`.
+   - `evidence_retrieval` receives `(patient_id, db, safety_score_result)` → `EvidenceBundle` with medical (from rule fields) + personal per-finding scoped `timeline_events` — `VERIFIED (repository: `langgraph_workflow.py:183-188`, `backend/app/services/evidence_retrieval.py`)`.
+   - `timeline_engine` builds `TimelineContext` (`select(TimelineEvent).where(patient_id==...).order_by(event_time.asc())`) — `VERIFIED (repository: `langgraph_workflow.py:190-195`, `timeline_engine.py:44-53`) — unscoped, purely for LLM narrative context.
+   - `llm_explanation` receives `(patient_context, safety_score_result, evidence_bundle, timeline_context)` → `LLMExplanationResult | (None, llm_error)` — `VERIFIED (repository: `langgraph_workflow.py:197-218`)`.
+4. **Safety Score composition:** `BASE_SCORE (100) - sum penalties` floored at `MIN_SCORE (0)` → `risk_level` thresholds `>=70 low`, `>=40 moderate`, `<40 high` — `VERIFIED (repository: `safety_score_engine.py:36-82` constants, `247-252` computation)`. Penalties are per-finding: `INTERACTION_PENALTY_POINTS` / `ADR_PENALTY_POINTS` (`mild 5 / moderate 15 / severe 30`) and `ADHERENCE_PENALTY_POINTS` (`mild 5 / moderate 10 / severe 20`) via `_classify_adherence_severity` thresholds `0.80/0.50/0.25` — `VERIFIED (repository: `safety_score_engine.py:38-82`, `113-132`)`.
+5. **Handoff to LangGraph/LLM workflow:** `persist` node serializes `SafetyScoreResult` (excluding live `PenaltyEntry.source` objects) to `analysis_runs.deterministic_result` + `safety_score`/`risk_level` columns + `llm_*` columns (nullable) and logs `analysis_run` timeline event — `VERIFIED (repository: `langgraph_workflow.py:220-273` `_persist_node`)`. `timeline_context` is **not** persisted in `deterministic_result` — `VERIFIED (repository: `langgraph_workflow.py:42-50` "timeline_context is deliberately NOT included")`.
+
+### 10.3 Architecture diagram — verified implementation
+
+**VERIFIED (repository: `langgraph_workflow.py:12-22` + `safety_score_engine.py:1-7`):** the diagram below matches the compiled `StateGraph` edges and the internal composition inside `safety_score_engine`.
+
+```
+                         ┌─────────────────────────────────────────────────┐
+                         │         Deterministic Analysis Layer             │
+                         │                                                 │
+[Patient Data] ──► Patient Context Builder ──► Safety Score Engine ──┐     │
+   (patients,                                   │  ┌─────────────────┤     │
+    conditions,                                  │  │ detect_drug_inter│     │
+    medications status=active,                   │  │ detect_adrs      │     │
+    interaction_rules,                           │  │ analyze_adherence│     │
+    adr_rules,                                   │  │ → penalties      │     │
+    medication_doses,                            │  │ → safety_score   │     │
+    timeline_events)                             │  │ → risk_level     │     │
+                         └───────────────────────┴──┴─────────────────┘     │
+                                          │                                │
+                                          v                                │
+                                Evidence Retrieval                           │
+                                (medical: rule fields; personal: per-      │
+                                 finding scoped timeline_events)            │
+                                          │                                │
+                                          v                                │
+                                Timeline Engine                              │
+                                (full timeline ASC, retrieval-only)        │
+                                          │                                │
+                                          └──────────────┬─────────────────┘
+                                                         v
+                                              LLM Explanation Node
+                                              (generate_explanation — explains only)
+                                                         │
+                                                         v
+                                              Persist Node
+                                              (analysis_runs + analysis_run event)
+```
+
+*No Mermaid is used to avoid rendering dependence; ASCII reflects the linear `StateGraph` verified above.*
+
+### 10.4 Deterministic logic vs orchestration vs LLM responsibilities
+
+**VERIFIED (repository: engine docstrings + `langgraph_workflow.py` node factories):**
+
+| Layer | Responsibility | What it does | What it never does |
+|---|---|---|---|
+| **Deterministic logic** (`backend/app/analysis/*.py`) | Compute findings, measurements, scores | `detect_drug_interactions` set-membership on `interaction_rules`; `detect_adrs` `IN (active drug ids)` with multiple per-drug findings; `analyze_adherence` counts `taken/missed/skipped/due` + `adherence_rate`; `calculate_safety_score` applies penalty maps + thresholds → `SafetyScoreResult`; `build_timeline_context` orders `ASC` | Never calls LLM, never invents severity, never mutates `medication_doses` (adherence), never scores adherence beyond counting — `VERIFIED (repository: `drug_interaction_engine.py:1-15`, `adr_engine.py:1-15`, `adherence_engine.py:1-24`, `safety_score_engine.py:9-19`, `timeline_engine.py:1-12`) |
+| **Orchestration** (`backend/app/services/langgraph_workflow.py`) | Thread state, order nodes, persist | Builds `StateGraph` with 6 nodes in fixed order, closes over `db` session, serializes result, logs `analysis_run` event — `VERIFIED (repository: `langgraph_workflow.py:270-356`)` | Never computes clinical findings itself; never duplicates engine calls — `VERIFIED (repository: `langgraph_workflow.py:18-32`)` |
+| **LLM** (`backend/app/services/llm_service.py` + `llm_providers.py`, Phase 15) | Explain already-computed deterministic output | `generate_explanation(patient_context, safety_score_result, evidence_bundle, timeline_context)` → `LLMExplanationResult(summary, reasoning, recommendations, confidence)` — `VERIFIED (repository: `langgraph_workflow.py:197-218` call site)`; currently `NotImplementedError` / `LLMExplanationError` caught → `llm_result: None, llm_error` and persist proceeds — `VERIFIED (repository: `langgraph_workflow.py:205-216`)` | Never computes, invents, or overrides `safety_score`/`risk_level` or findings — `VERIFIED (repository: `safety_score_engine.py:9-19` "LLM must NEVER calculate")` |
+
+### 10.5 Drug Interaction Engine (Phase 10)
+
+**VERIFIED (repository: `backend/app/analysis/drug_interaction_engine.py` + `backend/tests/test_drug_interaction_engine.py`):**
+
+- **Scope:** only `Medication.status == "active"` are evaluated — `VERIFIED (repository: `58-63` `_get_active_drug_ids`)`; mirrors `GET /patients/{id}/doses/upcoming` Phase 8 filter — `VERIFIED (repository: docstring 21-27)`. `VERIFIED (empirical experiment: `test_excludes_non_active_medications` `:207`)`.
+- **Matching:** `InteractionRule.drug_a_id IN (active) AND drug_b_id IN (active)` — pure set membership, inherently direction-independent — `VERIFIED (repository: `85-94`)`; `VERIFIED (empirical experiment: `test_detection_is_direction_independent` `:154`)`.
+- **Severity:** each `DrugInteractionFinding` surfaces `rule.severity` as-is (`severity=rule.severity`) — `VERIFIED (repository: `103-110`)`; `highest_severity()` is reporting convenience ordered `mild < moderate < severe` — `VERIFIED (repository: `28-30` + `134-149`)`; `VERIFIED (empirical experiment: `test_highest_severity_*` `:313-326`)`.
+- **Output:** `DrugInteractionFinding(interaction_rule_id, drug_a/b_id+name, severity, mechanism, recommendation, source)` denormalized with drug names — `VERIFIED (repository: `38-48`)`; empty if `<2` distinct active drugs — `VERIFIED (repository: `68-70`)`.
+
+### 10.6 ADR Engine (Phase 11)
+
+**VERIFIED (repository: `backend/app/analysis/adr_engine.py` + `backend/tests/test_adr_engine.py`):**
+
+- **Scope:** same `status == "active"` filter — `VERIFIED (repository: `62-73` + docstring `19-28`; `VERIFIED (empirical experiment: `test_excludes_non_active_medications` `:177`)`.
+- **Matching:** `AdrRule.drug_id IN (active drug ids)` — single-drug property, no directionality — `VERIFIED (repository: `98-106`)`; one drug may yield **multiple findings** (e.g. Lisinopril → "Dry cough" + "Hyperkalemia") — `VERIFIED (repository: `37-44`)`; `VERIFIED (empirical experiment: `test_single_drug_with_multiple_adr_rules_returns_all` `:132`)`.
+- **Severity:** mirrors interaction scope — `severity` / `frequency_class` surfaced as-is — `VERIFIED (repository: `57-63`, `108-116`)`; `highest_severity()` same ordering — `VERIFIED (repository: `28-30`, `131-146`)`.
+- **Helpers:** `_get_active_drug_ids` and `highest_severity` are **re-implemented locally** not imported from `drug_interaction_engine.py` — retained per-module helper convention — `VERIFIED (repository: docstring `45-53` citing `conditions.py` rationale)`.
+
+### 10.7 Adherence Engine (Phase 12, measurement-only)
+
+**VERIFIED (repository: `backend/app/analysis/adherence_engine.py` + `backend/tests/test_adherence_engine.py`):**
+
+- **Role:** measurement only — `AdherenceFinding` carries `taken/missed/skipped/due/adherence_rate` and **no severity** — `VERIFIED (repository: `31-42` dataclass, docstring `1-24` "never classifies, scores, or interprets")`.
+- **Due / missed definition (independent of sweep):** `due = scheduled_time <= now()` any `status`; `taken = status=='taken'`; `skipped = status=='skipped'`; `missed = status=='missed' PLUS status IS NULL` (overdue unmarked is functionally missed) — `VERIFIED (repository: `57-84` docstring + `111-127` `case` counts)`; `VERIFIED (empirical experiment: `test_all_due_doses_unmarked_counts_as_fully_missed` `:136`, `test_mixed_taken_missed_skipped_counts_correctly` `:176`)`.
+- **No writes:** `analyze_adherence()` does **not** invoke or duplicate the Phase 9 lazy sweep, does not mutate `medication_doses.status` — `VERIFIED (repository: `82-89` "performs no writes", `grep -n "sweep\|log_timeline" adherence_engine.py` = 0)`.
+- **Scope:** only active medications, `scheduled_time <= now()`, future doses excluded, medications with `due==0` omitted — `VERIFIED (repository: `111-143` query + filter)`.
+
+### 10.8 Safety Score Engine (Phase 12, composition + policy)
+
+**VERIFIED (repository: `backend/app/analysis/safety_score_engine.py` + `backend/tests/test_safety_score_engine.py`):**
+
+- **Sole source of truth:** `calculate_safety_score()` is the **only** code that computes `safety_score`/`risk_level` — calls `detect_drug_interactions` + `detect_adrs` + `analyze_adherence` then applies constants — `VERIFIED (repository: `231-258`)`; LLM never calculates — `VERIFIED (repository: docstring `9-19`)`.
+- **Constants are implementation defaults, not clinical guidelines:** `BASE_SCORE=100`, `MIN_SCORE=0`, `INTERACTION_PENALTY_POINTS {mild 5, moderate 15, severe 30}`, `ADR_PENALTY_POINTS {5,15,30}`, `ADHERENCE_ADEQUATE_THRESHOLD=0.80`, `ADHERENCE_MODERATE_THRESHOLD=0.50`, `ADHERENCE_SEVERE_THRESHOLD=0.25`, `ADHERENCE_PENALTY_POINTS {mild 5, moderate 10, severe 20}`, `RISK_LEVEL_LOW_THRESHOLD=70`, `RISK_LEVEL_MODERATE_THRESHOLD=40` — `VERIFIED (repository: `36-82` with comments "implementation defaults")**; `UNVERIFIED / REQUIRES RESEARCH` for clinical validity except the 80% adequate-adherence band which is a commonly-cited rule-of-thumb — `VERIFIED (repository: docstring `49-54`)`.
+- **Adherence severity classified only here:** `_classify_adherence_severity()` maps `adherence_rate` → `None / mild / moderate / severe` via thresholds above — `VERIFIED (repository: `113-132`)`; `VERIFIED (empirical experiment: `test_classify_adherence_*` `:121-162`)`.
+- **Risk levels:** `score >=70 low`, `>=40 moderate`, `<40 high` — `VERIFIED (repository: `75-82`, `147-152`)`; `VERIFIED (empirical experiment: `test_risk_level_*` `:171-191`)`.
+- **Audit trail:** `SafetyScoreResult` exposes `starting_score`, `total_points_deducted`, all finding lists, and `penalties: list[PenaltyEntry]` where each `PenaltyEntry` carries `category`, `description`, `severity`, `points`, `source` (live finding object) for traceability — `VERIFIED (repository: `103-162`)`; `VERIFIED (empirical experiment: `test_penalty_entries_reference_their_source_finding` `:358`)`.
+- **Math:** `total_points_deducted = sum penalties`; `safety_score = max(BASE_SCORE - total, MIN_SCORE)` — `VERIFIED (repository: `247-252`).
+
+### 10.9 Timeline Engine — retrieval-only narrative context (Phase 14)
+
+**VERIFIED (repository: `backend/app/analysis/timeline_engine.py`):**
+
+- **Responsibility:** retrieve and structure the patient's **full, unscoped** timeline as narrative context for the LLM — does **not** perform pattern detection, trend analysis, or scoring — `VERIFIED (repository: docstring `1-12`)`.
+- **Ordering:** `select(TimelineEvent).where(patient_id==...).order_by(event_time.asc())` — oldest-first, opposite of `GET /patients/{id}/timeline`’s `DESC` feed — `VERIFIED (repository: `44-53`)`; `VERIFIED (repository: docstring `37-43`)`.
+- **Placement:** `analysis/timeline_engine.py` per spec p6 — `VERIFIED (repository: docstring `14-16`)`; runs **after** `evidence_retrieval` in the graph — `VERIFIED (repository: `langgraph_workflow.py:32-36`)`.
+- **Cap/pagination:** none — returns full timeline, matching Phase 7 API’s uncapped behavior — `VERIFIED (repository: docstring `29-33`)`.
+
+### 10.10 Exposure and API wiring (Phase 14)
+
+**VERIFIED (repository: `backend/app/api/v1/analysis.py:62-116`, `backend/app/services/langgraph_workflow.py:270-356`, `PROJECT_PHASES.md:103-115`):**
+
+- Phases 10-12 engines were **internal-only** until Phase 14 — `VERIFIED (repository: `drug_interaction_engine.py:14-19`, `adr_engine.py:13-18`, `adherence_engine.py:31-34` "Not exposed via any HTTP route yet" + `PROJECT_PHASES.md` notes)`.
+- Phase 14 wires `POST /patients/{id}/analyze` → `run_analysis(patient_id, db)` → persist → `201` with `AnalysisRun`, and `GET /patients/{id}/analysis` → history ordered `created_at DESC` — `VERIFIED (repository: `analysis.py:62-116`, `220-236` Persist Node + `analysis.py:99-116` list route)`. Ownership is `_assert_patient_owned` (404 if not owned) — `VERIFIED (repository: `analysis.py:37-48`)` and documented in p9.
+- No other HTTP route exposes these engines directly.
+
+### 10.11 Implementation status — no speculation
+
+- **Implemented and verified:** all items in p10.5-p10.10 as cited above — `VERIFIED (repository)`.
+- **Not yet implemented (explicit):** LLM explanation for these findings — `backend/app/services/llm_service.py` Phase 15 raises `NotImplementedError` / `LLMExplanationError` caught as `llm_result: None` — `VERIFIED (repository: `langgraph_workflow.py:197-218`)` and `PROJECT_PHASES.md:103-115` Phase 15 unchecked. No future engine or scoring formula is documented as implemented here.
+- No buried assumptions; thresholds marked `UNVERIFIED` where clinical validation is pending — `VERIFIED (repository: `safety_score_engine.py:31-35` comment)`.
+
+---
+
+*Sections 11–19 to follow.*
