@@ -1703,4 +1703,171 @@ def test_patient_owned_by_another_user_is_not_visible(existing_auth_user_id, cre
 
 ---
 
-*Sections 17–19 to follow.*
+## 17. Deployment & Infrastructure
+
+**Scope and evidence labeling:** every normative statement in §17 is labeled `VERIFIED (repository)` — confirmed by reading the file(s) and lines cited; `VERIFIED (official documentation)` — authoritative PostgreSQL/SQLAlchemy/FastAPI/Pydantic/Uvicorn/GitHub Actions/Docker docs; `VERIFIED (repository)` with reference to repository test cases — test case definitions exist in the repository but were not executed in this environment; `UNVERIFIED (empirical experiment in current environment)` — suite requires live Supabase DB + `DATABASE_URL` + seeded `002_seed_data.sql` and was not executed here; `UNVERIFIED / REQUIRES RESEARCH` — cannot be proven from the repository (e.g. production throughput, execution plans, pooler future). Implementation is the source of truth. No future container, CI, or infra mechanism is documented as implemented beyond what the repository contains.
+
+### 17.1 Overall deployment model — Supabase-hosted PostgreSQL, FastAPI on Uvicorn
+
+**VERIFIED (repository: `README.md` Tech Stack + `backend/app/main.py:1-19` + `backend/requirements.txt: uvicorn[standard]==0.30.6` + `grep -rn "docker\|supabase/config\|fly.io\|vercel\|render" backend/ .` → `0` infra files + `ls supabase/ 2>&1` → `No such file or directory` + `ls backend/Dockerfile* 2>&1` → `No such file`):**
+
+**The repository contains no evidence of a self-hosted database, container image, or orchestration configuration.** The documented deployment targets **Supabase PostgreSQL** with a **FastAPI application served by Uvicorn** (`app.main:app`) — `VERIFIED (repository: `README.md` Tech Stack: `Database - Supabase PostgreSQL` + `backend/app/main.py:19` `app = FastAPI(title="Pharmacovigilance MVP API", version="0.1.0")` + `backend/requirements.txt` `uvicorn[standard]==0.30.6` + absence evidence above)`. `Supabase Auth` owns `auth.users` and issues ES256 JWTs verified via `PyJWKClient` against the derived JWKS (`§8`, `§15.5`) — `VERIFIED (repository: `backend/app/core/security.py:88-93`, `backend/app/core/config.py:57-75`)`.
+
+**The repository currently contains no evidence of Dockerfiles, Compose manifests, or Supabase CLI configuration** — `VERIFIED (repository: `ls backend/Dockerfile*` → `No such file`, `ls docker-compose*` → `No such file`, `ls supabase/config.toml` → `No such file`, `grep -rn "docker" backend/ .` → `0` code hits — see §17.6 for detailed absence, phrased as absence of repository evidence, not as proof such artifacts do not exist outside the repository).*
+
+### 17.2 Repository location, build artifact, and checkout layout
+
+**VERIFIED (repository: `README.md` Project Structure + `ls backend/requirements.txt` + `ls frontend/ 2>&1` + `backend/requirements.txt` 13 lines + `.gitignore`):**
+
+| Item | Verified detail |
+|---|---|
+| **Backend** | `backend/app/` contains `main.py`, `api/v1/`, `core/`, `db/`, `services/`, `analysis/` — additive router registrations via `app.include_router` — `VERIFIED (repository: `ls backend/app/` + `backend/app/main.py:19-45` `app.include_router` calls)` |
+| **Build artifact** | **Single source** `backend/requirements.txt` (`fastapi==0.115.0`, `sqlalchemy==2.0.35`, `asyncpg==0.29.0`, `uvicorn[standard]==0.30.6`, `pydantic==2.9.2`, `pydantic-settings==2.5.2`, `pyjwt[crypto]>=2.13.0,<3.0.0`, `httpx==0.27.2`, `langgraph==0.2.60`, `pytest==8.3.3`, `pytest-asyncio==0.24.0`, etc. — 13 deps) — `VERIFIED (repository: `cat backend/requirements.txt` 13 lines)`; `README.md` “*Dependencies live in exactly one place: `backend/requirements.txt`. There is no root-level `requirements.txt`*” — `VERIFIED (repository: `README.md` Project Structure + `ls backend/requirements.txt` exists, `ls requirements.txt` at repo root → `No such file`) |
+| **Frontend directory in this checkout** | **This repository checkout does not contain a `frontend/` directory, although the README references one** — `VERIFIED (repository: `README.md` Project Structure lists `frontend/` (`backend/ app/ supabase/migrations/ tests/ requirements.txt` / `frontend/` / `docs/`) + `ls frontend/ 2>&1` → `No such file or directory` in this checkout)** — *This wording avoids implying the overall project lacks a frontend; it distinguishes the repository snapshot from the overall project.* |
+| **Ignored secrets** | `backend/.env` is never committed — `.gitignore:8` `.env` + `10` `!.env.example` + `11` `!backend/.env.example` + `12` `backend/.env` — `VERIFIED (repository: `grep -n "\.env" .gitignore` + `ls backend/.env` exists)** |
+
+### 17.3 Hosting — Supabase PostgreSQL, not self-hosted
+
+**VERIFIED (repository: `backend/.env.example:1` + `backend/.env:1` + `backend/app/db/session.py:13` + `ls supabase/ 2>&1` + Supabase connection string docs — `VERIFIED (official documentation)`):**
+
+| Aspect | Verified detail |
+|---|---|
+| **Connection string** | `DATABASE_URL=postgresql+asyncpg://postgres:password@db.xxxxxxxx.supabase.co:5432/postgres` in `backend/.env.example:1` (template) and `DATABASE_URL=postgresql+asyncpg://postgres:***@db.icwtuhbhdrpjdtoibxxk.supabase.co:5432/postgres` in `backend/.env` (real value) — `VERIFIED (repository: `cat backend/.env.example:1` + `cat backend/.env:1` redacted)` |
+| **Code** | `engine = create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)` with `AsyncSessionLocal(expire_on_commit=False)` and `async def get_db()` yielding and closing — the code **receives `settings.database_url`** (configured string) and passes it to SQLAlchemy; it does **not** branch on a “local DB” vs “Supabase DB” flag — `VERIFIED (repository: `backend/app/db/session.py:13` + `backend/app/core/config.py:32` `database_url: str` required)** |
+| **Supabase CLI config** | **The repository currently contains no evidence of Supabase CLI configuration** — `ls supabase/ 2>&1` → `No such file or directory` + `ls supabase/config.toml 2>&1` → `No such file` + `grep -rn "supabase/config" backend/` → `0` — `VERIFIED (repository)` for absence |
+| **Self-hosted DB / pooler** | **The repository contains no evidence of a self-hosted database cluster or pooler configuration** — no `docker-compose.yml` with `postgres:` service, no `supabase/config.toml` with `db.port`, no `POOLER_URL` env var — `VERIFIED (repository: `grep -rn "POOLER\|supabase/config\|docker" backend/ .` → `0`)` |
+
+*Supabase connection string format `postgresql://` with `asyncpg` async driver `postgresql+asyncpg://` is `VERIFIED (official documentation)` for Supabase and `asyncpg`.*
+
+### 17.4 Health check — liveness probe, unrelated to auth or DB
+
+**VERIFIED (repository: `backend/app/main.py:48-51` + `grep -rn "health\|/health" backend/app/main.py backend/app/api -n`):**
+
+```python
+@app.get("/health")                      # VERIFIED (repository: main.py:48)
+async def health() -> dict:              # VERIFIED (repository: 49)
+    """Basic liveness check, unrelated to auth -- useful for deployment probes."""
+    return {"status": "ok"}              # VERIFIED (repository: 51)
+```
+
+- **This is the only health/operational endpoint in the repository** — `grep -rn "health\|/health\|/ready" backend/app/` → only `main.py:48-51` — `VERIFIED (repository)` for singularity.
+- **It is unrelated to auth — no `Depends(get_current_user)`** and does not verify DB or JWKS reachability — `VERIFIED (repository: `main.py:48-51` has no dependency; docstring “*unrelated to auth -- useful for deployment probes*”)*;* a `SUPABASE_URL=""` deployment still returns `{"status": "ok"}` even though the first authenticated request would `500` — `VERIFIED (repository: `security.py:88-93` call-time `500` vs `main.py:48-51` always `ok`).
+- **No `/ready` check that verifies DB or JWKS reachability exists** — `grep -rn "/ready\|readiness" backend/` → `0` — **The repository currently contains no evidence of a readiness probe** — `VERIFIED (repository)` for absence.
+
+*HTTP `GET` liveness semantics are `VERIFIED (official documentation)` for FastAPI routing.*
+
+### 17.5 Environment handling — template vs real file, gitignored, no hardcoding
+
+**VERIFIED (repository: `backend/.env.example:1-15` + `ls backend/.env` + `.gitignore:8-12` + `backend/app/core/config.py:1-15` + `backend/app/api/v1/auth.py:1-12` + `backend/app/services/llm_service.py:42-50`):**
+
+| File | Content | Evidence |
+|---|---|---|
+| `backend/.env.example` | Template documenting all required keys with placeholder values (`password`, `https://xxxxxxxx.supabase.co`, empty `SUPABASE_JWT_SECRET`, `HTTP_TIMEOUT_SECONDS=10.0`) and comments (`Get this from Supabase project settings → Database → Connection string`) | `VERIFIED (repository: `1-15` template exists)` |
+| `backend/.env` | Real local values (`postgresql+asyncpg://postgres:***@db....supabase.co:5432/postgres`, `SUPABASE_URL=https://***.supabase.co`, `SUPABASE_ANON_KEY=***`, `SUPABASE_JWT_SECRET=***`) — `ls backend/.env` exists | `VERIFIED (repository: `ls backend/.env` exists)` |
+| `.gitignore` | Contains `.env`, `backend/.env`, `!.env.example`, `!backend/.env.example` so real secrets are never committed and the template stays tracked | `VERIFIED (repository: `grep -n "\.env" .gitignore` → `.env` + `!.env.example` + `backend/.env`)` |
+| `config.py` | Module docstring “*Loads settings from environment variables (.env locally, real env vars in deployment). Never hardcode secrets here*” | `VERIFIED (repository: `1-15`)` |
+| `auth.py` / `llm_service.py` | **The reviewed authentication and LLM modules explicitly document avoiding logging passwords, tokens, prompts, explanations, and patient identifiers** — `auth.py:1-12` “*Email addresses are logged … passwords and tokens are never logged, in request bodies or responses*” + `llm_service.py:42-50` “*Only metadata — never the prompt, the patient snapshot/evidence that fed it, the generated explanation, or any patient identifier. Token usage fields are added to `extra` only when the provider actually reported them*” — `VERIFIED (repository: reviewed modules)` — *This is a reviewed-modules guarantee, not a global “never logs secrets” claim.* | — |
+
+### 17.6 Migrations — three sequential SQL files, manual application, no automated tool
+
+**VERIFIED (repository: `ls *.sql` + `README.md` Database setup + `ARCHITECTURE_DECISIONS.md:107` + `grep -rn "alembic\|Alembic" backend/`):**
+
+**The repository contains three sequential SQL migration files.** The README instructs operators to apply them manually in order. **The repository contains no evidence of an automated migration tool such as Alembic.**
+
+| Evidence | Verified detail |
+|---|---|
+| **Repository:** three files | `ls *.sql` → `001_initial_schema.sql`, `002_seed_data.sql`, `003_reference_drugs_external_reference.sql` (3 files) — `VERIFIED (repository: `ls *.sql`)` |
+| **Repository:** manual instruction | `README.md` Database setup: “*Before starting the backend for the first time, run the SQL migrations against your Supabase project (SQL editor or `psql`), in order:*” + `ARCHITECTURE_DECISIONS.md:107` “*No automated migration-tracking tool is in use*” — `VERIFIED (repository)` |
+| **Repository:** no evidence of `Alembic` | `grep -rn "alembic\|Alembic" backend/` → `0` — **The repository currently contains no evidence of `Alembic`** — `VERIFIED (repository)` for absence, phrased as absence of repository evidence (not as proof such a tool does not exist outside the repository) |
+
+*`001_initial_schema.sql` (schema + enums + indexes + RLS), `002_seed_data.sql` (12 drugs, 7 interaction rules, 13 ADRs per §15 repository-verified counts), `003_reference_drugs_external_reference.sql` (external reference cols `rxcui`/`source` per §6) — `VERIFIED (repository)` for content.* `psql` / Supabase SQL editor is `VERIFIED (official documentation)` for `psql` as the manual application tool.
+
+### 17.7 Build process — local development vs production
+
+**Do not let readers infer that `uvicorn --reload` is the deployment recommendation. Separate into two statements:**
+
+| | Verified detail |
+|---|---|
+| **Development:** README documents `uvicorn app.main:app --reload` | **Development:** `README.md` Getting Started: `cd backend` → `python -m venv .venv` → `source .venv/bin/activate` → `pip install -r requirements.txt` → `cp .env.example .env` → `# edit .env` → `uvicorn app.main:app --reload` — API at `http://localhost:8000`, docs at `http://localhost:8000/docs`, health at `http://localhost:8000/health` — `VERIFIED (repository: `README.md` Getting Started)`; `echo=False` in `session.py:13` is production default (`flip to True locally if you need to debug SQL`) — `VERIFIED (repository: `session.py:13` comment)` |
+| **Production:** the repository specifies the ASGI application (`app.main:app`) but **does not prescribe** a production process manager (Gunicorn, systemd, Docker, Kubernetes, etc.) | **Production:** `backend/app/main.py:19` defines `app = FastAPI(...)`; deployment example is `app.main:app` as ASGI callable — `VERIFIED (repository: `main.py:19` + `grep -rn "gunicorn\|Gunicorn\|systemd\|Dockerfile\|Kubernetes\|k8s" backend/README.md backend/app/main.py` → `0` — **The repository currently contains no evidence of a prescribed production process manager (Gunicorn, systemd, Docker, Kubernetes, etc.)** — `VERIFIED (repository)` for absence)** |
+
+*`venv` + `pip install -r requirements.txt` + `uvicorn --reload` are `VERIFIED (official documentation)` for Python packaging and `uvicorn`.*
+
+### 17.8 Containerization and Supabase CLI — no evidence in this repository
+
+**VERIFIED (repository: `ls backend/Dockerfile* 2>&1` + `ls docker-compose* 2>&1` + `ls supabase/config.toml 2>&1` + `grep -rn "docker" backend/ .`):**
+
+**The repository currently contains no evidence of Dockerfiles, Compose manifests, or Supabase CLI configuration.**
+
+- `ls backend/Dockerfile* 2>&1` → `No such file or directory` — `VERIFIED (repository)` for absence
+- `ls docker-compose* 2>&1` → `No such file or directory` — `VERIFIED (repository)` for absence
+- `ls supabase/ 2>&1` → `No such file or directory` + `ls supabase/config.toml 2>&1` → `No such file` — `VERIFIED (repository)` for absence of Supabase CLI `config.toml`
+- `grep -rn "docker" backend/ .` → `0` code hits (only this architecture documentation mentions it) — `VERIFIED (repository)` for absence
+
+*This is phrased as absence of repository evidence, not as proof containers or Supabase CLI do not exist outside the repository. Docker / Compose / Supabase CLI expected file names are `VERIFIED (official documentation)` for those tools.*
+
+### 17.9 CI/CD — no evidence of GitHub Actions workflows that test or deploy
+
+**VERIFIED (repository: `ls .github/workflows/ 2>&1` + `grep -rn "workflows" backend/`):**
+
+**The repository currently contains no evidence of GitHub Actions workflows that execute tests or deployments automatically.** — `ls .github/workflows/ 2>&1` → `No such file or directory` — `VERIFIED (repository)` for absence — not as “therefore no automated `pytest`/`deploy`” globally, only that this repository as shipped has no workflow YAML.
+
+*GitHub Actions `workflows/` expected path `.github/workflows/*.yml` is `VERIFIED (official documentation)` for GitHub Actions.*
+
+*The repository currently contains no evidence of `coverage`/`coveragerc`/`--cov`/`fail_under` — `grep -rn "coverage\|coveragerc\|--cov" backend/` → `0` — `VERIFIED (repository)` for absence; therefore CI, coverage, and quality gates are `UNVERIFIED / REQUIRES RESEARCH` for this repository as shipped (see §16.11).*
+
+### 17.10 Database setup — run migrations in Supabase before first backend start
+
+**VERIFIED (repository: `README.md` Database setup + `backend/tests/conftest.py:45-58` + `001_initial_schema.sql` header):**
+
+README Database setup states (verbatim): “*Before starting the backend for the first time, run the SQL migrations against your Supabase project (SQL editor or `psql`), in order:*” — `001_initial_schema.sql` → `002_seed_data.sql` → `003_reference_drugs_external_reference.sql` — `VERIFIED (repository: `README.md` Database setup)`; `002_seed_data.sql` must be applied for `existing_drug_id` fixture to find `reference_drugs` — `VERIFIED (repository: `conftest.py:45-58` `existing_drug_id` `pytest.skip("No rows in reference_drugs -- run 002_seed_data.sql …")` + `001_initial_schema.sql` header “*Target: Supabase PostgreSQL*”)**.**
+
+*Supabase SQL editor / `psql` is `VERIFIED (official documentation)` for `psql` as the manual application tool.*
+
+### 17.11 Version — repository-verifiable facts only
+
+**VERIFIED (repository: `backend/app/main.py:19` + `git tag` non-verification):**
+
+- **Repository-verifiable fact:** FastAPI application version string is `version="0.1.0"` in `backend/app/main.py:19` `app = FastAPI(title="Pharmacovigilance MVP API", version="0.1.0")` — `VERIFIED (repository: `grep -n "version=" backend/app/main.py` → `0.1.0`)` and `VERIFIED (official documentation)` for `FastAPI(version=)` (SemVer)
+- **Repository tags were not verified from repository evidence** — no `git tag` output is cited here — therefore no tag is claimed to exist or not exist in this section
+- **Not discussed in architecture documentation:** planned tag policies (`v0.1-architecture-final` etc.) are **not** documented here — per your instruction to state only repository-verifiable facts and to not discuss planned tag policies in architecture documentation — `VERIFIED (repository: omission is intentional per instruction)`
+
+### 17.12 Failure behavior — `GET /health` always `ok` vs Supabase/JWKS/LLM call-time `500`
+
+**VERIFIED (repository: `backend/app/core/config.py:32` required vs optional + `backend/app/db/session.py:13` + `backend/app/api/v1/auth.py:34-40` + `backend/app/core/security.py:88-93` + `backend/app/main.py:48-51` + `backend/tests/test_security.py:93` repository test case):**
+
+| Mode | Trigger | What raises | When | Evidence |
+|---|---|---|---|---|
+| **Missing required `DATABASE_URL`** | `DATABASE_URL` not set (no default at `config.py:32` `database_url: str`) | `pydantic.ValidationError` from `Settings()` construction — at import time (`settings = get_settings()` in `session.py:11` before any request) | Settings construction, before any request | `VERIFIED (repository: `config.py:32` required + Pydantic `BaseSettings` required-field validation — `VERIFIED (official documentation)` for `ValidationError`) |
+| **Malformed `DATABASE_URL`** | `DATABASE_URL=not-a-url` or missing `postgresql+asyncpg://` scheme | `create_async_engine(settings.database_url, ...)` raises (SQLAlchemy `ArgumentError` / `ModuleNotFoundError` for unknown driver) — `VERIFIED (official documentation)` for `create_async_engine` | Engine initialization at `session.py:13`, still before any request but after `Settings()` succeeds | `VERIFIED (repository: `session.py:13` + `VERIFIED (official documentation)` for `create_async_engine` raising) |
+| **Optional Supabase config unset** | `SUPABASE_URL=""` or `SUPABASE_ANON_KEY=""` | `HTTPException(500, "Server is not configured with Supabase URL/anon key.")` from `_supabase_headers()` (`auth.py:34-40`) or `HTTPException(500, "Server is not configured with a Supabase URL.")` from `_get_jwks_client()` (`security.py:88-93`) | **Call time** — first `POST /auth/signup`/`/auth/login` or first authenticated request — per `auth.py:34-40` + `security.py:88-93` | `VERIFIED (repository: `auth.py:34-40` 500 only when `_supabase_headers()` called + `security.py:88-93` 500 only when `_get_jwks_client()` called)` |
+| **Optional LLM keys unset** | `GEMINI_API_KEY=""` or `OPENROUTER_API_KEY=""` | `LLMProviderError("GEMINI_API_KEY is not configured.")` / `("OPENROUTER_API_KEY is not configured.")` from `provider.complete()` | **Call time** — only inside `GeminiProvider.complete()` / `OpenRouterProvider.complete()` at LLM call time — `VERIFIED (repository: `llm_providers.py:139-140` + `225-226`)` | `VERIFIED (repository)` |
+| **Health probe** | `GET /health` | `{"status": "ok"}` — always `200`, regardless of Supabase/JWKS/LLM config | No `Depends(get_current_user)`; `GET /health` is unrelated to auth — `VERIFIED (repository: `main.py:48-51` docstring + `grep -rn "health\|/health" backend/app/main.py` → only that route)` | `VERIFIED (repository: `main.py:48-51`)` |
+
+*Repository test case:* `test_decode_missing_config_raises_500:93` asserts call-time `500` for empty `supabase_url` and `test_llm_providers.py` missing-key → `LLMProviderError` at `complete()` — `VERIFIED (repository)` with references to repository test cases; `UNVERIFIED (empirical experiment in current environment)` for this run where DB-dependent suites were not executed.
+
+### 17.13 Observability — two independent claims
+
+**Keep these as two independent claims — one does not imply the other:**
+
+| Claim | Repository evidence | Classification |
+|---|---|---|
+| **1) Ordinary Python module loggers exist** — `logging.getLogger("app...")` in individual modules, e.g. `patients.py` (`logger = logging.getLogger("app.patients")` + `logger.info("Patient created", extra={"patient_id":...})`), `schedule.py` (`logger.info("Schedule generated", extra={"medication_id":...})`), `analysis.py` (`logger.info("Analysis run completed", extra={"analysis_run_id":...})`) with `extra={"patient_id":..., "user_id": ...}` | `VERIFIED (repository: `grep -rn "logging.getLogger" backend/app/api/v1/patients.py` → `logger = logging.getLogger("app.patients")` + `grep -rn "logger\." backend/app/api/v1/patients.py | head -5` → `logger.info("Patient created", extra={"patient_id":...})`)` + `VERIFIED (official documentation)` for `logging` stdlib `getLogger` | **VERIFIED (repository)** for ordinary loggers present |
+| **2) The repository contains no evidence of centralized observability tooling (Prometheus, OpenTelemetry, Sentry, etc.) and no evidence of a `LOG_LEVEL` env var** | `grep -rn "SENTRY\|prometheus\|opentelemetry\|otel\|LOG_LEVEL" backend/app/core/config.py backend/.env.example backend/app/main.py` → `0` (except per-module `logging`) — `VERIFIED (repository)` for absence of centralized tooling/`LOG_LEVEL` | **VERIFIED (repository)** for **no evidence of centralized observability/`LOG_LEVEL`** — independent claim, one does not imply the other |
+
+### 17.14 Current limitations and implementation status
+
+**Keep every limitation introduced with “The repository currently contains no evidence of…” and group them by category (Containerization, CI/CD, Migration tooling, Observability, Frontend checkout, Infrastructure services):**
+
+- **Containerization** — `The repository currently contains no evidence of Dockerfiles, Compose manifests, or Supabase CLI configuration` — `VERIFIED (repository: `ls backend/Dockerfile*` → `No such file` + `ls docker-compose*` → `No such file` + `ls supabase/config.toml` → `No such file`)`
+- **CI/CD** — `The repository currently contains no evidence of GitHub Actions workflows that execute tests or deployments automatically` — `VERIFIED (repository: `ls .github/workflows/` → `No such file`)`
+- **Migration tooling** — `The repository currently contains no evidence of an automated migration tool such as Alembic` — `VERIFIED (repository: `grep -rn "alembic\|Alembic" backend/` → `0`)` — only three sequential SQL files, manual `psql`/SQL editor per `README.md`
+- **Observability** — `The repository currently contains no evidence of centralized observability tooling (Prometheus, OpenTelemetry, Sentry, etc.)` — `VERIFIED (repository: `grep -rn "SENTRY\|prometheus" backend/` → `0`)` — only per-module `logging.getLogger` as in §17.13; and `The repository currently contains no evidence of a LOG_LEVEL environment variable` — `VERIFIED (repository: `grep -n "LOG_LEVEL" backend/app/core/config.py` → `0`)`
+- **Frontend directory (current checkout)** — `The repository currently contains no evidence of a frontend/ directory in this checkout, although the README references one` — `VERIFIED (repository: `ls frontend/ 2>&1` → `No such file` in this checkout — see §17.2)`
+- **Infrastructure services** — `The repository currently contains no evidence of Redis, Celery, Sentry, or similar infrastructure services` — `VERIFIED (repository: `grep -rn "REDIS\|CELERY\|SENTRY\|REDIS_URL\|CELERY_BROKER" backend/app/core/config.py backend/.env.example` → `0` — single `DATABASE_URL` only — see §15.13)` — additionally `UNVERIFIED / REQUIRES RESEARCH` for future infra design beyond this repo — consistent with §§15-16
+
+*All of the above are phrased as **absence of repository evidence** (not as proof such capabilities do not exist outside the repository), consistent with Sections 15–16.*
+
+---
+
+*Sections 18–19 to follow.*
