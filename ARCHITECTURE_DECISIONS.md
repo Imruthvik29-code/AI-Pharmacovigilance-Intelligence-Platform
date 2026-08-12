@@ -2526,4 +2526,128 @@ The repository documents architectural decisions that are **intended to support 
 
 ---
 
-*Sections 22–24 to follow.*
+## 22. Open Research & Unknowns
+
+### 22.1 Purpose
+
+**VERIFIED (repository):** Sections 1–21 record unresolved research questions, documented assumptions, deferred validation, engineering estimates, and empirical production unknowns. Section 7.3 explicitly refers the RxNorm retirement question to Section 22.
+
+The purpose of this section is to provide a concise, cross-referenced inventory of those existing unresolved matters. It does not repeat the detailed reviews in Sections 7–21, introduce new research questions, resolve an open item, or make a new architectural decision.
+
+The evidence classifications used throughout this document remain distinct:
+
+- `VERIFIED (repository)` confirms what the repository contains or documents.
+- `VERIFIED (official documentation)` applies only where an authoritative source was actually consulted and that verification was documented in an earlier section.
+- `UNVERIFIED / REQUIRES RESEARCH` identifies a question requiring research beyond repository inspection.
+- `UNVERIFIED (empirical production behavior)` identifies an outcome requiring live or representative measurement.
+
+No new official-documentation research or empirical production testing was performed for this consolidation. Prior official-documentation findings remain in their source sections and are not upgraded or independently reverified here.
+
+### 22.2 RxNorm and reference-data research
+
+**VERIFIED (repository):** Sections 7, 19, and 20 distinguish implemented catalog behavior, approved-but-not-implemented decisions, engineering estimates, and unresolved external semantics.
+
+The consolidated open items are:
+
+- whether a plain `is_active` boolean is sufficient to represent RxNorm concept retirement, including any successor-RxCUI semantics — `UNVERIFIED / REQUIRES RESEARCH` (§§7.3, 19.8, 20.15);
+- the measured current size of the approved `IN`-only Prescribable Content import — `UNVERIFIED / REQUIRES RESEARCH` until the approved source is implemented and a documented dry run replaces the estimate (§§7.4, 19.11, 20.14, 21.2); and
+- any future expansion beyond the currently approved term-type scope — an area for future research, not an implemented or newly approved decision (§§19.3, 20.12).
+
+This inventory does not conclude that a successor field is required and does not reopen approved catalog decisions.
+
+### 22.3 Security and RLS validation
+
+**VERIFIED (repository):** Sections 8, 9, and 18 identify application-layer ownership checks as the repository-verifiable authorization boundary. They separately record RLS policies and project-specific authentication configuration.
+
+Whether RLS enforces against the backend's live database role remains `UNVERIFIED (empirical production behavior)` until the live role, table ownership, and policy behavior are examined (§§8.9, 9.6, 18.6). Project-specific token, JWKS, and integration behavior likewise remains empirical where earlier reviews did not independently reproduce the live observation.
+
+These unresolved items do not change the repository-verified application-layer ownership boundary.
+
+### 22.4 Clinical validation
+
+**VERIFIED (repository):** Section 10 documents the deterministic scoring, penalty, risk, and adherence thresholds as implementation defaults.
+
+The clinical validity and calibration of those defaults remain `UNVERIFIED / REQUIRES RESEARCH` where Section 10 marks them as pending validation. Repository implementation and tests verify how the policy is applied; they do not establish that the policy is clinically validated.
+
+Section 22 makes no change to the deterministic scoring policy.
+
+### 22.5 LLM validation
+
+**VERIFIED (repository):** Sections 11–13 document the implemented provider path, prompt-level constraints, response-shape validation, nullable failure behavior, and model-reported confidence fields.
+
+The following remain unresolved:
+
+- whether model-reported confidence correlates with evidence quality — `UNVERIFIED / REQUIRES RESEARCH`;
+- the effectiveness of prompt-level grounding without a semantic evidence-overlap check — `UNVERIFIED / REQUIRES RESEARCH`; and
+- live provider reliability, latency, token usage, output behavior, and fallback frequency — `UNVERIFIED (empirical production behavior)`.
+
+Mocked provider tests and source-level controls do not establish live-provider or grounding effectiveness.
+
+### 22.6 Performance and scalability validation
+
+**VERIFIED (repository):** Sections 12–14 and 21 already document query patterns, index definitions, deferred index decisions, uncapped history reads, serialized result growth, and documented scalability assumptions. Section 21 is the detailed source for those findings.
+
+The remaining unresolved items are primarily empirical: actual execution plans, latency, throughput, concurrency behavior, storage growth, representative row-count distributions, and capacity limits remain `UNVERIFIED (empirical production behavior)` until measured. Whether deferred mechanisms such as additional indexing, partitioning, caching, or rate limiting are needed remains `UNVERIFIED / REQUIRES RESEARCH` and must not be inferred from repository absence alone.
+
+This section does not repeat Section 21 and does not characterize the current platform as scalable, high-performance, optimized, or production-ready.
+
+### 22.7 Production behavior
+
+**VERIFIED (repository):** Sections 8–18 and 21 distinguish source behavior and repository test definitions from live observations.
+
+Live database behavior, concurrent request outcomes, provider behavior, deployed authentication, failure handling, deployment characteristics, observability, and operational recovery remain `UNVERIFIED (empirical production behavior)` wherever no live or representative evidence was recorded. Verification requires controlled experiments or production observations appropriate to each item; source code and mocked tests alone are not substitutes.
+
+### 22.8 External integrations
+
+**VERIFIED (repository):** Sections 2, 19, and 20 record external medical, terminology, and regulatory systems beyond the current repository scope as research subjects rather than implemented integrations.
+
+Claims about the suitability, semantics, licensing, mapping quality, or operational behavior of DailyMed, OpenFDA, FAERS, WHO ATC, SNOMED, CVX, or another unintegrated source remain `UNVERIFIED / REQUIRES RESEARCH` unless an earlier section records an actual official-documentation verification. This inventory does not imply planned adoption.
+
+### 22.9 Governance and compliance
+
+**VERIFIED (repository):** Section 18 documents repository-verifiable ownership, persistence, audit-related records, deletion behavior, and data boundaries separately from organizational policy and deployed controls.
+
+Production retention, backup handling, consent, access review, organizational governance, and regulatory compliance remain `UNVERIFIED / REQUIRES RESEARCH` as policy questions and `UNVERIFIED (empirical production behavior)` where live enforcement would need observation. Repository schema and application behavior do not establish organizational or regulatory compliance.
+
+### 22.10 Engineering estimates and documented assumptions
+
+**VERIFIED (repository):** Earlier sections explicitly label engineering estimates and architectural assumptions rather than presenting them as measurements. The principal validation register is:
+
+| Item | Repository-documented status | Evidence required for reclassification |
+|---|---|---|
+| `IN`-only Prescribable Content catalog size | `ENGINEERING ESTIMATE` (§§7.4, 19.11, 21.2) | Documented dry run against the approved source |
+| Per-patient active-medication cardinality remains small | Documented architectural assumption (§§6.3, 21.2) | Representative row-count distribution and query measurements — `UNVERIFIED (empirical production behavior)` until then |
+| Benefit of `medications(patient_id, status)` | `DEFERRED pending empirical verification` (§§6.3, 19.7, 21.4) | Representative comparative execution plans and measurements |
+| Need for additional search, partitioning, caching, or rate-limiting mechanisms | Deferred or unresolved in §§19–21 | Representative workload evidence and explicit architectural approval |
+
+An estimate or assumption remains provisional until the specified evidence is produced. Section 22 does not alter the status of any item in this register.
+
+### 22.11 Areas for future validation
+
+Potential future validation activities may include:
+
+- official-documentation research for unresolved external semantics;
+- controlled live validation of RLS, authentication, and provider behavior;
+- clinical review and calibration of deterministic policy;
+- LLM grounding and confidence evaluation;
+- representative query-plan, load, concurrency, and capacity measurement; and
+- organizational review of governance, retention, operational, and compliance requirements.
+
+These are validation categories, not implementation commitments. Any resulting architectural change requires a separate evidence review and approval.
+
+### 22.12 Verification summary
+
+| Category | Repository-verified position | Remaining classification |
+|---|---|---|
+| RxNorm and reference data | Existing implementation, decisions, estimates, and open questions are documented in §§7, 19, and 20 | External retirement semantics and measured catalog scope remain `UNVERIFIED / REQUIRES RESEARCH` |
+| Security and RLS | Application-layer ownership is the repository-verifiable boundary | Live RLS and project-specific service behavior remain `UNVERIFIED (empirical production behavior)` |
+| Clinical and LLM validation | Deterministic policy and LLM controls are implemented as documented | Clinical validity, calibration, and grounding effectiveness remain `UNVERIFIED / REQUIRES RESEARCH`; live provider behavior remains empirical |
+| Performance and production | Repository structures, tests, assumptions, and deferred decisions are documented | Actual performance, concurrency, capacity, and deployed behavior remain `UNVERIFIED (empirical production behavior)` |
+| External systems, governance, and compliance | Repository scope and implementation boundaries are documented | Suitability, policy, compliance, and live enforcement remain research or empirical unknowns according to the evidence required |
+| Estimates and assumptions | Their labels and revisit criteria are documented | Their real-world accuracy remains unresolved until measured |
+
+Section 22 is a traceable inventory of existing unresolved matters. It does not establish that any unresolved mechanism is required, approve a new design, or convert an assumption into a verified fact.
+
+---
+
+*Sections 23–24 to follow.*
