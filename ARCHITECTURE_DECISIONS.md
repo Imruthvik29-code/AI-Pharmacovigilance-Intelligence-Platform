@@ -2767,4 +2767,180 @@ Section 23 is a traceable inventory of current operational behavior and reposito
 
 ---
 
-*Section 24 to follow.*
+## 24. Future Roadmap & Implementation Phases — Where the Project Goes From Here
+
+### 24.1 Purpose
+
+**VERIFIED (repository):** Sections 1–23 document current implementation, decisions, verification, scalability planning, open research inventory, and current operational state. Section 24 does not repeat those inventories. Its purpose is to provide an **implementation-oriented, dependency-ordered roadmap** that answers *Where does the project go from here?* rather than *How does it work today?* — which Section 23 already covers.
+
+This section is **actionable, not a wish list**. For every roadmap item it provides:
+
+- **Objective** — what is added
+- **Reason** — why current repository needs it (verified absence or deferred decision)
+- **Dependencies** — `Before...`, `After...`, `Requires...`, `Optional...`, `Independent...` — no estimated dates (Q3, Sprint, Month avoided per your recommendation to keep roadmap valid if order changes)
+- **Success Criteria** — reproducible, reversible, verifiable outcome
+
+No new architectural decisions are introduced here beyond the ordering of already-documented deferred items. Any resulting change still requires separate evidence review and approval per v8 Frozen governance.
+
+### 24.2 Guiding Principles — same principles that governed Sections 1–23
+
+**VERIFIED (repository: §2 Design Principles + §19.1 additive evolution):**
+
+- **Additive evolution over redesign** — schema changes should be additive (new columns, tables, relationships) where achievable — `VERIFIED (repository: §2, §6.2 term_type enum seeded full vocabulary so expansion is only allow-list change)`
+- **Curated over scraped** — safety-critical rules hand-curated from authoritative sources, not bulk-imported without review — `VERIFIED (repository: §20.6-20.7 FDA Label provenance)`
+- **Verify, do not assume** — claims about external systems verified against official docs where performed, otherwise `UNVERIFIED / REQUIRES RESEARCH` — `VERIFIED (repository: §20.1, §27 principle)`
+- **No speculative architecture** — abstractions not introduced ahead of concrete approved consumer — deferring unused table costs nothing; deferring column on actively-written table costs ambiguity — `VERIFIED (repository: §2, §6.3)`
+- **High data quality over maximum catalog size** — smaller, safety-checkable catalog preferred over larger unevaluable — `VERIFIED (repository: §7.2 IN-only, MIN/BN blocked until decomposition)`
+- **Deterministic source of truth + Explain, never compute** — deterministic engines compute findings, LLM explains only — `VERIFIED (repository: §§10-13)`
+
+### 24.3 Phase A — Current MVP Completion — what is already implemented (backend-first)
+
+**VERIFIED (repository: `PROJECT_PHASES.md` Phases 2–15 + `ARCHITECTURE_DECISIONS.md` §§4–14 + `main.py:48-51` + tests):**
+
+- **Auth & ownership:** ES256 JWKS verification via derived `supabase_jwks_url`, `CurrentUser(id,email)` only, `_assert_patient_owned` / `_get_owned_*` per module → `404` never `403` — `VERIFIED (repository: §§8-9)`
+- **Deterministic analysis:** `drug_interaction_engine`, `adr_engine`, `adherence_engine` measurement-only, `safety_score_engine` sole source of truth `BASE_SCORE 100 - Σ penalties` → `risk_level` thresholds, `timeline_engine` retrieval-only ASC — `VERIFIED (repository: §10)`
+- **LangGraph orchestration:** linear 6-node `StateGraph` `patient_context_builder → safety_score_engine → evidence_retrieval → timeline_engine → llm_explanation → persist` — deterministic still persists when LLM fails (`llm_result: None`) — `VERIFIED (repository: §11)`
+- **Evidence & persistence:** per-finding scoped `timeline_events` lookup via `ref_id`/`payload.medication_id` + medical from finding fields, no re-query of `interaction_rules`/`adr_rules` — `analysis_runs` + `analysis_run` event single transaction — `VERIFIED (repository: §§12-13)`
+- **Reference data:** 12 curated seed drugs + 7 interaction + 13 ADR rules `source='FDA Label'` — `rxcui` unique idempotency key — `reference_drugs` shared read `auth.role()='authenticated'` — `VERIFIED (repository: §20)`
+- **Operational surface:** single `DATABASE_URL` asyncpg, `.env.example` template vs real `.env` + `.gitignore` protection, `GET /health` → `{"status":"ok"}` always 200, ordinary `logging.getLogger` per module with `extra` dicts, no centralized observability/SLO/rate limiting — `VERIFIED (repository: §§15-18,23)`
+- **Testing:** `test_security.py` 5 unit tests with mocked `PyJWKClient` — integration tests bypass JWT via `dependency_overrides[get_current_user]` and assert 404 cross-user — require live Supabase DB — `VERIFIED (repository: §9.7)`
+
+This phase is **COMPLETED** — backend-first implementation with core deterministic workflow implemented — `VERIFIED (repository: §19.15 backend-first)`.
+
+### 24.4 Phase B — Data Quality & Migration Foundation
+
+**Objective:** Introduce Alembic migration framework.
+
+- **Reason:** Repository contains 3 sequential SQL files (`001_initial_schema.sql`, `002_seed_data.sql`, `003_reference_drugs_external_reference.sql`) applied manually via `psql`/SQL editor — no automated migration tool such as Alembic — `grep -rn "alembic" backend/` → 0 — cost of adopting tracked migrations grows with untracked history.
+- **Dependencies:** `Independent` — can start at any time, `Before` any schema extension (term_type/is_active) — per §6.4 final decision: adoption should occur while file count remains low, not deferred to late phase.
+- **Success Criteria:** `alembic init` present, `alembic/versions/` contains versioned migrations, existing 3 SQL files represented as baseline, `alembic upgrade head` / `downgrade` reproducible locally, retroactive reconciliation documented, no breaking change to existing `DATABASE_URL` workflow — `VERIFIED (repository)` after implementation for presence of Alembic files.
+
+**Objective:** Migrate `reference_drugs.term_type` (`rxnorm_term_type_enum` full Appendix 5 `IN…TMSY`) + `is_active boolean not null default true`.
+
+- **Reason:** Approved in §6.2/§7.3 but not yet shipped — `backend/scripts/README.md:12` explicitly states columns do not exist as of current importer version + `grep term_type 001_initial_schema.sql` → 0 — `VERIFIED (repository)` for absence.
+- **Dependencies:** `After` Alembic framework, `Requires` Phase B Alembic — `Before` PIN/MIN expansion — nullable `term_type` because legacy hand-curated rows have no known TTY (distinct meaningful state), `is_active` non-nullable default true (every row active until proven otherwise).
+- **Success Criteria:** Migration creates `rxnorm_term_type_enum` seeded full Appendix 5 vocabulary, adds `term_type rxnorm_term_type_enum` nullable + `is_active boolean not null default true` to `reference_drugs`, existing seed rows preserved (`id` never changed so `medications.drug_id` FKs stay valid), importer idempotent upsert via `rxcui` still works, no `NULL` for `is_active`.
+
+**Objective:** Update importer to `Prescribe/allconcepts.json` and replace engineering estimate with measured count via `--dry-run`.
+
+- **Reason:** Approved architectural decision is to source from `Prescribe/allconcepts.json` (excludes obsolete/veterinary/allergenic, `SAB=RXNORM`+`MTHSPL`) — `VERIFIED (official documentation)` where NLM docs checked per §20.3 — but `backend/scripts/import_rxnorm.py` currently calls `"/allconcepts.json"` full — `grep Prescribe import_rxnorm.py` → 0 — `VERIFIED (repository: §20.5 approved but not yet implemented)` — catalog size `ENGINEERING ESTIMATE 4,000–6,000` based on 2013 baseline 4,320 not independently verified.
+- **Dependencies:** `After` term_type migration, `Before` PIN expansion — `Requires` `Prescribe` endpoint understanding.
+- **Success Criteria:** `RXNAV_BASE_URL + "/Prescribe/allconcepts.json"` used, `--dry-run` flag logs planned changes without writes and outputs measured `IN`-only count (replaces `ENGINEERING ESTIMATE`), no obsolete/suppressed/veterinary-only/allergenic concepts imported (verified via NLM subset definition), existing `lower(name)` backfill logic preserved.
+
+### 24.5 Phase C — Clinical Intelligence & Search Quality
+
+**Objective:** `PIN` (Precise Ingredient) import — zero backfill cost.
+
+- **Reason:** Both `IN` and `PIN` equally compatible with deterministic engines — per §7.2 decision: `PIN` deferred not rejected because scope discipline, not engine correctness, decides — addition carries zero ambiguity cost (same importer, same mechanism, additional `--tty` value, no schema change).
+- **Dependencies:** `After` Phase B Prescribe + migration, `Optional` — can be done independently of MIN/BN, `Independent` of search indexing.
+- **Success Criteria:** `import_rxnorm.py --tty "IN PIN"` works, `IN`+`PIN` rows imported, no engine rewrite needed, interaction/ADR findings still produced (PIN same granularity as IN), no silent zero-result.
+
+**Objective:** Ingredient decomposition for `MIN` (combination) and `BN` (brand) — `ingredient_mapping` table + rewrite `_get_active_drug_ids`.
+
+- **Reason:** Deterministic engines match `medications.drug_id` directly against `interaction_rules`/`adr_rules` curated at `IN` granularity with **no decomposition logic anywhere in codebase** — `grep decomposition backend/app/analysis/` → only docstrings noting absence — `MIN`/`BN` `drug_id` currently produces **zero findings** — silent zero-result behavior that may reduce confidence if imported before support exists — §20.12 disqualifying for current phase — `VERIFIED (repository)`.
+- **Dependencies:** `After` Phase B, `Before` MIN/BN import, `Requires` new `ingredient_mapping` (MIN/BN RxCUI → IN RxCUI) table + rewriting primitive `_get_active_drug_ids` in both `drug_interaction_engine.py` and `adr_engine.py` from flat set to resolve through mapping and return union of underlying ingredient IDs — genuine modification to tested safety-relevant logic, not pure addition.
+- **Success Criteria:** `ingredient_mapping` table exists with FKs to `reference_drugs.id`, `_get_active_drug_ids` returns union of ingredient IDs for `IN`/`PIN`/`MIN`/`BN`, `MIN`/`BN` medications now produce interaction/ADR findings via ingredients, existing `IN`-only patient analysis unchanged, dedicated tests for decomposition (e.g., Lisinopril/HCTZ MIN → both ingredients), no confidence-eroding silent zero-result.
+
+**Objective:** Search indexing — `idx_reference_drugs_name_lower` (ACCEPTED not created) + `pg_trgm` trigram `GIN` evaluation.
+
+- **Reason:** `GET /reference-drugs/search` currently performs unindexed `ILIKE` scan by explicit documented design (“No new index is added for this search”) — `reference_drugs.py:54-75` `ilike(f"%{normalized}%")` — functional index `lower(name)` approved to accelerate importer case-insensitive exact-name backfill + search exact-match ranking, explicitly does NOT accelerate substring/prefix — that requires `pg_trgm` — `grep -n pg_trgm 001_initial_schema.sql` → 0 — `VERIFIED (repository: §6.3, §21.4 DEFERRED pending EXPLAIN ANALYZE)`.
+- **Dependencies:** `After` Phase B, `Requires` representative `explain analyze` with active filter + row-count distribution — `Independent` of RxNorm decomposition.
+- **Success Criteria:** `idx_reference_drugs_name_lower` migration created, `EXPLAIN ANALYZE` confirms index use for `lower(name)` exact-match path, `pg_trgm` `CREATE EXTENSION IF NOT EXISTS pg_trgm` + `GIN` decision documented with measurements proving benefit for `ILIKE '%...%'`, no regression on existing search, decision to add/not add `pg_trgm` justified by data, not assumed.
+
+### 24.6 Phase D — Production Hardening & Operations
+
+**Objective:** Containerization, CI/CD, health readiness, and deployment artifact baseline.
+
+- **Reason:** The repository currently contains no evidence of Dockerfiles, Compose manifests, Supabase CLI configuration, GitHub Actions workflows, deployment scripts — `ls backend/Dockerfile* docker-compose* .github/workflows/ supabase/config.toml deploy/` → `No such file` — `VERIFIED (repository: §§17.14,23.2-23.3)` — only basic liveness `GET /health` → `{"status":"ok"}` with no readiness DB/JWKS check — `VERIFIED (repository: main.py:48-51)` — no automated test execution.
+- **Dependencies:** `After` Phase B-C clinical logic, `Independent` of RxNorm TTY scope — `Before` production hardening decisions like partitioning/caching/SLO.
+- **Success Criteria:** `Dockerfile` present (non-prescriptive — does NOT mandate Nginx/Gunicorn/Kubernetes — repository-grounded, not architecture-prescriptive per §19.14), `docker-compose.yml` for local Supabase + app if desired, `.github/workflows/ci.yml` runs `pytest`, health endpoint extended with optional readiness check that verifies DB connectivity without leaking internals, deployment README documents env provisioning but NOT `Docker run rollback` imperative guide — avoids over-specifying production rollout.
+
+**Objective:** Scalability validation — partitioning, caching, rate limiting, load harness, SLO evaluation (decision-driven, not automatically implemented).
+
+- **Reason:** The repository currently contains no evidence of table partitioning (`PARTITION BY RANGE`), Redis/cache, rate limiting (`slowapi`), load-testing harness (`k6`/`locust`), SLO/latency budget/`p95`/`p99` — `grep -rn "PARTITION\|REDIS\|CACHE\|slowapi\|k6\|locust\|SLO" backend/` → 0 beyond comments — `VERIFIED (repository: §§21.5-21.8,23.2)` — small-cardinality assumption (per-patient active meds remain small) documented as architectural assumption, not measurement — `UNVERIFIED (empirical production behavior)` until row-count distribution + `EXPLAIN ANALYZE` — need representative workload evidence, must not infer need from absence alone per §21.6 and v8 guidance.
+- **Dependencies:** `Requires` representative row-count histogram (`SELECT patient_id, count(*) GROUP BY patient_id`), `EXPLAIN ANALYZE` with `active` filter vs `idx_medications_patient` alone for composite `(patient_id,status)` benefit — `After` Phase C — `Optional` — add mechanism only if measurements justify.
+- **Success Criteria:** `evidence_retrieval` per-finding loop measured (N+1 query pattern documented in §21.10), `serialized JSONB grows with findings` validated but no asymptotic notation, row-count distribution documented, execution plan (`Index Scan` vs `Bitmap Scan` vs `Seq Scan`) confirmed for `timeline_events`/`analysis_runs` ordering, decision matrix: whether `PARTITION` on `timeline_events`/`analysis_runs` would help, whether `REDIS`/`CACHE`, whether `slowapi` — each decision justified with measurements and explicit architectural approval — no language implying scalable/high-performance without measurements — `VERIFIED (repository)` for decision record.
+
+**Objective:** Observability centralization evaluation + frontend completion (Phase 16) + deployment docs.
+
+- **Reason:** Only ordinary `logging.getLogger("app.*")` with `extra={patient_id,user_id,medication_id,dose_id,analysis_run_id,email}` exists — no centralized Prometheus/OpenTelemetry/Sentry/LOG_LEVEL — `grep SENTRY prometheus otel LOG_LEVEL` → 0 — `VERIFIED (repository: §§17.13,23.6)` — two independent claims: ordinary loggers exist, no evidence of centralized tooling — one does not imply other — `frontend/` not in this checkout though README references one — `ls frontend/` → `No such file` + `PROJECT_PHASES.md` Milestone 5 Phase 16 (`Authentication Pages`, `Dashboard`, `Patient Pages`, `Timeline UI`, `Analysis UI`, `Frontend Testing` all unchecked) + Phase 17 Deployment unchecked.
+- **Dependencies:** `After` Phase D containerization, `Optional` — evaluation may conclude ordinary loggers sufficient for MVP, centralized not required.
+- **Success Criteria:** Evaluation document distinguishes ordinary loggers (present) vs centralized (absent) — decision to add/not add Sentry/Prometheus recorded with rationale, no patient identifiers/prompts/tokens leaked in logs per `auth.py:1-12` + `llm_service.py:42-50` guarantees preserved, frontend Phase 16 and deployment Phase 17 checklist moved to `[x]` when implemented — backend-first → full-stack.
+
+### 24.7 Long-term research directions — areas for future evolution, not commitments
+
+**VERIFIED (repository: `evidence_retrieval.py:12` + `llm_service.py:61-71` + absence greps):**
+
+Potential future validation categories may include:
+
+- **Vector retrieval:** `pgvector` embeddings — Retrieval (MVP) plain SQL, `pgvector added later without node changes` — same `EvidenceBundle` interface — `VERIFIED (repository: evidence_retrieval.py:12)` + `grep pgvector 001_initial_schema.sql` → 0 — `Independent`, `Optional` — additive without node changes
+- **Prompt engineering:** prompt versioning, benchmark harness, evaluation dataset — **The repository currently contains no evidence of prompt versioning, benchmark harness, evaluation dataset, or confidence calibration beyond self-reported validation** — `grep prompt.*version benchmark evaluation` → 0 — `UNVERIFIED / REQUIRES RESEARCH` for effectiveness
+- **Confidence calibration:** self-reported `confidence_score` int 0-100 + `confidence_level` enum validated only for well-formedness, not recomputed/clamped — `llm_service.py:61-71` — whether model-reported confidence correlates with evidence quality — `UNVERIFIED / REQUIRES RESEARCH`
+- **Grounding evaluation:** effectiveness of prompt-level grounding without semantic evidence-overlap check — `UNVERIFIED / REQUIRES RESEARCH` — no semantic/keyword-overlap check — scoped out explicitly as unreliable for MVP — `llm_service.py:52-59`
+- **External integrations:** DailyMed, OpenFDA, FAERS, WHO ATC, SNOMED, CVX — claims about suitability/semantics/licensing/mapping/operational behavior remain `UNVERIFIED / REQUIRES RESEARCH` unless official-doc verification recorded — no integration in repo — `grep openfda faers dailymed` → 0 beyond principle row — `VERIFIED (repository)` for absence + `UNVERIFIED` for those systems — does not imply planned adoption — §22.8
+
+These are validation categories, not implementation commitments. Any resulting architectural change requires separate evidence review and approval.
+
+### 24.8 Deferred work inventory — consolidated register with dependencies and success criteria
+
+| Item | Repository-documented status | Dependencies | Success Criteria / Evidence required for reclassification |
+|---|---|---|---|
+| Alembic migration framework | No evidence — `grep alembic` → 0 — 3 SQL files manual — `DEFERRED` early adoption (§6.4) | `Independent`, `Before` any schema extension | `alembic/` present, versioned history, upgrade/downgrade reproducible |
+| `reference_drugs.term_type` (`rxnorm_term_type_enum` full `IN…TMSY`) + `is_active` | Approved but not yet implemented — no migration creates enum/columns — `backend/scripts/README.md:12` | `After` Alembic, `Before` PIN/MIN | Migration creates enum + columns, seed rows preserved, `rxcui` upsert still works |
+| Prescribable Content importer `Prescribe/allconcepts.json` | Approved but not yet implemented — currently `"/allconcepts.json"` full — `grep Prescribe import_rxnorm.py` → 0 | `After` term_type migration | Importer uses Prescribe endpoint, `--dry-run` measured count replaces `ENGINEERING ESTIMATE 4,000–6,000` |
+| `IN`-only catalog size | `ENGINEERING ESTIMATE` (§§7.4,19.11,20.14,21.2) | `After` Prescribe implementation | Documented dry run against approved source |
+| `PIN` import | `DEFERRED` — not rejected — zero backfill cost (§7.2) | `After` Phase B, `Optional` | `IN+PIN` imported, no engine rewrite |
+| `MIN`/`BN` + ingredient decomposition (`ingredient_mapping` + rewritten `_get_active_drug_ids`) | Blocked until decomposition — no decomposition logic anywhere — silent zero-result if imported early — §20.12 | `After` Phase B, `Before` MIN/BN import, `Requires` new table + engine rewrite | Decomposition resolves MIN/BN → IN, findings produced, existing IN unchanged, dedicated tests |
+| `idx_reference_drugs_name_lower` | `ACCEPTED` but not yet created — unindexed `ILIKE` scan by design — §6.3 | `After` Phase B, `Requires` EXPLAIN | Migration created, `EXPLAIN` confirms use for exact-name backfill |
+| `pg_trgm` trigram `GIN` | Deferred, unapproved enhancement — `grep pg_trgm 001_initial_schema.sql` → 0 | `After` `idx_reference_drugs_name_lower`, `Requires` measurements | Decision documented with measurements, no assumed need |
+| `medications(patient_id,status)` composite | `DEFERRED pending empirical verification` — per-patient active meds small — unlikely benefit over `idx_medications_patient` alone until `EXPLAIN ANALYZE` | `After` representative data, `Requires` comparative plans | `EXPLAIN ANALYZE` confirms benefit or remains deferred |
+| Partitioning (`timeline_events`, `analysis_runs`, `medication_doses`) | No evidence of partitioning — `grep PARTITION 001_initial_schema.sql backend/app/db/` → 0 — `UNVERIFIED` whether helps | `After` row-count distribution + EXPLAIN, `Optional` | Row-count histogram + plan documented, decision justified, not inferred from absence |
+| Redis/Cache/Memcached | No evidence of Redis/cache — `grep REDIS CACHE` → 0 — single `DATABASE_URL` only | `After` measurements, `Optional` | Decision with workload evidence, explicit approval |
+| Rate limiting (`slowapi`) | No evidence of rate limiting/throttling/`slowapi` — `grep rate.*limit slowapi` → 0 | `After` load measurements, `Optional` | Decision with representative workload, not assumed |
+| Load harness (`k6`/`locust`/`pytest-benchmark`) + SLO/`p95`/`p99` | No evidence of harness or SLO/latency budget — `grep k6 locust SLO p95` → 0 | `After` Phase D containerization, `Optional` | Harness present if needed, latency logged already (`latency_ms` in `llm_service.py`) vs budgeted distinct |
+| Frontend/ + Deployment (Phases 16/17) | No `frontend/` in this checkout though README references, Phases 16/17 all unchecked in `PROJECT_PHASES.md` Milestone 5 | `After` backend MVP, `Requires` backend API stable | Dashboard, Timeline UI, Analysis UI, Auth pages, E2E testing implemented when scope concrete |
+
+### 24.9 Risks
+
+**VERIFIED (repository):** Existing implementation, deferred decisions, and operational gaps create explicit risks — documented as `UNVERIFIED` until measured or mitigated:
+
+- **Silent zero-result for MIN/BN:** If `MIN`/`BN` concepts imported before decomposition support exists — `POST /patients/{id}/medications` with `MIN`/`BN` `drug_id` creates `201` but subsequent `POST /patients/{id}/analyze` yields zero findings — silent behavior that may reduce confidence — `VERIFIED (repository: §20.12-20.13)` — mitigation: Decomposition `Before` MIN/BN import.
+- **Lazy sweep timeliness:** Missed-dose sweep only runs on `GET /upcoming` + `POST /mark` — no background scheduler — if no dose route hit, `missed` status not updated — `VERIFIED (repository: schedule.py:1-27 lazy sweep)` — timeliness `UNVERIFIED (empirical production behavior)` — mitigation: requires organizational decision if background job needed vs lazy acceptable.
+- **RLS live enforcement:** Policies exist but `FORCE ROW LEVEL SECURITY` absent + backend connects as `postgres` via `DATABASE_URL` — whether table owner bypasses RLS is `UNVERIFIED` live — repository-verifiable boundary is application-layer ownership checks — `VERIFIED (repository: §§8.9,9.6,18.6)` — mitigation: controlled live validation of role, table ownership, policy behavior.
+- **Live provider reliability:** `GEMINI_API_KEY`/`OPENROUTER_API_KEY` default empty, fail-closed at call time — `LLMProviderError` if unset — live Gemini/OpenRouter success/latency/token usage not observed in this review — `UNVERIFIED (empirical)` — deterministic pipeline still persists when LLM fails — `VERIFIED (repository: §11.6)`.
+- **Single DATABASE_URL capacity:** Single `postgresql+asyncpg://` URL, no replica/pooler/REDIS/CELERY — per-patient active-medication small-cardinality assumption documented as assumption, not measurement — `VERIFIED (repository: §21.2)` — actual concurrency/capacity `UNVERIFIED (empirical)` until load measured — mitigation: representative load measurement `Before` adding replicas/pooler/cache.
+- **Configuration drift:** `.env` real local values vs `.env.example` template — `.gitignore` protects — but live env injection beyond code `UNVERIFIED` — mitigation: explicit deployment docs without hardcoding secrets per `config.py:1-15`.
+
+### 24.10 Final roadmap summary & Version 1.0 Freeze
+
+| Category | Repository-verified position (implemented, approved-but-not-implemented, verified absence) | Remaining classification — areas for future evolution |
+|---|---|---|
+| **Migrations & schema** | 3 SQL files manual, no Alembic — `VERIFIED (repository)` for absence — `term_type`/`is_active` approved (§6.2) but not yet shipped — `grep term_type 001_initial_schema.sql` → 0 | Alembic adoption + term_type/is_active migration remain `DEFERRED` until Phase B — `After` Alembic, `Before` PIN/MIN |
+| **Catalog & TTY** | `IN`-only Prescribable Content `ENGINEERING ESTIMATE 4,000–6,000` (2013 baseline 4,320) — `Prescribe/allconcepts.json` approved but importer still `"/allconcepts.json"` — `PIN` deferred zero-cost, `MIN`/`BN` blocked until decomposition — no decomposition logic — `VERIFIED (repository: §§7.2,20.5,20.12)` | Measured count via `--dry-run`, PIN import, MIN/BN decomposition remain future — `After` Phase B, `Before` MIN/BN import for decomposition |
+| **Search & indexing** | 11 B-tree indexes exist (`001_initial_schema.sql:156-166`) — `idx_reference_drugs_name_lower` ACCEPTED not created, `pg_trgm` deferred unapproved, `medications(patient_id,status)` DEFERRED pending EXPLAIN — `VERIFIED (repository)` for existence/absence | Additional indexing decisions require representative `EXPLAIN ANALYZE` + row-count distribution — `UNVERIFIED / REQUIRES RESEARCH` until measured |
+| **Deterministic & AI** | Deterministic engines, LangGraph 6-node linear, evidence retrieval plain SQL scoped, LLM provider path with Gemini primary/OpenRouter fallback, prompt-level grounding + response-shape validation, nullable failure still persists, confidence self-reported well-formedness only — `VERIFIED (repository: §§10-13)` | pgvector embeddings, prompt versioning, benchmark/evaluation datasets, confidence calibration, LLM grounding effectiveness — `UNVERIFIED / REQUIRES RESEARCH` — long-term research |
+| **Operations** | `GET /health` liveness always 200 unrelated to auth, ordinary `logging.getLogger` present, no centralized observability/SLO/rate limiting/partitioning/cache/CI/CD/Dockerfile/frontend/ in this repository — `VERIFIED (repository)` for absence — single `DATABASE_URL` only | Containerization, CI/CD, monitoring, load harness, SLO, partitioning/caching/rate limiting decisions require workload evidence + explicit approval — `UNVERIFIED (empirical)` until measured — Phase D |
+| **Governance & portfolio** | Ownership, audit via `timeline_events` + `analysis_runs`, Pydantic validation 422 before DB, non-disclosure 404 never 403, 401 collapsed generic — `VERIFIED (repository: §§8-10,18)` — no HIPAA/GDPR certification in repo — `VERIFIED` for absence | Production retention/backup/consent/access review/compliance remain policy + empirical unknowns — organizational review required — see §22.9 |
+
+Section 24 is a dependency-ordered, implementation-oriented roadmap with Objective/Reason/Dependencies/Success Criteria for each item. It does not establish that any deferred mechanism is required, approve a new design, introduce dates (Q3/Sprint/Month avoided), or convert an assumption into a verified fact.
+
+It answers *Where does the project go from here?* after Section 23 documented *How does it work today?*.
+
+---
+
+**End of Architecture Decisions v1.0 scope — Sections 1–24 complete — Freeze pending comprehensive QA pass per your recommendation:**
+
+- Verify every cross-reference §§
+- Verify numbering (1–24)
+- Verify TOC and Part 1/2/3 boundaries
+- Verify evidence labels (`VERIFIED (repository)` / `VERIFIED (official documentation)` / `UNVERIFIED / REQUIRES RESEARCH` / `UNVERIFIED (empirical production behavior)`)
+- Verify code references (`main.py:48-51`, `config.py:32-55`, `security.py:88-93`, `llm_providers.py:100`, `schedule.py:220-268`, `timeline_writer.py:22-48`, `langgraph_workflow.py:205-262`, etc.)
+- Remove duplicated explanations
+- Ensure terminology consistent (`potential future capabilities` for product features, `areas for future evolution` for architecture/AI)
+- Verify no section contradicts another (e.g., 21 vs 23 absences)
+
+Only after QA pass freeze as **Version 1.0 Stable Architecture Baseline** — then shift focus to **Working System (Phase 2 build)**, with documentation updates only when architecture changes — per your portfolio guidance: Working System ⭐ highest priority, Architecture Documentation, Demonstration.
+
+**Governance ADR after v1.0:** Create one Architecture Decision Record documenting *how* this documentation is maintained — repository-first verification, evidence labeling, Phase A review & Phase B execution workflow v8 Frozen, change policy (amend only on real deficiency, document rationale for v9) — distinct from system architecture, historical record if process evolves.
+
+*No Sections 25–30 — intentionally stopped at 24.*
