@@ -2650,4 +2650,121 @@ Section 22 is a traceable inventory of existing unresolved matters. It does not 
 
 ---
 
-*Sections 23–24 to follow.*
+## 23. Operational Runbook & Current Operational State
+
+### 23.1 Purpose
+
+**VERIFIED (repository):** Sections 8, 9, 15–18, and 21 document authentication, ownership, configuration, deployment absence, audit logging, retention, and scalability assumptions. Section 23 consolidates those findings into an operational inventory without repeating detailed reviews or introducing new architectural decisions.
+
+The purpose is to document the current repository-verifiable operational surface — what the repository currently does not contain, what deployment artifacts are absent, how configuration and liveness are handled, how logging, failure codes, and data lifecycle are implemented — and explicitly label where live deployment behavior remains `UNVERIFIED (empirical production behavior)`. It does not prescribe a deployment architecture (Docker, Gunicorn, Kubernetes, Nginx) or an SLO.
+
+### 23.2 Current limitations and implementation status — what is *not* yet in this repository as shipped
+
+**The repository currently contains no evidence of … in this repository — each is absence of repository evidence, not proof such capabilities do not exist outside the repository, consistent with §§17–18:**
+
+- Containerization: **The repository currently contains no evidence of Dockerfiles, Compose manifests, or Supabase CLI configuration** — `VERIFIED (repository: 17.14, 23.3)` — `ls backend/Dockerfile*` → `No such file` + `ls docker-compose*` → `No such file` + `ls supabase/config.toml` → `No such file`
+- CI/CD: **The repository currently contains no evidence of GitHub Actions workflows that execute tests or deployments automatically** — `VERIFIED (repository: ls .github/workflows/ → No such file)`
+- Migration tooling: **The repository currently contains no evidence of an automated migration tool such as Alembic** — `VERIFIED (repository: grep -rn "alembic\\|Alembic" backend/ → 0)`
+- Observability: **The repository currently contains no evidence of centralized observability tooling (Prometheus, OpenTelemetry, Sentry) and no evidence of LOG_LEVEL environment variable** — `VERIFIED (repository: 17.13, 23.6)` — only per-module `logging.getLogger`
+- Frontend (current checkout): **The repository currently contains no evidence of a frontend/ directory in this checkout, although the README references one** — `VERIFIED (repository: ls frontend/ → No such file + 17.2)`
+- Infrastructure services: **The repository currently contains no evidence of Redis, Celery, Sentry, or similar infrastructure services** — `VERIFIED (repository: grep -rn "REDIS\\|CELERY\\|SENTRY" backend/app/core/config.py → 0 + single DATABASE_URL only — 21.9)`
+- Health: Only basic `/health` liveness, no readiness dependency check — `VERIFIED (repository: main.py:48-51)`
+- Load testing / SLO: **The repository currently contains no evidence of a load-testing harness such as k6, locust and no evidence of an SLO, latency budget, or p95/p99 objective** — `VERIFIED (repository: 21.7, 21.8)`
+
+This early placement ensures readers understand what the repository currently lacks before reading operational details — per your editorial recommendation.
+
+### 23.3 Deployment artifacts — no evidence in this repository
+
+**VERIFIED (repository: `ls` checks + `main.py:48-51` + `grep -rn "Dockerfile\\|docker-compose\\|deploy.*script"`):**
+
+- **No Docker/Compose/Supabase CLI/deploy scripts:** `ls backend/Dockerfile*` → `No such file` + `ls docker-compose*` → `No such file` + `ls supabase/config.toml` → `No such file` + `ls .github/workflows/` → `No such file or directory` + `grep -rn "Dockerfile\\|docker-compose\\|deploy.*script" backend/` → `0` (only docs reference) — `VERIFIED (repository)` for absence
+- **Main entrypoint:** `main.py` defines only `FastAPI(title="Pharmacovigilance MVP API")` + 7 `include_router` calls (`auth, patients, medications, conditions, symptoms, timeline, schedule`) + `GET /health` — no middleware, lifespan, startup/shutdown hooks — `VERIFIED (repository: main.py:1-51)`
+
+This is repository-grounded absence, not proof deployment does not exist outside.
+
+### 23.4 Configuration and environment management
+
+**VERIFIED (repository: `backend/app/core/config.py:1-90` + `backend/.env.example:1-15` + `.gitignore:8-12` + `backend/.env` existence + `backend/app/api/v1/auth.py:34-40` + `backend/app/core/security.py:88-93` + `backend/app/db/session.py:13`):**
+
+| Item | Verified behavior |
+|---|---|
+| **Single DATABASE_URL** | `database_url: str` + `create_async_engine(settings.database_url)` in `session.py:13` — single `postgresql+asyncpg://` — `VERIFIED (repository)` — no read-replica, pooler, `REDIS_URL`, `CELERY_BROKER`, `PARTITION` — see §21.9 |
+| **Supabase JWKS derived** | `supabase_jwks_url` property = `f"{supabase_url}/auth/v1/.well-known/jwks.json"` — `VERIFIED (repository: config.py:57-75)` — no separate env var — returns empty string if `supabase_url` unset |
+| **Deprecated secret retained inert** | `supabase_jwt_secret: str = ""` kept for backward compat with existing `.env` files, never read in `security.py` — `VERIFIED (repository: grep "supabase_jwt_secret" backend/app/core/security.py → 0)` |
+| **LLM keys fail-closed at call time** | `gemini_api_key = ""` / `openrouter_api_key = ""` default empty — `LLMProviderError` only inside `GeminiProvider.complete()` / `OpenRouterProvider.complete()` — `VERIFIED (repository: llm_providers.py:100,183)` — deterministic pipeline still persists successfully per `langgraph_workflow.py:205-216` |
+| **Fail-at-call-time convention** | `_supabase_headers()` 500 at call time (`auth.py:34-40` `_supabase_headers()` raises `500 Server is not configured with Supabase URL/anon key` only when called) + `_get_jwks_client()` 500 at call time (`security.py:88-93`) + LLM `complete()` fail-closed — `VERIFIED (repository)` — same convention across auth, security, LLM layers |
+| **Secrets template vs real** | `.env.example` template with placeholders (`password`, `https://xxxxxxxx.supabase.co`) + `.env` real local values exist + `.gitignore` contains `.env`, `backend/.env`, `!.env.example`, `!backend/.env.example` — `VERIFIED (repository: .gitignore + ls backend/.env)` — `config.py:1-15` docstring “Never hardcode secrets here” |
+
+### 23.5 Health and liveness
+
+**VERIFIED (repository: `main.py:48-51` + `backend/app/main.py` + `grep -rn "health" main.py`):**
+
+- `GET /health` → `{"status":"ok"}` — always `200`, regardless of `DATABASE_URL`, Supabase URL, JWKS, or LLM config — `VERIFIED (repository: main.py:48-51` docstring “Basic liveness check, unrelated to auth — useful for deployment probes” + no `Depends(get_current_user)`)
+- No readiness check that verifies DB connectivity, Supabase Auth reachability, or JWKS fetch — `VERIFIED (repository: main.py:48-51` contains only `return {"status":"ok"}` + no `async def lifespan`)
+- No startup/shutdown lifespan events, no middleware — `VERIFIED (repository: main.py` — only router registrations)
+
+Live deployment probe configuration beyond this code path is `UNVERIFIED (empirical production behavior)`.
+
+### 23.6 Logging and observability
+
+**VERIFIED (repository: `backend/app/api/v1/*.py` + `backend/app/services/llm_service.py:42-50` + `backend/app/core/config.py` + `logging` stdlib):**
+
+**Ordinary module loggers exist:**
+
+- `logging.getLogger("app.auth")`, `app.patients`, `app.medications`, `app.conditions`, `app.symptoms`, `app.schedule`, `app.analysis` with `logger.info` and `extra={patient_id,user_id,medication_id,dose_id,analysis_run_id,email}` — examples: `signup_attempt`, `signup_pending_confirmation`, `signup_succeeded`, `login_attempt`, `Patient created`, `medication_started`, `Schedule generated`, `Analysis run completed` — `VERIFIED (repository: grep -rn "logging.getLogger" backend/app/api/v1/ → 7 files)` + `VERIFIED (official documentation)` for stdlib `logging.getLogger`
+- Auth module logs email, never passwords/tokens — docstring “Email addresses are logged … passwords and tokens are never logged” — `VERIFIED (repository: auth.py:1-12)` — narrow guarantee for reviewed modules only
+- LLM module logs only operational metadata (`provider_used`, `model_used`, `latency_ms`, `fallback_used`, token usage when reported) — never prompt, patient snapshot, evidence, explanation, or patient identifier — `VERIFIED (repository: llm_service.py:42-50)` — token fields added to `extra` only when provider reported them
+
+**No evidence of centralized observability tooling:**
+
+- **The repository currently contains no evidence of centralized observability tooling (Prometheus, OpenTelemetry, Sentry) and no evidence of LOG_LEVEL environment variable** — `grep -rn "SENTRY\|prometheus\|opentelemetry\|otel\|LOG_LEVEL" backend/app/core/config.py backend/.env.example backend/app/main.py` → `0` (except per-module `logging`) — `VERIFIED (repository)` for absence — independent from the existence of ordinary loggers — one does not imply the other
+
+### 23.7 Failure handling and operational resilience
+
+**VERIFIED (repository: `backend/app/api/v1/*.py` ownership helpers + `security.py:123-140` + `schedule.py:220-268` + `langgraph_workflow.py:205-273` + `backend/app/services/timeline_writer.py:22-48`):**
+
+| Condition | HTTP / Operational behavior | Repository evidence |
+|---|---|---|
+| Non-owned or missing patient/medication/condition/dose/symptom/timeline/analysis | `404` never `403` — `raise HTTPException(404, "Patient not found.")` etc. — non-disclosure posture | `VERIFIED (repository: patients.py:37-44, medications.py:58-89, conditions.py:47-75, symptoms.py:49-60, timeline.py:30-38, schedule.py:129-183, analysis.py:37-48)` |
+| Duplicate schedule generation | `409` — schedule already exists for medication | `VERIFIED (repository: schedule.py:294-303, 305)` |
+| Already-marked dose (including sweep-applied missed) | `409` — no correction path per spec | `VERIFIED (repository: schedule.py:439-470)` |
+| Invalid enum / too short query / invalid body | `422` via Pydantic `Literal` / `Field` / `Query(min_length=2)` | `VERIFIED (repository: condition.py:9-12, reference_drugs.py:54-75, patient.py:16-19)` |
+| `supabase_url` / anon key unset | `500` at call time only — `_supabase_headers()` / `_get_jwks_client()` | `VERIFIED (repository: auth.py:34-40, security.py:88-93)` |
+| JWT expiry vs other JWT failure | `401 "Access token has expired."` vs generic `401 "Invalid access token."` collapsed — non-disclosure | `VERIFIED (repository: security.py:123-140)` |
+| Lazy missed-dose sweep | `GET /patients/{id}/doses/upcoming` + `POST /doses/{id}/mark` run `_sweep_missed_doses` — `select(status.is_(None), scheduled_time < now())` → `missed` + `dose_missed` with `auto_detected:true` + timeline event — no background job scheduler in stack — timeliness without incoming requests `UNVERIFIED` | `VERIFIED (repository: schedule.py:1-27 docstring "there is no job scheduler … implemented as a lazy, query-time sweep" + 220-268 implementation)` + `UNVERIFIED (empirical production behavior)` for timeliness |
+| LLM provider failure / malformed output | `llm_explanation` catches `NotImplementedError` + `LLMExplanationError` → `llm_result: None, llm_error` — deterministic `analysis_runs` row + `analysis_run` timeline event still committed via single `db.commit()` | `VERIFIED (repository: langgraph_workflow.py:205-216, 223-262)` — deterministic pipeline always persists |
+
+### 23.8 Data lifecycle, retention, and audit persistence
+
+**VERIFIED (repository: `001_initial_schema.sql:81-84` + `125-138` + `140-151` + `backend/app/services/timeline_writer.py:22-48` + `backend/app/api/v1/patients.py:13-16` + `backend/app/services/langgraph_workflow.py:243-262` + `grep retention):**
+
+- **FK cascade deletes:** `patients.id` → `conditions, medications, symptoms, timeline_events, analysis_runs` + `medications.id` → `medication_schedule, medication_doses` all `ON DELETE CASCADE` — `VERIFIED (repository: 001_initial_schema.sql:81-84)`
+- **No DELETE /patients endpoint:** `patients.py:13-16` “No DELETE /patients/{id} — not part of the frozen API contract” + `test_patients_api.py:114` asserts `405` intentional architectural decision, not gap — `VERIFIED (repository)`
+- **Timeline writer atomicity:** `log_timeline_event()` only `db.add(TimelineEvent)` never `commit`/`refresh` — caller adds alongside entity write and commits both together atomically — `VERIFIED (repository: timeline_writer.py:22-48 + grep "commit\|refresh" timeline_writer.py → 0 + medications.py:191-210 + schedule.py:476-495)`
+- **Analysis persistence single transaction:** `analysis_run` row + `analysis_run` timeline event created via `db.add(analysis_run)` + `log_timeline_event` + `db.commit()` + `refresh` in `_persist_node` — `VERIFIED (repository: langgraph_workflow.py:243-262)`
+- **Retention / TTL / purge:** **The repository currently contains no evidence of an application-configured retention policy, TTL, or scheduled purge mechanism. This statement applies only to the repository contents reviewed** — `grep -rn "retention\|TTL\|purge" backend/app/core/config.py 001_initial_schema.sql backend/app/db/` → `0` — `VERIFIED (repository)` for absence — `UNVERIFIED / REQUIRES RESEARCH` for GDPR retention period / external Supabase backups beyond code — see §18.8
+
+### 23.9 Security operations
+
+**VERIFIED (repository):** Cross-referenced, not restated — §23 introduces no new security decision — source sections remain §8, §9, §18.
+
+- **Application-layer ownership is the repository-verifiable boundary:** `Patient.user_id == current_user.id` in every patient-scoped route — `VERIFIED (repository: §9.3)` — `_assert_patient_owned` / `_get_owned_*` via `Patient` join → `404` never `403`
+- **RLS as defense-in-depth:** `enable row level security` on all 11 tables with policies `auth.uid() = user_id` / `auth.role() = 'authenticated'` but no `FORCE ROW LEVEL SECURITY` + backend connects as `postgres` via single static `DATABASE_URL` via `asyncpg` — not via PostgREST/pooler that populates `auth.uid()` — whether RLS enforces for this connection remains `UNVERIFIED / REQUIRES RESEARCH` live — `VERIFIED (repository: §8.9, §9.6, §18.6)`
+- **Secrets and logging scope:** template vs real `.env`, `.gitignore` protection, ordinary loggers with narrow guarantees — emails logged for auth attempts, passwords/tokens/prompts/patient identifiers never logged in reviewed `auth.py` + `llm_service.py` modules — statement applies only to reviewed modules, not repository-wide guarantee — `VERIFIED (repository: §18.10)`
+- **Input validation before DB:** Pydantic `Field`/`Literal` mirrors Postgres `ENUM` + business rules — `422` before `INSERT` — `VERIFIED (repository: §18.3, §18.11)`
+
+### 23.10 Verification summary
+
+| Category | What has been VERIFIED (repository) | What has been VERIFIED (official documentation) where performed | What remains UNVERIFIED / REQUIRES RESEARCH or UNVERIFIED (empirical production behavior) |
+|---|---|---|---|
+| **Deployment artifacts & current limitations** | The repository currently contains no evidence of Dockerfiles, Compose manifests, Supabase CLI config, GitHub Actions workflows, deployment scripts, Alembic, Redis/Celery/Sentry, centralized observability, LOG_LEVEL, frontend/ in this checkout, load-testing harness, SLO/latency budget — each verified via `ls`, `grep` → `0` — `VERIFIED (repository)` for absence — see §23.2 | Expected artifact names `Dockerfile`, `docker-compose.yml`, `.github/workflows/`, `supabase/config.toml`, `REDIS_URL`, `k6`, `slowapi` — VERIFIED (official documentation) for name existence (not present) | Whether such artifacts exist outside repository or alternative deployment mechanism is used — UNVERIFIED beyond repository |
+| **Configuration** | Single `DATABASE_URL` asyncpg, derived `supabase_jwks_url`, deprecated `supabase_jwt_secret` inert, LLM keys fail-closed at call time (empty default), fail-at-call-time convention for Supabase + JWKS + LLM, `.env.example` template + `.gitignore` protection — `VERIFIED (repository: config.py, session.py, auth.py, security.py, llm_providers.py)` | `pydantic-settings` `BaseSettings` + `lru_cache` + SQLAlchemy `create_async_engine` + PyJWT `PyJWKClient` — VERIFIED (official docs) for loading/JWKS behavior | Live env injection, secret management beyond `.env`, and production config source — UNVERIFIED (empirical production behavior) |
+| **Health, logging, observability** | `GET /health` → `{"status":"ok"}` always 200, no auth, no DB/JWKS check, no lifespan; ordinary `logging.getLogger("app.*")` with `extra={patient_id,user_id,medication_id,dose_id,analysis_run_id,email}` in 6 modules; no evidence of centralized observability/LOG_LEVEL — `VERIFIED (repository: main.py + grep logging)` | `logging.getLogger` stdlib + FastAPI `GET` — VERIFIED (official docs) | Deployed probe configuration (readiness/liveness separation), log aggregation, centralized alerting, SLO — UNVERIFIED (empirical) |
+| **Failure handling & operational resilience** | Ownership 404 never 403, auth 401 collapsed, 409 duplicate schedule / already-marked dose, 422 Pydantic, 500 call-time config, lazy sweep on dose routes with `auto_detected:true`, deterministic persist despite LLM failure (`llm_result: None` still commits) — `VERIFIED (repository: *.py)` | HTTP 400/401/404/409/422/500 semantics — VERIFIED (official docs) where cited | Timeliness of lazy sweep without incoming requests, live provider reliability, concurrent request outcomes, queue depth — UNVERIFIED (empirical) |
+| **Data lifecycle & audit** | `ON DELETE CASCADE` FKs, no `DELETE /patients` 405 intentional, `timeline_writer` add-only never commit atomic with entity, `analysis_runs` + event single transaction, no evidence of retention TTL/purge/`pg_cron` in reviewed contents — `VERIFIED (repository)` | PostgreSQL `ON DELETE CASCADE` + `gen_random_uuid()` via `pgcrypto` — VERIFIED (official docs) | External backup handling, PITR, retention compliance, storage-layer encryption — UNVERIFIED / REQUIRES RESEARCH beyond code |
+
+Section 23 is a traceable inventory of current operational behavior and repository-verified absences. It does not approve containerization, deployment automation, observability stack, retention policy, SLO, or readiness checks, and does not characterize the platform as production-ready.
+
+---
+
+*Section 24 to follow.*
