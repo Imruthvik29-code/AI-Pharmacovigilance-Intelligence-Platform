@@ -1,7 +1,7 @@
 """Baseline — pre-Alembic manual migrations 001-003 already applied.
 
 Revision ID: 0001_baseline
-Revises: 
+Revises:
 Create Date: 2026-08-12
 
 This revision marks the point where Alembic takes over versioned migration
