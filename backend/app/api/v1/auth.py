@@ -120,9 +120,28 @@ async def signup(payload: SignupRequest):
             )
 
     if resp.status_code >= 400:
+        print("\n" + "=" * 80)
+        print("SUPABASE SIGNUP ERROR")
+        print("=" * 80)
+        print(f"Status Code : {resp.status_code}")
+        print(f"Headers     : {dict(resp.headers)}")
+
+        try:
+            print(f"JSON Body   : {resp.json()}")
+        except Exception:
+            print(f"Raw Body    : {resp.text}")
+
+        print("=" * 80 + "\n")
+
         logger.warning(
-            "signup_failed", extra={"email": payload.email, "upstream_status": resp.status_code}
+            "signup_failed",
+            extra={
+                "email": payload.email,
+                "upstream_status": resp.status_code,
+                "response": resp.text,
+            },
         )
+
         raise _map_supabase_error(resp, context="signup")
 
     data = resp.json()
