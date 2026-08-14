@@ -2,14 +2,16 @@
 Analysis endpoints (spec section 7):
 
     POST /patients/{id}/analyze
-    GET  /patients/{id}/analysis
+    GET /patients/{id}/analysis
 
 Phase 14 wires these onto the full LangGraph workflow
 (`app/services/langgraph_workflow.py`'s `run_analysis`), which composes
 Phases 10-13's deterministic engines (via the Safety Score Engine), the
-Timeline Engine, attempts the Phase 15 LLM explanation (currently a
-documented `NotImplementedError` -- see `llm_service.py`), and persists a
-row to `analysis_runs` regardless of whether the LLM step succeeded.
+Timeline Engine, Phase 15 LLM explanation (Gemini primary, OpenRouter
+fallback, structured JSON explanation, fail-closed without hardcoded
+secrets), and persists a row to `analysis_runs` regardless of whether
+the LLM step succeeded (deterministic fields always present, LLM fields
+nullable — explanation is additive).
 
 Ownership: scoped through the parent patient, mirroring every other
 patient-scoped resource in this codebase (`conditions.py`/
@@ -63,14 +65,18 @@ async def analyze_patient(
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisRun:
     """
-    Run the full deterministic analysis pipeline (+ attempted LLM
-    explanation) for a patient owned by the caller, and persist the
-    result as a new `analysis_runs` row.
+    Run the full deterministic analysis pipeline (+ LLM explanation) for a
+    patient owned by the caller, and persist the result as a new
+    `analysis_runs` row.
 
-    The LLM explanation step is expected to be unavailable until Phase
-    15 -- this does not fail the request; the persisted row's
-    `llm_summary`/`llm_reasoning`/`llm_recommendations`/
-    `confidence_score`/`confidence_level` are simply null in that case.
+    Phase 15 implemented: LLM explanation via Gemini primary / OpenRouter
+    fallback with structured JSON output (summary, reasoning, recommendations,
+    confidence_score, confidence_level). If every LLM provider fails or returns
+    unusable output, the request does NOT fail — the persisted row's
+    deterministic fields (safety_score, risk_level, deterministic_result)
+    are always present, while llm_* fields are NULL and
+    llm_explanation_available is False. Deterministic persistence always
+    succeeds regardless of LLM outcome.
     """
     await _assert_patient_owned(patient_id, current_user, db)
 
