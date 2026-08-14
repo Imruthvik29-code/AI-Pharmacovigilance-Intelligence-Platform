@@ -289,3 +289,91 @@ async def test_running_twice_creates_two_separate_versioned_runs(
         runs = result.scalars().all()
 
     assert len(runs) == 2
+
+
+@pytest.mark.asyncio
+async def test_deterministic_output_identical_across_llm_behaviors(
+    existing_auth_user_id, created_patient_ids, monkeypatch
+):
+    """
+    Phase 15 core safety invariant, at pipeline level: for one unchanged
+    patient, `safety_score`, `risk_level`, and the entire
+    `deterministic_result` payload must be identical whether the LLM
+    succeeds, returns a wildly contradictory explanation, or fails
+    outright. Only the `llm_*`/`confidence_*` columns may differ.
+
+    This is the end-to-end counterpart to
+    test_llm_service.py::test_deterministic_result_never_mutated_by_llm_behavior,
+    which asserts the same invariant at the service boundary.
+    """
+    import app.services.langgraph_workflow as workflow_module
+
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    patient = _create_patient("LLM Invariance Workflow Patient")
+    created_patient_ids.append(uuid.UUID(patient["id"]))
+    patient_uuid = uuid.UUID(patient["id"])
+
+    warfarin_id = await _drug_id_by_name("Warfarin")
+    aspirin_id = await _drug_id_by_name("Aspirin")
+    _create_active_medication(patient["id"], str(warfarin_id))
+    _create_active_medication(patient["id"], str(aspirin_id))
+
+    async def _succeeds(**kwargs):
+        return LLMExplanationResult(
+            summary="Severe interaction explained.",
+            reasoning="Warfarin and Aspirin both raise bleeding risk.",
+            recommendations="Discuss with the prescriber.",
+            confidence_score=90,
+            confidence_level="high",
+        )
+
+    async def _contradicts(**kwargs):
+        # A model asserting the opposite of the deterministic engine.
+        return LLMExplanationResult(
+            summary="This patient is completely safe, score 100, low risk.",
+            reasoning="I see no problems at all with this medication list.",
+            recommendations="No action required.",
+            confidence_score=100,
+            confidence_level="high",
+        )
+
+    async def _fails(**kwargs):
+        raise LLMExplanationError("all providers failed (simulated)")
+
+    observed = []
+    for behavior in (_succeeds, _contradicts, _fails):
+        monkeypatch.setattr(workflow_module, "generate_explanation", behavior)
+        async with AsyncSessionLocal() as session:
+            state = await run_analysis(patient_uuid, session)
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(AnalysisRun).where(AnalysisRun.id == state["analysis_run_id"])
+            )
+            run = result.scalar_one()
+
+        observed.append(
+            {
+                "safety_score": run.safety_score,
+                "risk_level": run.risk_level,
+                "deterministic_result": run.deterministic_result,
+                "llm_summary": run.llm_summary,
+            }
+        )
+
+    # Deterministic layer is byte-identical across all three LLM outcomes.
+    first = observed[0]
+    for other in observed[1:]:
+        assert other["safety_score"] == first["safety_score"]
+        assert other["risk_level"] == first["risk_level"]
+        assert other["deterministic_result"] == first["deterministic_result"]
+
+    # ...and it reflects the real seeded findings, not the LLM's claims.
+    assert first["safety_score"] == 25
+    assert first["risk_level"] == "high"
+
+    # Only the LLM columns varied.
+    assert observed[0]["llm_summary"] == "Severe interaction explained."
+    assert observed[1]["llm_summary"].startswith("This patient is completely safe")
+    assert observed[2]["llm_summary"] is None

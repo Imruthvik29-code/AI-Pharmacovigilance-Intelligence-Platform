@@ -7,9 +7,15 @@ Analysis endpoints (spec section 7):
 Phase 14 wires these onto the full LangGraph workflow
 (`app/services/langgraph_workflow.py`'s `run_analysis`), which composes
 Phases 10-13's deterministic engines (via the Safety Score Engine), the
-Timeline Engine, attempts the Phase 15 LLM explanation (currently a
-documented `NotImplementedError` -- see `llm_service.py`), and persists a
-row to `analysis_runs` regardless of whether the LLM step succeeded.
+Timeline Engine, attempts the Phase 15 LLM explanation (Gemini primary,
+OpenRouter fallback -- see `llm_service.py`), and persists a row to
+`analysis_runs` regardless of whether the LLM step succeeded.
+
+The LLM step is strictly additive: `safety_score`, `risk_level`, and
+`deterministic_result` are computed by the deterministic engines alone
+and are byte-identical whether the LLM succeeds, falls back, or fails
+outright. When every provider fails, the run still persists with the
+`llm_*`/`confidence_*` columns left NULL.
 
 Ownership: scoped through the parent patient, mirroring every other
 patient-scoped resource in this codebase (`conditions.py`/

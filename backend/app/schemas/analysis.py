@@ -17,9 +17,12 @@ the Persist Node has already computed a `SafetyScoreResult`, so this
 will always be populated).
 
 `llm_summary`/`llm_reasoning`/`llm_recommendations`/`confidence_score`/
-`confidence_level` are all nullable and will be `None` for every run
-until Phase 15 (Gemini Integration) is implemented -- see
-`app/services/llm_service.py`.
+`confidence_level` are populated by the Phase 15 LLM explanation node
+(see `app/services/llm_service.py`). They remain nullable because the
+LLM layer is explicitly optional: if every configured provider fails or
+returns unusable output, the deterministic run still persists with these
+five columns NULL. Clients must therefore treat them as absent-able
+enrichment, never as required fields.
 """
 import uuid
 from datetime import datetime

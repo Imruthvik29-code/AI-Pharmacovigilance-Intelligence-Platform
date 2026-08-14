@@ -4,9 +4,9 @@
 
 **Current Milestone:** Milestone 4 - AI Explanation Layer
 
-**Current Phase:** Phase 15 - Gemini Integration
+**Current Phase:** Phase 16 - Frontend
 
-**Last Updated:** 2026-08-07
+**Last Updated:** 2026-08-14
 
 ---
 
@@ -107,11 +107,11 @@
     - [x] Workflow Integration *(POST /patients/{id}/analyze, GET /patients/{id}/analysis wired to run_analysis)*
     - [x] LangGraph Testing
 
-- [ ] Phase 15 - Gemini Integration
-    - [ ] Prompt Engineering
-    - [ ] Summary Generation
-    - [ ] Recommendation Generation
-    - [ ] AI Testing
+- [x] Phase 15 - Gemini Integration
+    - [x] Prompt Engineering *(grounded, explanation-only prompt; LLM never computes safety_score/risk_level/severity)*
+    - [x] Summary Generation *(llm_summary/llm_reasoning from deterministic findings + retrieved evidence)*
+    - [x] Recommendation Generation *(llm_recommendations, suggestive only; never replaces the safety engine)*
+    - [x] AI Testing *(provider mocks only -- no real API key needed; Gemini success, fallback, malformed output, total failure, no-log-leakage, deterministic invariance)*
 
 ---
 
@@ -135,7 +135,7 @@
 
 # Current Tasks
 
-None — Phase 14 complete and approved, awaiting the start of Phase 15 (Gemini Integration).
+None — Phase 15 complete and verified, awaiting the start of Phase 16 (Frontend).
 
 ---
 
