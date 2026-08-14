@@ -56,12 +56,26 @@ def _to_auth_response(data: dict) -> AuthResponse:
 
 def _map_supabase_error(resp: httpx.Response, context: str) -> HTTPException:
     """
-    Translate a Supabase Auth error response into our own API error shape.
+    Translate a Supabase Auth error response into our own sanitized API error.
 
-    Never forwards the raw upstream JSON body to the client -- only a
-    short, sanitized message and a status code we choose ourselves. This
-    avoids leaking upstream-specific error structure/wording and keeps our
-    API contract stable even if Supabase changes its error format.
+    Never forwards the raw upstream JSON body to the client — only a short,
+    sanitized message and a status code we choose. This avoids leaking
+    upstream-specific structure/wording and keeps our API contract stable.
+
+    Known Supabase Auth responses handled explicitly:
+    - 400 / 422 with "already registered" / "user_already_exists" → 409
+    - 429 with "over_email_send_rate_limit" / rate-limit → 429 (sanitized)
+    - 400 / 401 / 422 with invalid credentials (login) → 401 generic
+    - 400 / 422 validation errors (signup) → 400
+    - 401 / other provider errors → 502
+
+    The 429 handling is the only new status code vs. previous contract:
+    previously 429 was incorrectly mapped to 502; now it correctly maps to
+    429 Too Many Requests with a sanitized message.
+
+    Logging of upstream status is done by callers (signup/login) via
+    structured extra fields — no secrets, tokens, or raw upstream payloads
+    are logged.
     """
     try:
         upstream = resp.json()
@@ -69,26 +83,88 @@ def _map_supabase_error(resp: httpx.Response, context: str) -> HTTPException:
         upstream = {}
 
     upstream_msg = str(
-        upstream.get("msg") or upstream.get("error_description") or upstream.get("error") or ""
+        upstream.get("msg")
+        or upstream.get("error_description")
+        or upstream.get("error")
+        or ""
     ).lower()
 
-    if context == "signup" and "already registered" in upstream_msg:
+    upstream_code = str(
+        upstream.get("error_code") or upstream.get("code") or ""
+    ).lower()
+
+    # -----------------------------------------------------------------
+    # 429 — Rate limited (e.g., over_email_send_rate_limit)
+    # -----------------------------------------------------------------
+    # Supabase returns 429 when too many emails are sent (e.g., during
+    # repeated signups). Previously this fell through to 502, which is
+    # misleading. Return sanitized 429 instead.
+    is_rate_limited = (
+        resp.status_code == 429
+        or "over_email_send_rate_limit" in upstream_msg
+        or "over_email_send_rate_limit" in upstream_code
+        or "rate_limit" in upstream_msg
+        or "rate_limit" in upstream_code
+    )
+    if is_rate_limited:
         return HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists.",
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests. Please try again later.",
         )
 
+    # -----------------------------------------------------------------
+    # Signup-specific handling
+    # -----------------------------------------------------------------
+    if context == "signup":
+        if "already registered" in upstream_msg or "user_already_exists" in upstream_code:
+            return HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists.",
+            )
+
+        if resp.status_code in (400, 422):
+            # Validation errors — e.g., weak password, invalid email format
+            return HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Signup request could not be completed.",
+            )
+
+        if resp.status_code == 401:
+            # Invalid anon key or other unauthorized from Supabase — treat
+            # as provider error to keep existing API contract (signup never
+            # returned 401 before; it returned 502 for provider issues)
+            return HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Authentication provider error. Please try again later.",
+            )
+
+    # -----------------------------------------------------------------
+    # Login-specific handling
+    # -----------------------------------------------------------------
     if context == "login":
-        # Deliberately generic -- do not reveal whether the email exists.
-        return HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password.",
-        )
+        # Deliberately generic — do not reveal whether email exists.
+        # Supabase may return 400 (invalid_grant), 401, or 422 for invalid
+        # credentials — all map to same sanitized 401 to keep contract stable.
+        if resp.status_code in (400, 401, 422):
+            return HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password.",
+            )
 
+    # -----------------------------------------------------------------
+    # Fallback — explicit handling for remaining known codes while
+    # preserving existing contract
+    # -----------------------------------------------------------------
     if resp.status_code in (400, 422):
         return HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Signup request could not be completed.",
+        )
+
+    if resp.status_code == 401:
+        return HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Authentication provider error. Please try again later.",
         )
 
     return HTTPException(
@@ -120,28 +196,12 @@ async def signup(payload: SignupRequest):
             )
 
     if resp.status_code >= 400:
-        print("\n" + "=" * 80)
-        print("SUPABASE SIGNUP ERROR")
-        print("=" * 80)
-        print(f"Status Code : {resp.status_code}")
-        print(f"Headers     : {dict(resp.headers)}")
-
-        try:
-            print(f"JSON Body   : {resp.json()}")
-        except Exception:
-            print(f"Raw Body    : {resp.text}")
-
-        print("=" * 80 + "\n")
-
+        # Structured logging — record upstream status without exposing
+        # secrets or raw upstream payload (which may contain sensitive details).
         logger.warning(
             "signup_failed",
-            extra={
-                "email": payload.email,
-                "upstream_status": resp.status_code,
-                "response": resp.text,
-            },
+            extra={"email": payload.email, "upstream_status": resp.status_code},
         )
-
         raise _map_supabase_error(resp, context="signup")
 
     data = resp.json()
