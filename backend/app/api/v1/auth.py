@@ -31,13 +31,31 @@ settings = get_settings()
 logger = logging.getLogger("app.auth")
 
 
-def _supabase_headers() -> dict:
+'''def _supabase_headers() -> dict:
     if not settings.supabase_url or not settings.supabase_anon_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Server is not configured with Supabase URL/anon key.",
         )
-    return {"apikey": settings.supabase_anon_key, "Content-Type": "application/json"}
+    return {"apikey": settings.supabase_anon_key, "Content-Type": "application/json"}'''
+
+def _supabase_headers():
+    print("\nHEADERS BEING SENT")
+    print({
+        "apikey": settings.supabase_anon_key,
+        "Content-Type": "application/json"
+    })
+
+    if not settings.supabase_url or not settings.supabase_anon_key:
+        raise HTTPException(
+            status_code=500,
+            detail="Server is not configured with Supabase URL/anon key.",
+        )
+
+    return {
+        "apikey": settings.supabase_anon_key,
+        "Content-Type": "application/json",
+    }
 
 
 def _to_auth_response(data: dict) -> AuthResponse:
