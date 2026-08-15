@@ -2,9 +2,9 @@
 
 **Project Status:** 🟢 In Development
 
-**Current Milestone:** Milestone 4 - AI Explanation Layer
+**Current Milestone:** Milestone 4 - AI Explanation Layer — Complete
 
-**Current Phase:** Phase 16 - Frontend
+**Current Phase:** Phase 15 - Gemini Integration — Complete (verified 2026-08-14: prompt engineering explicit explanation-only, summary generation preserves deterministic findings, recommendation generation grounded explanatory/suggestive, provider abstraction Gemini primary/OpenRouter fallback fail-closed, deterministic persistence still succeeds when LLM fails; verification tests merged 2026-08-15) — next: Phase 16 Frontend/PWA
 
 **Last Updated:** 2026-08-14
 
@@ -137,17 +137,31 @@
 
 None — Phase 15 complete and verified, awaiting the start of Phase 16 (Frontend).
 
+Phase 15 complete and verified — all 4 tasks (Prompt Engineering, Summary Generation, Recommendation Generation, AI Testing) implemented and tested:
+- AI Testing is now backed by executable coverage in the repository: 9 new test functions (13 parametrized cases) across `tests/test_llm_service.py` and `tests/test_langgraph_workflow.py` — summary generation, recommendation generation, prompt grounding, malformed-output rejection, and deterministic safety_score/risk_level invariance under every LLM outcome
+- 105 passed for auth, analysis API, llm_service, llm_providers, langgraph workflow (pytest tests/test_auth_api.py tests/test_analysis_api.py tests/test_llm_service.py tests/test_llm_providers.py tests/test_langgraph_workflow.py -q)
+- Prompt explicitly states Gemini is explanation layer only, must NOT calculate safety_score/risk_level/severity/deterministic findings, must consume already-produced analysis/evidence, grounded explanations only, no unsupported medical recommendations, structured JSON output
+- Summary generation preserves deterministic findings exactly, distinguishes facts from generated explanation, no hallucinated meds/conditions/symptoms/evidence
+- Recommendation generation based only on deterministic findings/evidence, explanatory/suggestive not replacing deterministic engine, no unsupported clinical claims, failure behavior explicit (LLMExplanationError → NULL LLM fields, deterministic persists)
+- Provider behavior: Gemini primary, OpenRouter fallback, missing keys fail-closed at call time, deterministic persistence still succeeds when every LLM provider fails, no hardcoded secrets
+- Analysis endpoint still returns deterministic fields + additive LLM fields, provider failure does not break deterministic persistence — verified via test_langgraph_workflow.py (mocked providers)
+- Tests use provider mocks only — no real Gemini/OpenRouter API key is required to run the suite; live-provider verification remains a manual step
+
+Next: Phase 16 Frontend/PWA per roadmap.
+
 ---
 
 # Known Issues
 
-None
+- E2E verification suite `test_e2e_verification.py::test_02_signup` isolated failure in arena due to Supabase Auth TLS + IPv6-only DB host network unreachable — documented in GitHub issue #2 — defer until E2E stabilization after backend stable — not blocking for Phase 15
 
 ---
 
 # Next Task
 
-Start Phase 15 - Gemini Integration (Prompt Engineering, Summary Generation, Recommendation Generation, AI Testing).
+Start Phase 16 - Frontend (Authentication Pages, Dashboard, Patient Pages, Timeline UI, Analysis UI, Frontend Testing) per recommended next phase after Phase 15.
+
+For backend, next highest-priority implementation per dependency order remains Phase B term_type/is_active migration (unblocked by Alembic 0001_baseline) or Prescribe importer switch (can be verified via --dry-run without live DB).
 
 ---
 

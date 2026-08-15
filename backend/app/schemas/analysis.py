@@ -17,12 +17,14 @@ the Persist Node has already computed a `SafetyScoreResult`, so this
 will always be populated).
 
 `llm_summary`/`llm_reasoning`/`llm_recommendations`/`confidence_score`/
-`confidence_level` are populated by the Phase 15 LLM explanation node
-(see `app/services/llm_service.py`). They remain nullable because the
-LLM layer is explicitly optional: if every configured provider fails or
-returns unusable output, the deterministic run still persists with these
-five columns NULL. Clients must therefore treat them as absent-able
-enrichment, never as required fields.
+`confidence_level` are nullable — populated when Gemini primary or
+OpenRouter fallback succeeds with valid structured JSON (summary,
+reasoning, recommendations, confidence_score 0-100, confidence_level
+low/moderate/high), and NULL when every LLM provider fails or returns
+unusable output — deterministic fields (safety_score, risk_level,
+deterministic_result) always present, LLM fields additive per Phase 15.
+See `app/services/llm_service.py` for prompt engineering, grounding,
+and failure behavior.
 """
 import uuid
 from datetime import datetime
