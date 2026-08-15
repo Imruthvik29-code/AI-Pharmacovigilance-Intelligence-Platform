@@ -665,3 +665,390 @@ def test_build_prompt_is_deterministic_across_separately_constructed_equal_input
     )
 
     assert prompt_a == prompt_b
+
+
+# ---------------------------------------------------------------------
+# Summary generation (Phase 15 task 2)
+# ---------------------------------------------------------------------
+
+
+def _findings_fixture() -> tuple[SafetyScoreResult, EvidenceBundle]:
+    """
+    A realistic non-empty deterministic result + matching evidence:
+    one severe Warfarin/Aspirin interaction, mirroring 002_seed_data.sql.
+    """
+    finding = DrugInteractionFinding(
+        interaction_rule_id=uuid.uuid4(),
+        drug_a_id=uuid.uuid4(),
+        drug_a_name="Warfarin",
+        drug_b_id=uuid.uuid4(),
+        drug_b_name="Aspirin",
+        severity="severe",
+        mechanism="Additive bleeding risk.",
+        recommendation="Avoid combination.",
+        source="FDA Label",
+    )
+    penalty = PenaltyEntry(
+        category="drug_interaction",
+        description="Warfarin + Aspirin interaction (severe)",
+        severity="severe",
+        points=30,
+        source=finding,
+    )
+    result = SafetyScoreResult(
+        safety_score=70,
+        risk_level="moderate",
+        starting_score=100,
+        total_points_deducted=30,
+        interaction_findings=[finding],
+        adr_findings=[],
+        adherence_findings=[],
+        penalties=[penalty],
+    )
+    bundle = EvidenceBundle(
+        interaction_evidence=[
+            FindingEvidence(
+                category="drug_interaction",
+                finding=finding,
+                medical_evidence=[
+                    EvidenceItem(
+                        kind="medical",
+                        statement="Additive bleeding risk.",
+                        source="FDA Label",
+                        occurred_at=None,
+                    )
+                ],
+                personal_evidence=[],
+            )
+        ],
+        adr_evidence=[],
+        adherence_evidence=[],
+    )
+    return result, bundle
+
+
+@pytest.mark.asyncio
+async def test_summary_is_returned_verbatim_from_provider(monkeypatch):
+    """
+    Phase 15 task 2 (Summary Generation): the provider's `summary` field
+    must surface on `LLMExplanationResult.summary` exactly as sent --
+    the service is a pass-through explanation layer and must not
+    rewrite, truncate, or re-order the generated summary text.
+    """
+    summary_text = (
+        "Warfarin and Aspirin are being taken together, which the safety "
+        "engine flagged as a severe interaction."
+    )
+    raw = json.dumps(
+        {
+            "summary": summary_text,
+            "reasoning": "Both drugs independently increase bleeding risk.",
+            "recommendations": "Discuss the combination with the prescriber.",
+            "confidence_score": 80,
+            "confidence_level": "high",
+        }
+    )
+    gemini = _FakeProvider("gemini", raw=raw)
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (gemini,))
+
+    safety_result, bundle = _findings_fixture()
+    result = await generate_explanation(
+        _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+    )
+
+    assert result.summary == summary_text
+    assert result.reasoning == "Both drugs independently increase bleeding risk."
+
+
+@pytest.mark.asyncio
+async def test_summary_generation_prompt_carries_deterministic_findings(monkeypatch):
+    """
+    Phase 15 task 2: the summary must be *grounded* -- the prompt the
+    provider is asked to summarize has to contain the deterministic
+    findings verbatim (score, risk level, and each penalty), so the model
+    is explaining supplied facts rather than inventing them.
+    """
+    captured: dict[str, str] = {}
+
+    class _CapturingProvider:
+        name = "gemini"
+        model = "fake-gemini-model"
+
+        async def complete(self, prompt: str, *, timeout_seconds: float) -> LLMCompletion:
+            captured["prompt"] = prompt
+            return LLMCompletion(text=VALID_JSON)
+
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (_CapturingProvider(),))
+
+    safety_result, bundle = _findings_fixture()
+    await generate_explanation(
+        _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+    )
+
+    prompt = captured["prompt"]
+    assert "Safety score: 70/100" in prompt
+    assert "Risk level: moderate" in prompt
+    assert "Warfarin + Aspirin interaction (severe)" in prompt
+    assert "-30 pts" in prompt
+    # The evidence backing the finding is supplied too, so the summary
+    # never has to invent a rationale.
+    assert "Additive bleeding risk." in prompt
+
+
+@pytest.mark.asyncio
+async def test_summary_rejected_when_provider_omits_it(monkeypatch):
+    """
+    Phase 15 task 2: a response with no usable summary is unusable
+    output, not a partial success -- with a single provider configured
+    it must raise rather than persist an empty explanation.
+    """
+    raw = json.dumps(
+        {
+            "summary": "   ",
+            "reasoning": "Some reasoning.",
+            "recommendations": "Some recommendations.",
+            "confidence_score": 60,
+            "confidence_level": "moderate",
+        }
+    )
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (_FakeProvider("gemini", raw=raw),))
+
+    safety_result, bundle = _findings_fixture()
+    with pytest.raises(LLMExplanationError):
+        await generate_explanation(
+            _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+        )
+
+
+# ---------------------------------------------------------------------
+# Recommendation generation (Phase 15 task 3)
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_recommendations_returned_verbatim_from_provider(monkeypatch):
+    """
+    Phase 15 task 3 (Recommendation Generation): generated
+    recommendations surface exactly as produced, on their own field --
+    kept distinct from `summary`/`reasoning` so a client can render (or
+    withhold) suggestive content separately from factual explanation.
+    """
+    recommendations_text = (
+        "Consider discussing the Warfarin-Aspirin combination with the "
+        "prescribing clinician before the next dose."
+    )
+    raw = json.dumps(
+        {
+            "summary": "A severe interaction was detected.",
+            "reasoning": "Both drugs increase bleeding risk.",
+            "recommendations": recommendations_text,
+            "confidence_score": 75,
+            "confidence_level": "moderate",
+        }
+    )
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (_FakeProvider("gemini", raw=raw),))
+
+    safety_result, bundle = _findings_fixture()
+    result = await generate_explanation(
+        _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+    )
+
+    assert result.recommendations == recommendations_text
+    assert result.recommendations != result.summary
+    assert result.recommendations != result.reasoning
+
+
+@pytest.mark.asyncio
+async def test_recommendation_prompt_supplies_deterministic_recommendation(monkeypatch):
+    """
+    Phase 15 task 3: recommendations must be derived from supplied
+    deterministic/evidence content. The rule-sourced recommendation text
+    ("Avoid combination.") reaches the prompt via the finding, and the
+    system instructions forbid unsupported clinical advice.
+    """
+    captured: dict[str, str] = {}
+
+    class _CapturingProvider:
+        name = "gemini"
+        model = "fake-gemini-model"
+
+        async def complete(self, prompt: str, *, timeout_seconds: float) -> LLMCompletion:
+            captured["prompt"] = prompt
+            return LLMCompletion(text=VALID_JSON)
+
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (_CapturingProvider(),))
+
+    safety_result, bundle = _findings_fixture()
+    await generate_explanation(
+        _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+    )
+
+    prompt = captured["prompt"]
+    # The prompt must instruct the model to stay grounded, and must not
+    # ask it to compute anything deterministic.
+    lowered = prompt.lower()
+    assert "recommendations" in lowered
+    assert "do not alter" in lowered
+
+
+@pytest.mark.asyncio
+async def test_recommendations_rejected_when_provider_omits_them(monkeypatch):
+    """
+    Phase 15 task 3: explicit failure behavior -- a response missing the
+    `recommendations` field is rejected outright rather than silently
+    defaulted to empty/boilerplate advice.
+    """
+    raw = json.dumps(
+        {
+            "summary": "A severe interaction was detected.",
+            "reasoning": "Both drugs increase bleeding risk.",
+            "confidence_score": 75,
+            "confidence_level": "moderate",
+        }
+    )
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (_FakeProvider("gemini", raw=raw),))
+
+    safety_result, bundle = _findings_fixture()
+    with pytest.raises(LLMExplanationError):
+        await generate_explanation(
+            _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+        )
+
+
+# ---------------------------------------------------------------------
+# Deterministic invariance (Phase 15 task 1 -- LLM is explanation-only)
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "providers_factory,expect_error",
+    [
+        # Gemini succeeds outright.
+        (lambda: (_FakeProvider("gemini", raw=VALID_JSON),), False),
+        # Gemini fails, OpenRouter fallback succeeds.
+        (
+            lambda: (
+                _FakeProvider("gemini", error=LLMProviderError("gemini", "boom", retryable=False)),
+                _FakeProvider("openrouter", raw=VALID_JSON),
+            ),
+            False,
+        ),
+        # Gemini returns malformed output, fallback succeeds.
+        (
+            lambda: (
+                _FakeProvider("gemini", raw="not json at all {{{"),
+                _FakeProvider("openrouter", raw=VALID_JSON),
+            ),
+            False,
+        ),
+        # Every provider fails -- LLMExplanationError.
+        (
+            lambda: (
+                _FakeProvider("gemini", error=LLMProviderError("gemini", "boom", retryable=False)),
+                _FakeProvider(
+                    "openrouter", error=LLMProviderError("openrouter", "boom", retryable=False)
+                ),
+            ),
+            True,
+        ),
+        # A high-confidence response that disagrees with the engine.
+        (
+            lambda: (
+                _FakeProvider(
+                    "gemini",
+                    raw=json.dumps(
+                        {
+                            "summary": "This patient looks perfectly safe to me.",
+                            "reasoning": "I judge the true safety score to be 100 and low risk.",
+                            "recommendations": "No action needed whatsoever.",
+                            "confidence_score": 100,
+                            "confidence_level": "high",
+                        }
+                    ),
+                ),
+            ),
+            False,
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_deterministic_result_never_mutated_by_llm_behavior(
+    monkeypatch, providers_factory, expect_error
+):
+    """
+    Phase 15 core safety invariant: the LLM is an explanation layer only.
+    Across *every* provider outcome -- success, fallback, malformed
+    output, total failure, and a model that actively asserts a different
+    score -- `generate_explanation` must leave the deterministic
+    `SafetyScoreResult` byte-identical. Gemini never calculates
+    safety_score, risk_level, or severity.
+    """
+    monkeypatch.setattr(llm_service, "_PROVIDERS", providers_factory())
+
+    safety_result, bundle = _findings_fixture()
+    before = (
+        safety_result.safety_score,
+        safety_result.risk_level,
+        safety_result.starting_score,
+        safety_result.total_points_deducted,
+        [(p.category, p.description, p.severity, p.points) for p in safety_result.penalties],
+        [(f.drug_a_name, f.drug_b_name, f.severity) for f in safety_result.interaction_findings],
+    )
+
+    if expect_error:
+        with pytest.raises(LLMExplanationError):
+            await generate_explanation(
+                _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+            )
+    else:
+        await generate_explanation(
+            _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+        )
+
+    after = (
+        safety_result.safety_score,
+        safety_result.risk_level,
+        safety_result.starting_score,
+        safety_result.total_points_deducted,
+        [(p.category, p.description, p.severity, p.points) for p in safety_result.penalties],
+        [(f.drug_a_name, f.drug_b_name, f.severity) for f in safety_result.interaction_findings],
+    )
+
+    assert after == before
+    assert safety_result.safety_score == 70
+    assert safety_result.risk_level == "moderate"
+
+
+@pytest.mark.asyncio
+async def test_llm_result_exposes_no_score_or_risk_fields(monkeypatch):
+    """
+    Phase 15 task 1: `LLMExplanationResult` must have no channel through
+    which a model could return a safety_score/risk_level/severity. Even
+    if the provider emits those keys, they are dropped -- the result
+    object carries explanation text and self-reported confidence only.
+    """
+    raw = json.dumps(
+        {
+            "summary": "All clear.",
+            "reasoning": "No findings were detected for this patient.",
+            "recommendations": "Continue routine monitoring.",
+            "confidence_score": 95,
+            "confidence_level": "high",
+            "safety_score": 5,
+            "risk_level": "high",
+            "severity": "severe",
+        }
+    )
+    monkeypatch.setattr(llm_service, "_PROVIDERS", (_FakeProvider("gemini", raw=raw),))
+
+    safety_result, bundle = _findings_fixture()
+    result = await generate_explanation(
+        _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+    )
+
+    assert not hasattr(result, "safety_score")
+    assert not hasattr(result, "risk_level")
+    assert not hasattr(result, "severity")
+    # And the deterministic values the model tried to override are intact.
+    assert safety_result.safety_score == 70
+    assert safety_result.risk_level == "moderate"

@@ -4,7 +4,7 @@
 
 **Current Milestone:** Milestone 4 - AI Explanation Layer — Complete
 
-**Current Phase:** Phase 15 - Gemini Integration — Complete (verified 2026-08-14: prompt engineering explicit explanation-only, summary generation preserves deterministic findings, recommendation generation grounded explanatory/suggestive, provider abstraction Gemini primary/OpenRouter fallback fail-closed, deterministic persistence still succeeds when LLM fails)
+**Current Phase:** Phase 15 - Gemini Integration — Complete (verified 2026-08-14: prompt engineering explicit explanation-only, summary generation preserves deterministic findings, recommendation generation grounded explanatory/suggestive, provider abstraction Gemini primary/OpenRouter fallback fail-closed, deterministic persistence still succeeds when LLM fails; verification tests merged 2026-08-15) — next: Phase 16 Frontend/PWA
 
 **Last Updated:** 2026-08-14
 
@@ -108,10 +108,10 @@
     - [x] LangGraph Testing
 
 - [x] Phase 15 - Gemini Integration
-    - [x] Prompt Engineering
-    - [x] Summary Generation
-    - [x] Recommendation Generation
-    - [x] AI Testing
+    - [x] Prompt Engineering *(grounded, explanation-only prompt; LLM never computes safety_score/risk_level/severity)*
+    - [x] Summary Generation *(llm_summary/llm_reasoning from deterministic findings + retrieved evidence)*
+    - [x] Recommendation Generation *(llm_recommendations, suggestive only; never replaces the safety engine)*
+    - [x] AI Testing *(provider mocks only -- no real API key needed; Gemini success, fallback, malformed output, total failure, no-log-leakage, deterministic invariance)*
 
 ---
 
@@ -135,13 +135,17 @@
 
 # Current Tasks
 
+None — Phase 15 complete and verified, awaiting the start of Phase 16 (Frontend).
+
 Phase 15 complete and verified — all 4 tasks (Prompt Engineering, Summary Generation, Recommendation Generation, AI Testing) implemented and tested:
-- 83 tests passed for llm_service, llm_providers, auth, security (pytest tests/test_llm_service.py tests/test_llm_providers.py tests/test_auth_api.py tests/test_security.py -v)
+- AI Testing is now backed by executable coverage in the repository: 9 new test functions (13 parametrized cases) across `tests/test_llm_service.py` and `tests/test_langgraph_workflow.py` — summary generation, recommendation generation, prompt grounding, malformed-output rejection, and deterministic safety_score/risk_level invariance under every LLM outcome
+- 105 passed for auth, analysis API, llm_service, llm_providers, langgraph workflow (pytest tests/test_auth_api.py tests/test_analysis_api.py tests/test_llm_service.py tests/test_llm_providers.py tests/test_langgraph_workflow.py -q)
 - Prompt explicitly states Gemini is explanation layer only, must NOT calculate safety_score/risk_level/severity/deterministic findings, must consume already-produced analysis/evidence, grounded explanations only, no unsupported medical recommendations, structured JSON output
 - Summary generation preserves deterministic findings exactly, distinguishes facts from generated explanation, no hallucinated meds/conditions/symptoms/evidence
 - Recommendation generation based only on deterministic findings/evidence, explanatory/suggestive not replacing deterministic engine, no unsupported clinical claims, failure behavior explicit (LLMExplanationError → NULL LLM fields, deterministic persists)
 - Provider behavior: Gemini primary, OpenRouter fallback, missing keys fail-closed at call time, deterministic persistence still succeeds when every LLM provider fails, no hardcoded secrets
 - Analysis endpoint still returns deterministic fields + additive LLM fields, provider failure does not break deterministic persistence — verified via test_langgraph_workflow.py (mocked providers)
+- Tests use provider mocks only — no real Gemini/OpenRouter API key is required to run the suite; live-provider verification remains a manual step
 
 Next: Phase 16 Frontend/PWA per roadmap.
 
