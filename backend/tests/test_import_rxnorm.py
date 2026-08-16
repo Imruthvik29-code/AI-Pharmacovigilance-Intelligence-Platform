@@ -60,6 +60,53 @@ class _FakeResponse:
             raise self._err
         return self._data
 
+    # --- streaming interface for httpx.stream() ---
+    def iter_bytes(self, chunk_size: int = 8192):
+        if self._err:
+            raise self._err
+        raw = json.dumps(self._data).encode()
+        for i in range(0, len(raw), chunk_size):
+            yield raw[i : i + chunk_size]
+
+    def __enter__(self):
+        # raise HTTPError on enter if needed (for stream context)
+        if self._err:
+            # httpx.stream raises on raise_for_status, not on enter; keep consistent
+            pass
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _patch_httpx(monkeypatch, fake_get):
+    """Patch both httpx.get and httpx.stream to use the same fake logic.
+
+    Importer now uses httpx.stream() (true streaming to .partial). Tests that
+    previously mocked httpx.get now need httpx.stream mocked as well.
+    This helper keeps the test's fake_get(url, params, timeout) signature
+    while also supporting httpx.stream(\"GET\", url, params, timeout).
+    """
+
+    def _fake_stream(method, url=None, params=None, timeout=None, **kw):
+        # httpx.stream("GET", url, ...)  — first arg is method when url is second
+        # Handle both mock signatures: stream("GET", url) vs stream(url)
+        actual_url = url if isinstance(url, str) and url.startswith("http") else url
+        if actual_url is None and isinstance(method, str) and method.startswith("http"):
+            actual_url = method
+            actual_params = params
+        else:
+            actual_params = params
+        # Some tests use lambda *a, **kw — call with url/params
+        try:
+            return fake_get(actual_url, params=actual_params, timeout=timeout)
+        except TypeError:
+            # fallback for lambdas expecting *a
+            return fake_get(actual_url, actual_params, timeout)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(httpx, "stream", _fake_stream)
+
 
 def _make_concepts(n: int, tty: str = "IN") -> list:
     return [import_rxnorm.RxNormConcept(rxcui=str(i), name=f"Drug {i:05d}", tty=tty) for i in range(n)]
@@ -243,7 +290,7 @@ def test_fetch_all_concepts_parses_response(monkeypatch):
         assert params == {"tty": "IN"}
         return _FakeResponse(fake_data)
 
-    monkeypatch.setattr(httpx, "get", _fake_get)
+    _patch_httpx(monkeypatch, _fake_get)
     concepts = import_rxnorm.fetch_all_concepts("IN")
     assert {c.name for c in concepts} == {"Warfarin", "Aspirin"}
     assert all(isinstance(c.rxcui, str) for c in concepts)
@@ -253,7 +300,7 @@ def test_fetch_all_concepts_sorts_deterministically(monkeypatch):
     fake_data = _fake_allconcepts_response(
         [("3", "Zolpidem", "IN"), ("1", "Amoxicillin", "IN"), ("2", "Metformin", "IN")]
     )
-    monkeypatch.setattr(httpx, "get", lambda *a, **kw: _FakeResponse(fake_data))
+    _patch_httpx(monkeypatch, lambda *a, **kw: _FakeResponse(fake_data))
     concepts = import_rxnorm.fetch_all_concepts("IN")
     assert [c.name for c in concepts] == ["Amoxicillin", "Metformin", "Zolpidem"]
 
@@ -266,7 +313,7 @@ def test_fetch_all_concepts_uses_cache_on_second_call(monkeypatch):
         call_count["n"] += 1
         return _FakeResponse(fake_data)
 
-    monkeypatch.setattr(httpx, "get", _fake_get)
+    _patch_httpx(monkeypatch, _fake_get)
     import_rxnorm.fetch_all_concepts("IN")
     import_rxnorm.fetch_all_concepts("IN")
     assert call_count["n"] == 1
@@ -280,7 +327,7 @@ def test_fetch_all_concepts_refresh_cache_forces_refetch(monkeypatch):
         call_count["n"] += 1
         return _FakeResponse(fake_data)
 
-    monkeypatch.setattr(httpx, "get", _fake_get)
+    _patch_httpx(monkeypatch, _fake_get)
     import_rxnorm.fetch_all_concepts("IN")
     import_rxnorm.fetch_all_concepts("IN", refresh_cache=True)
     assert call_count["n"] == 2
@@ -296,7 +343,7 @@ def test_fetch_all_concepts_skips_malformed_entries(monkeypatch):
             ]
         }
     }
-    monkeypatch.setattr(httpx, "get", lambda *a, **kw: _FakeResponse(fake_data))
+    _patch_httpx(monkeypatch, lambda *a, **kw: _FakeResponse(fake_data))
     concepts = import_rxnorm.fetch_all_concepts("IN")
     assert [c.name for c in concepts] == ["Valid Drug"]
 
@@ -313,7 +360,7 @@ def test_fetch_all_concepts_prescribable_default_url(monkeypatch):
         seen["url"] = url
         return _FakeResponse(fake_data)
 
-    monkeypatch.setattr(httpx, "get", _fake_get)
+    _patch_httpx(monkeypatch, _fake_get)
     import_rxnorm.fetch_all_concepts("IN", full_rxnorm=False)
     assert "Prescribe" in seen["url"]
     assert "allconcepts.json" in seen["url"]
@@ -327,7 +374,7 @@ def test_fetch_all_concepts_full_rxnorm_uses_full_url(monkeypatch):
         seen["url"] = url
         return _FakeResponse(fake_data)
 
-    monkeypatch.setattr(httpx, "get", _fake_get)
+    _patch_httpx(monkeypatch, _fake_get)
     import_rxnorm.fetch_all_concepts("IN", full_rxnorm=True)
     assert "Prescribe" not in seen["url"]
     assert "allconcepts.json" in seen["url"]
@@ -343,7 +390,7 @@ def test_cache_atomic_partial_on_download(monkeypatch, tmp_path):
     def _fake_get(*a, **kw):
         return _FakeResponse(fake_data)
 
-    monkeypatch.setattr(httpx, "get", _fake_get)
+    _patch_httpx(monkeypatch, _fake_get)
     cache_path = import_rxnorm._cache_path("IN", full_rxnorm=False)
     partial_path = cache_path.with_suffix(cache_path.suffix + ".partial")
     assert not cache_path.exists()
@@ -358,7 +405,7 @@ def test_cache_partial_not_renamed_on_failure(monkeypatch):
     def _fake_get(*a, **kw):
         raise httpx.HTTPError("network down")
 
-    monkeypatch.setattr(httpx, "get", _fake_get)
+    _patch_httpx(monkeypatch, _fake_get)
     with pytest.raises(httpx.HTTPError):
         import_rxnorm.fetch_all_concepts("IN")
     cache_path = import_rxnorm._cache_path("IN")
@@ -371,7 +418,7 @@ def test_cache_partial_not_renamed_on_failure(monkeypatch):
 def test_cache_reuse_across_calls(monkeypatch, tmp_path):
     # Same as uses_cache but also checks file mtime unchanged
     fake_data = _fake_allconcepts_response([("1", "A", "IN")])
-    monkeypatch.setattr(httpx, "get", lambda *a, **kw: _FakeResponse(fake_data))
+    _patch_httpx(monkeypatch, lambda *a, **kw: _FakeResponse(fake_data))
     import_rxnorm.fetch_all_concepts("IN")
     cache_path = import_rxnorm._cache_path("IN")
     mtime = cache_path.stat().st_mtime

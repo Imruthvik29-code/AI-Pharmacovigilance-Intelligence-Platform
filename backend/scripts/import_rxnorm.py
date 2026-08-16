@@ -194,7 +194,7 @@ def _get_batch_size(cli_batch_size: int | None) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Cache fetch with atomic .partial handling
+# Cache fetch with atomic .partial handling (true streaming)
 # ---------------------------------------------------------------------------
 
 def _ensure_cache(
@@ -204,7 +204,16 @@ def _ensure_cache(
     refresh_cache: bool = False,  # noqa: FBT001,FBT002
     timeout_seconds: float = 60.0,
 ) -> Path:
-    """Ensure cached RxNav response exists, fetching atomically if needed."""
+    """Ensure cached RxNav response exists, fetching atomically if needed.
+
+    Uses ``httpx.stream()`` to stream the HTTP response directly to a
+    ``.partial`` file, never holding the full JSON response in memory via
+    ``resp.json()``. The file is atomically renamed only after the stream
+    completes successfully, so an interrupted download never leaves a corrupt
+    final cache file. Parsing/transformation/persistence remain streaming via
+    ``ijson``; the download itself necessarily lands on disk (RxNav has no
+    pagination).
+    """
     cache_path = _cache_path(tty, full_rxnorm=full_rxnorm)
     if cache_path.exists() and not refresh_cache:
         logger.info("Using cached RxNorm concept list for tty=%s (%s)", tty, cache_path)
@@ -212,18 +221,34 @@ def _ensure_cache(
 
     url = _rxnav_url(full_rxnorm=full_rxnorm)
     logger.info("Fetching RxNorm concepts from %s?tty=%s", url, tty)
-    resp = httpx.get(url, params={"tty": tty}, timeout=timeout_seconds)
-    resp.raise_for_status()
-    # Validate JSON before writing atomically
-    try:
-        raw = resp.json()
-    except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(f"Failed to parse RxNav JSON for tty={tty!r}: {exc}") from exc
-
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     partial_path = cache_path.with_suffix(cache_path.suffix + ".partial")
-    # Write to .partial then atomically replace
-    partial_path.write_text(json.dumps(raw))
+
+    # Remove stale partial from a prior interrupted download before starting
+    if partial_path.exists():
+        try:
+            partial_path.unlink()
+        except Exception:  # noqa: BLE001
+            pass
+
+    try:
+        with httpx.stream("GET", url, params={"tty": tty}, timeout=timeout_seconds) as resp:
+            resp.raise_for_status()
+            with open(partial_path, "wb") as f:
+                for chunk in resp.iter_bytes(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+    except Exception:
+        # Do not leave a corrupt .partial as final; clean up partial on failure
+        # but never create the final cache file. Re-raise so caller sees the error.
+        try:
+            if partial_path.exists():
+                partial_path.unlink()
+        except Exception:  # noqa: BLE001
+            pass
+        raise
+
+    # Stream succeeded — atomically promote partial to final
     partial_path.replace(cache_path)
     logger.info("Cached RxNorm response to %s", cache_path)
     return cache_path
