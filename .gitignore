@@ -123,3 +123,4 @@ Desktop.ini
 *.sqlite3
 *.db
 alembic/versions/__pycache__/
+/AI-Pharmacovigilance-Intelligence-Platform
