@@ -112,6 +112,12 @@ Thumbs.db
 Desktop.ini
 
 # ---------------------------------------------------------------------
+# RxNorm cache (regenerated via backend/scripts/import_rxnorm.py)
+# ---------------------------------------------------------------------
+.rxnorm_cache/
+backend/scripts/.rxnorm_cache/
+
+# ---------------------------------------------------------------------
 # Misc project-local scratch / generated files
 # ---------------------------------------------------------------------
 *.bak

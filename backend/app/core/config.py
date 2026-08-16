@@ -74,6 +74,14 @@ class Settings(BaseSettings):
     #: for Supabase Auth calls.
     llm_timeout_seconds: float = 30.0
 
+    # ── RxNorm import (reference-drug catalog) ───────────────────────
+    #: Batch size for bounded-memory RxNorm ingestion. Controls how many
+    #: concepts are buffered in memory and persisted per DB transaction.
+    #: Mirrors the original importer's --limit batching but now enforced
+    #: as a true bounded-memory persistence batch rather than whole-list
+    #: in-memory slice. Default 500 matches previously verified optimum.
+    rxnorm_import_batch_size: int = 500
+
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_file_encoding="utf-8",)
 
     @property
