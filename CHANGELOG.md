@@ -1,3 +1,24 @@
+- **Phase B (0002) — `reference_drugs.term_type` enum + `is_active`:**
+  - New Alembic migration `backend/alembic/versions/0002_add_term_type_is_active.py`
+    (revision `0002_add_term_type_is_active`, revises `0001_baseline`):
+    `CREATE TYPE rxnorm_term_type_enum` seeded with the full 23-value RxNorm
+    TTY vocabulary (NLM Appendix 5: `IN, PIN, MIN, BN, SCD, SBD, SCDC, SCDF,
+    SCDFP, SCDG, SCDGP, SBDC, SBDF, SBDFP, SBDG, GPCK, BPCK, DF, DFG, ET,
+    PSN, SY, TMSY`), adds nullable `reference_drugs.term_type`
+    (`rxnorm_term_type_enum`) and `reference_drugs.is_active` (`boolean NOT
+    NULL DEFAULT true`). Additive only — `reference_drugs.id` is never
+    changed, so `medications.drug_id` and the `interaction_rules`/`adr_rules`
+    foreign keys stay valid and existing rows become `is_active=true`. Alembic
+    history is now `0001_baseline -> 0002_add_term_type_is_active`; `alembic
+    upgrade head` / `downgrade -1` are reproducible.
+  - `backend/app/db/models.py`: `ReferenceDrug` exposes `term_type`
+    (nullable, `rxnorm_term_type_enum`, `create_type=False` — the migration
+    owns the type) and `is_active` (`Boolean`, `nullable=False`,
+    `server_default=true`, Python `default=True`).
+  - `backend/scripts/import_rxnorm.py` unchanged — importer stays `IN`-only
+    and does not populate `term_type`/`is_active` yet. No `lower(name)` index
+    is introduced.
+
 - **Phase 14 — LangGraph Workflow:**
   - New module `app/analysis/timeline_engine.py` (per spec section 6's
     folder structure): `build_timeline_context(patient_id, db)` retrieves

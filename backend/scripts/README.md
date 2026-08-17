@@ -129,9 +129,12 @@ python -m scripts.import_rxnorm --tty IN --refresh-cache --dry-run
 ### What this script deliberately does NOT do
 
 - Does not import `dose_form`, `strength`, `route`, `term_type`, or
-  `atc_code` -- these columns do not exist on `reference_drugs` (out of
-  scope for this phase; no `term_type`/`is_active`/`rxnorm_term_type_enum`
-  or `lower(name)` index is created).
+  `atc_code`. `term_type` and `is_active` now exist on `reference_drugs`
+  (migration `0002_add_term_type_is_active`: nullable
+  `term_type rxnorm_term_type_enum` with the 23-value RxNorm Appendix 5 TTY
+  vocabulary, and `is_active boolean not null default true`), but the
+  importer does **not** populate them -- it remains `IN`-only for this
+  phase. No `lower(name)` index is created.
 - Does not import or modify `interaction_rules` / `adr_rules`.
 - Does not expose an API by itself -- see `GET /api/v1/reference-drugs/search`
   (`backend/app/api/v1/reference_drugs.py`) for the read-only search
