@@ -13,7 +13,7 @@ create/alter them itself.
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -46,6 +46,12 @@ dose_status_enum = ENUM(
 )
 confidence_level_enum = ENUM(
     "low", "moderate", "high", name="confidence_level_enum", create_type=False
+)
+rxnorm_term_type_enum = ENUM(
+    "IN", "PIN", "MIN", "BN", "SCD", "SBD", "SCDC", "SCDF", "SCDFP",
+    "SCDG", "SCDGP", "SBDC", "SBDF", "SBDFP", "SBDG", "GPCK", "BPCK",
+    "DF", "DFG", "ET", "PSN", "SY", "TMSY",
+    name="rxnorm_term_type_enum", create_type=False,
 )
 
 
@@ -101,6 +107,15 @@ class ReferenceDrug(Base):
     rxcui: Mapped[str | None] = mapped_column(String, unique=True)
     source: Mapped[str | None] = mapped_column(String)
     source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 1 additions (0002_add_term_type_is_active): RxNorm TTY classification
+    # + retirement flag. term_type is nullable -- legacy hand-curated rows have
+    # no known TTY (NULL is a distinct, meaningful state). is_active is
+    # NOT NULL DEFAULT true -- every row is active by definition until proven
+    # otherwise. create_type=False: the migration owns the enum type.
+    term_type: Mapped[str | None] = mapped_column(rxnorm_term_type_enum)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true"), default=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
