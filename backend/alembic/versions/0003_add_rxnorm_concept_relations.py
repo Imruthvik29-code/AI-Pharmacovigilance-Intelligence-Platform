@@ -93,13 +93,13 @@ def upgrade() -> None:
     )
     op.execute(
         "COMMENT ON COLUMN rxnorm_concept_relations.source_rxcui IS"
-        " 'RxCUI of the concept the relationship was fetched for.' "
+        " 'RxCUI of the concept the relationship was fetched for. "
         "Logical reference to reference_drugs.rxcui (no FK: the target/endpoint"
         " may not be imported yet).'"
     )
     op.execute(
         "COMMENT ON COLUMN rxnorm_concept_relations.target_rxcui IS"
-        " 'RxCUI of the related concept, as returned by the RxNav API.' "
+        " 'RxCUI of the related concept, as returned by the RxNav API. "
         "Logical reference to reference_drugs.rxcui (no FK: the endpoint may"
         " not be imported yet).'"
     )
