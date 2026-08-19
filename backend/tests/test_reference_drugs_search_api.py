@@ -64,7 +64,13 @@ async def _cleanup_created_drugs(created_drug_ids: list[uuid.UUID]):
         await session.commit()
 
 
-async def _insert_drug(name: str, *, rxcui: str | None = None, source: str | None = None) -> uuid.UUID:
+async def _insert_drug(
+    name: str,
+    *,
+    rxcui: str | None = None,
+    source: str | None = None,
+    term_type: str | None = None,
+) -> uuid.UUID:
     now = datetime.now(timezone.utc)
     drug_id = uuid.uuid4()
     async with AsyncSessionLocal() as session:
@@ -72,6 +78,7 @@ async def _insert_drug(name: str, *, rxcui: str | None = None, source: str | Non
             ReferenceDrug(
                 id=drug_id, name=name, generic_name=None, drug_class=None,
                 rxcui=rxcui, source=source, source_updated_at=now if source else None,
+                term_type=term_type,
                 created_at=now, updated_at=now,
             )
         )
@@ -205,10 +212,82 @@ def test_response_includes_expected_fields_only(existing_auth_user_id, created_d
     assert len(body) == 1
     entry = body[0]
 
-    assert set(entry.keys()) == {"id", "name", "rxcui", "source"}
+    # term_type is an additive nullable field: present in the response
+    # contract, NULL for rows without a known TTY.
+    assert set(entry.keys()) == {"id", "name", "rxcui", "source", "term_type"}
     assert entry["name"] == unique_name
     assert entry["rxcui"] == "12345"
     assert entry["source"] == "RxNorm"
+    assert entry["term_type"] is None
+
+
+def test_response_exposes_term_type(existing_auth_user_id, created_drug_ids):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    unique_name = f"Zztttest-{uuid.uuid4()}"
+    created_drug_ids.append(
+        asyncio.run(_insert_drug(unique_name, rxcui="67890", source="RxNorm", term_type="SCD"))
+    )
+
+    resp = client.get(f"/api/v1/reference-drugs/search?q={unique_name}")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["term_type"] == "SCD"
+
+
+def test_term_type_filter_limits_results(existing_auth_user_id, created_drug_ids):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    tag = str(uuid.uuid4())[:8]
+    in_name = f"Zzttfilter{tag}-Ingredient"
+    scd_name = f"Zzttfilter{tag}-Clinical"
+    created_drug_ids.append(
+        asyncio.run(_insert_drug(in_name, rxcui=f"ttf-in-{tag}", source="RxNorm", term_type="IN"))
+    )
+    created_drug_ids.append(
+        asyncio.run(_insert_drug(scd_name, rxcui=f"ttf-scd-{tag}", source="RxNorm", term_type="SCD"))
+    )
+
+    # No filter -> both TTYs visible (original behavior preserved)
+    resp = client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
+
+    # IN only -> just the ingredient
+    resp = client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}&term_type=IN")
+    assert resp.status_code == 200
+    assert [d["name"] for d in resp.json()] == [in_name]
+
+    # Multi-TTY filter, case-insensitive
+    resp = client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}&term_type=in,scd")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
+
+    # Filter with no matching TTY -> empty
+    resp = client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}&term_type=DF")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_term_type_filter_invalid_returns_422(existing_auth_user_id):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    resp = client.get("/api/v1/reference-drugs/search?q=war&term_type=NOT_A_TTY")
+    assert resp.status_code == 422
+    assert "NOT_A_TTY" in resp.json()["detail"]
+
+
+def test_parse_term_type_filter_unit():
+    # No DB needed — pure validation helper
+    from app.api.v1.reference_drugs import _parse_term_type_filter
+    from fastapi import HTTPException
+
+    assert _parse_term_type_filter(None) == []
+    assert _parse_term_type_filter("IN,SCD") == ["IN", "SCD"]
+    assert _parse_term_type_filter("in, scd ") == ["IN", "SCD"]
+    with pytest.raises(HTTPException) as ei:
+        _parse_term_type_filter("IN,BOGUS")
+    assert ei.value.status_code == 422
+    assert "BOGUS" in ei.value.detail
 
 
 def test_search_with_no_matches_returns_empty_list(existing_auth_user_id):

@@ -49,17 +49,20 @@ An AI-powered medication safety and pharmacovigilance platform that helps users 
 001_initial_schema.sql          <- initial schema (Postgres enums + tables + indexes + RLS)
 002_seed_data.sql               <- 12 seed drugs + 7 interaction + 13 ADR rules (FDA Label provenance)
 003_reference_drugs_external_reference.sql <- adds rxcui/source/source_updated_at to reference_drugs
+alembic.ini                     <- Alembic config (script_location = backend/alembic)
 
 backend/
+  alembic/
+    versions/                   <- 0001_baseline (stamp for 001–003), 0002 (term_type/is_active), 0003 (rxnorm_concept_relations)
   app/
     main.py                     <- FastAPI entrypoint (liveness /health + 9 routers) — single source of truth
     api/v1/                     <- auth, patients, medications, conditions, symptoms, timeline, schedule, analysis, reference_drugs
     analysis/                   <- deterministic engines (interaction, ADR, adherence, safety score, timeline)
     services/                   <- patient_context_builder, evidence_retrieval, llm_service, llm_providers, langgraph_workflow, timeline_writer
     core/                       <- config (DATABASE_URL, Supabase JWKS derived), security (ES256)
-    db/                         <- models.py (typed ORM mirrors 001), session.py (async engine)
+    db/                         <- models.py (typed ORM mirrors the SQL migrations), session.py (async engine)
   scripts/
-    import_rxnorm.py            <- offline RxNorm Prescribable Content importer (IN-only, --dry-run)
+    import_rxnorm.py            <- multi-TTY RxNorm importer (IN/PIN/MIN/SCD/SBD/GPCK/BPCK/DF, auto-batched + resumable, opt-in --related)
     README.md                   <- importer usage
   tests/                        <- integration + unit tests (require live Supabase for integration)
   requirements.txt              <- single source of Python dependencies
@@ -131,12 +134,22 @@ against your Supabase project (SQL editor or `psql`), in order:
 # Or via Supabase SQL editor: copy-paste each file in order and run.
 ```
 
-Note: After `001`–`003`, future schema changes will be managed via
+Note: After `001`–`003`, schema changes are managed via
 Alembic (see Section 24 Phase B roadmap). Existing databases should be
-brought under Alembic via `alembic stamp <baseline_revision>` (marks schema
-as already at baseline without re-executing DDL). New databases can either
-continue using `001`–`003` until a full baseline migration is generated, or
-use a proper baseline revision that builds schema from scratch.
+brought under Alembic via `alembic stamp 0001_baseline` (marks schema as
+already at baseline without re-executing DDL), then brought up to date with:
+
+```bash
+python -m alembic -c alembic.ini upgrade head
+```
+
+(current history: `0001_baseline -> 0002_add_term_type_is_active` —
+`reference_drugs.term_type`/`is_active` — `-> 0003_add_rxnorm_concept_relations`
+— `rxnorm_concept_relations` table for RxNorm relationship edges).
+New databases can either continue using `001`–`003` until a full baseline
+migration is generated, or use a proper baseline revision that builds
+schema from scratch. The RxNorm importer
+(`backend/scripts/import_rxnorm.py`) requires the schema at `0003`.
 
 #### Running tests
 

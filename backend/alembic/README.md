@@ -98,7 +98,7 @@ Per `ARCHITECTURE_DECISIONS.md` §6.4 final decision: migration tooling adoption
 - Section 21.14 — Current limitations list included "no evidence of Alembic" — after this sprint, reclassify to implemented for Alembic specifically
 - Section 23.2 — Current limitations included "no evidence of Alembic" — same reclassification
 - Section 24.4 Phase B — Alembic objective with Objective/Reason/Dependencies/Success Criteria — this sprint satisfies it
-- No new architectural decisions introduced — only versioned workflow for already-approved future schema changes (term_type, is_active, ingredient_mapping, idx_reference_drugs_name_lower)
+- No new architectural decisions introduced — only versioned workflow for already-approved schema changes (term_type/is_active shipped in `0002`, rxnorm_concept_relations shipped in `0003`; remaining candidates: ingredient_mapping, idx_reference_drugs_name_lower)
 
 ## Verification
 

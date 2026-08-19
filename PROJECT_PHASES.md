@@ -161,7 +161,7 @@ Next: Phase 16 Frontend/PWA per roadmap.
 
 Start Phase 16 - Frontend (Authentication Pages, Dashboard, Patient Pages, Timeline UI, Analysis UI, Frontend Testing) per recommended next phase after Phase 15.
 
-For backend, next highest-priority implementation per dependency order remains Phase B term_type/is_active migration (unblocked by Alembic 0001_baseline) or Prescribe importer switch (can be verified via --dry-run without live DB).
+For backend, the multi-TTY RxNorm importer is implemented (Phase B+): automatic full import of `IN PIN MIN SCD SBD GPCK BPCK DF` (batched, checkpointed, resumable, idempotent), opt-in `--related` mode populating `rxnorm_concept_relations` from RxNav's per-concept relationship API, `term_type` exposed + filterable on the reference-drug search endpoint, and the clean-shutdown (async engine dispose) fix. Remaining deployment steps on a live DB: `alembic upgrade head` (0002 + 0003), then `python -m scripts.import_rxnorm` (and optionally `--related`).
 
 ---
 
