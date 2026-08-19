@@ -26,10 +26,22 @@ mirrors the same `status == "active"` filter already used by
 `drug_b_id`), but a drug interaction is symmetric in reality -- Warfarin
 + Aspirin is the same clinical fact regardless of which one is stored as
 "a" vs "b" in a given rule row. Detection matches a rule whenever BOTH of
-its drug ids are present among the patient's active drug ids -- this is
-a pure set-membership check, so it is inherently direction-independent
-and does not depend on the order in which the patient's medications were
-created.
+its drug ids are present among the patient's active drug ids (after
+ingredient resolution -- see below) -- this is a pure set-membership
+check, so it is inherently direction-independent and does not depend on
+the order in which the patient's medications were created.
+
+Ingredient resolution (added alongside 0003 / rxnorm_concept_relations):
+the *pair count* of "the patient is taking N distinct active drugs" is
+computed BEFORE resolution (so two branded formulations of the same two
+ingredients still count as one pair), but the rule match is performed
+against the resolved set of drug IDs that includes ingredients reachable
+via one ``has_ingredient`` / ``has_precise_ingredient`` edge. Resolution
+uses LEFT JOIN semantics (selected IDs are always preserved; missing /
+unimported / NULL rxcui rows resolve to themselves), one-hop only, and
+is performed by :mod:`app.analysis.ingredient_resolver`. This lets a
+rule keyed to two IN-level ingredients match when the patient is
+prescribed branded/clinical-drug formulations of those ingredients.
 
 Severity Calculation scope (confirmed during Phase 10 planning): each
 finding simply surfaces its matched rule's own `severity` value as-is
@@ -47,7 +59,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.db.models import InteractionRule, Medication, ReferenceDrug
+from app.analysis.ingredient_resolver import INGREDIENT_RELATION_TYPES, resolve_to_ingredient_ids
+from app.db.models import InteractionRule, Medication, ReferenceDrug, RxnormConceptRelation
 
 SeverityLevel = Literal["mild", "moderate", "severe"]
 
@@ -101,8 +114,24 @@ async def detect_drug_interactions(
     rule.
     """
     active_drug_ids = await _get_active_drug_ids(patient_id, db)
+    # Pair count happens BEFORE ingredient resolution: the clinical
+    # question "is this patient taking >=2 drugs?" is about what they
+    # are actually prescribed, not about ingredient fan-out. Two
+    # formulations of the same monotherapy still don't produce a
+    # drug-drug interaction pair.
     if len(active_drug_ids) < 2:
         return []
+
+    # Resolve selected IDs to ingredient IDs for rule matching. LEFT
+    # JOIN semantics (selected IDs preserved), one-hop only, deduped.
+    # See ingredient_resolver.py for the full contract.
+    resolved_ids = await resolve_to_ingredient_ids(active_drug_ids, db)
+
+    # Map each resolved (ingredient-or-selected) ID back to the set of
+    # original active selected IDs that reach it, so we can enforce that
+    # a matched rule's two drug IDs come from *different* selected drugs
+    # (not from ingredient fan-out of a single medication).
+    source_map = await _build_source_map(active_drug_ids, resolved_ids, db)
 
     drug_a = aliased(ReferenceDrug)
     drug_b = aliased(ReferenceDrug)
@@ -112,25 +141,107 @@ async def detect_drug_interactions(
         .join(drug_a, drug_a.id == InteractionRule.drug_a_id)
         .join(drug_b, drug_b.id == InteractionRule.drug_b_id)
         .where(
-            InteractionRule.drug_a_id.in_(active_drug_ids),
-            InteractionRule.drug_b_id.in_(active_drug_ids),
+            InteractionRule.drug_a_id.in_(resolved_ids),
+            InteractionRule.drug_b_id.in_(resolved_ids),
         )
     )
 
-    return [
-        DrugInteractionFinding(
-            interaction_rule_id=rule.id,
-            drug_a_id=rule.drug_a_id,
-            drug_a_name=drug_a_name,
-            drug_b_id=rule.drug_b_id,
-            drug_b_name=drug_b_name,
-            severity=rule.severity,
-            mechanism=rule.mechanism,
-            recommendation=rule.recommendation,
-            source=rule.source,
+    findings: list[DrugInteractionFinding] = []
+    seen_rule_ids: set[uuid.UUID] = set()
+    for rule, drug_a_name, drug_b_name in result.all():
+        if rule.id in seen_rule_ids:
+            continue
+        sources_a = source_map.get(rule.drug_a_id, set())
+        sources_b = source_map.get(rule.drug_b_id, set())
+        # Require that the two sides of the rule trace to disjoint sets
+        # of the patient's selected drugs (otherwise the two IDs could
+        # both be ingredients of the *same* single medication).
+        if not (sources_a and sources_b and sources_a.isdisjoint(sources_b)):
+            continue
+        seen_rule_ids.add(rule.id)
+        findings.append(
+            DrugInteractionFinding(
+                interaction_rule_id=rule.id,
+                drug_a_id=rule.drug_a_id,
+                drug_a_name=drug_a_name,
+                drug_b_id=rule.drug_b_id,
+                drug_b_name=drug_b_name,
+                severity=rule.severity,
+                mechanism=rule.mechanism,
+                recommendation=rule.recommendation,
+                source=rule.source,
+            )
         )
-        for rule, drug_a_name, drug_b_name in result.all()
-    ]
+    return findings
+
+
+async def _build_source_map(
+    active_drug_ids: set[uuid.UUID],
+    resolved_ids: set[uuid.UUID],
+    db: AsyncSession,
+) -> dict[uuid.UUID, set[uuid.UUID]]:
+    """Return {resolved_id: {selected_id, ...}} for all resolved IDs.
+
+    Every selected ID maps to itself (LEFT JOIN preservation). For each
+    selected drug whose rxcui has a ``has_ingredient`` /
+    ``has_precise_ingredient`` edge, the resolved ingredient ID also maps
+    back to that selected ID.
+
+    One-hop only -- we do not traverse from ingredient to anything else.
+    """
+    source_map: dict[uuid.UUID, set[uuid.UUID]] = {
+        did: {did} for did in active_drug_ids
+    }
+
+    # Pull rxcuis for the active selected drugs.
+    rxcui_rows = (
+        await db.execute(
+            select(ReferenceDrug.id, ReferenceDrug.rxcui).where(
+                ReferenceDrug.id.in_(active_drug_ids)
+            )
+        )
+    ).all()
+    rxcui_by_id: dict[uuid.UUID, str] = {
+        did: rxcui for did, rxcui in rxcui_rows if rxcui
+    }
+    if not rxcui_by_id:
+        return source_map
+
+    # Find targets of ingredient edges sourced from those rxcuis, then
+    # map target_rxcui -> reference_drugs.id and record the source.
+    target_rows = (
+        await db.execute(
+            select(
+                RxnormConceptRelation.source_rxcui,
+                ReferenceDrug.id,
+            )
+            .join(
+                ReferenceDrug,
+                ReferenceDrug.rxcui == RxnormConceptRelation.target_rxcui,
+                isouter=True,
+            )
+            .where(
+                RxnormConceptRelation.source_rxcui.in_(rxcui_by_id.values()),
+                RxnormConceptRelation.relation_type.in_(INGREDIENT_RELATION_TYPES),
+                ReferenceDrug.id.isnot(None),
+                ReferenceDrug.is_active.is_(True),
+            )
+        )
+    ).all()
+
+    # Invert rxcui_by_id to id-by-rxcui for source lookup.
+    id_by_rxcui: dict[str, set[uuid.UUID]] = {}
+    for did, rxcui in rxcui_by_id.items():
+        id_by_rxcui.setdefault(rxcui, set()).add(did)
+
+    for src_rxcui, ing_id in target_rows:
+        if ing_id is None:
+            continue
+        source_map.setdefault(ing_id, set())
+        for sel_id in id_by_rxcui.get(src_rxcui, ()):
+            source_map[ing_id].add(sel_id)
+
+    return source_map
 
 
 def highest_severity(findings: list[DrugInteractionFinding]) -> SeverityLevel | None:
