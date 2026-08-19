@@ -1,19 +1,34 @@
 """
 SQLAlchemy ORM models.
 
-These map 1:1 onto the tables/enums defined in
-`supabase/migrations/001_initial_schema.sql`. This file does not define
-or alter schema — the SQL migration is the source of truth; these models
-just give the app a typed way to read/write it.
+These map 1:1 onto the tables/enums defined by the schema migrations:
+the flat baseline files `001_initial_schema.sql`, `002_seed_data.sql`,
+`003_reference_drugs_external_reference.sql` at repository root, plus the
+versioned Alembic migrations in `backend/alembic/versions/`
+(`0001_baseline` = stamp for the flat files above, `0002` = reference_drugs
+term_type/is_active, `0003` = rxnorm_concept_relations). This file does not
+define or alter schema — the SQL migrations are the source of truth; these
+models just give the app a typed way to read/write it.
 
 `create_type=False` is used on every Postgres ENUM because the enum types
-are already created by the migration; SQLAlchemy should never try to
+are created by the migrations; SQLAlchemy should never try to
 create/alter them itself.
 """
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -118,6 +133,40 @@ class ReferenceDrug(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class RxnormConceptRelation(Base):
+    """Typed RxNorm relationship edge: source_rxcui <relation_type> target_rxcui.
+
+    Populated by the opt-in `--related` mode of
+    `backend/scripts/import_rxnorm.py` from RxNav's per-concept
+    `getRelatedByRelationship` endpoint (Alembic 0003 / the
+    `rxnorm_concept_relations` table). Only relationships the RxNorm source
+    actually reports are stored — nothing is derived or invented.
+
+    No FK to `reference_drugs` by design: relationship endpoints may belong
+    to a TTY that has not been imported yet (imports are TTY-by-TTY and
+    order-independent), so the rxcui columns are logical references,
+    resolvable by join whenever both ends exist.
+    """
+
+    __tablename__ = "rxnorm_concept_relations"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_rxcui",
+            "relation_type",
+            "target_rxcui",
+            name="uq_rxnorm_concept_relations_source_type_target",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    source_rxcui: Mapped[str] = mapped_column(String, nullable=False)
+    target_rxcui: Mapped[str] = mapped_column(String, nullable=False)
+    relation_type: Mapped[str] = mapped_column(String, nullable=False)
+    target_tty: Mapped[str | None] = mapped_column(String)
+    source: Mapped[str] = mapped_column(String, nullable=False, default="RxNorm")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class Medication(Base):

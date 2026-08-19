@@ -1,29 +1,36 @@
 """
-Unit tests for backend/scripts/import_rxnorm.py — optimized version (42 tests).
+Unit tests for backend/scripts/import_rxnorm.py — multi-TTY edition.
 
 Coverage:
   download/cache, cache reuse, atomic .partial, streaming via ijson,
-  terminology filtering, --tty, --full-rxnorm wiring, batching,
-  configurable batch size, checkpoint create/resume/offset, partial failure
-  durability, idempotent rerun, RxCUI/name/ambiguous, dry-run, N+1/efficiency,
-  error reporting, empty/malformed input, memory flat behavior.
+  terminology filtering, --tty (single + multi-TTY), --full-rxnorm wiring,
+  automatic batching (no manual offsets), automatic TTY discovery +
+  per-TTY counts, configurable batch size, checkpoint create/resume/offset,
+  partial failure durability (single + multi TTY), idempotent rerun,
+  duplicate RxCUI, RxCUI/name/ambiguous (incl. same name across TTYs),
+  TTY preservation on re-import, dry-run, N+1/efficiency, error reporting,
+  empty/malformed input, memory flat behavior, CLI defaults/validation,
+  clean engine shutdown, --related relationship capture (fetch/cache/
+  failure/idempotency/dry-run/limit) and defensive payload parsing.
 
-RxNav HTTP calls are mocked — no real network, no DB required for unit tests.
-DB-backed tests use a fake in-memory session when no live DATABASE_URL is available,
-or the real AsyncSessionLocal when DB is reachable. This keeps the 42 tests passing
-in both sandbox and live-DB environments.
+RxNav HTTP calls are mocked — no real network, no DB required for unit
+tests. DB-backed tests use a fake in-memory session; the fake emulates the
+exact SELECT/UPSERT shapes the importer issues (parsed from the literal
+SQL), so query-count and idempotency assertions are deterministic in both
+sandbox and live-DB environments.
 """
-import asyncio
 import json
+import logging
+import re
 import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-from sqlalchemy import select
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import import_rxnorm  # noqa: E402
@@ -85,7 +92,7 @@ def _patch_httpx(monkeypatch, fake_get):
     Importer now uses httpx.stream() (true streaming to .partial). Tests that
     previously mocked httpx.get now need httpx.stream mocked as well.
     This helper keeps the test's fake_get(url, params, timeout) signature
-    while also supporting httpx.stream(\"GET\", url, params, timeout).
+    while also supporting httpx.stream("GET", url, params, timeout).
     """
 
     def _fake_stream(method, url=None, params=None, timeout=None, **kw):
@@ -113,9 +120,7 @@ def _make_concepts(n: int, tty: str = "IN") -> list:
 
 
 def _write_cache_file(tmp_path: Path, tty: str, concepts: list[tuple[str, str, str]], full_rxnorm: bool = False) -> Path:
-    path = tmp_path / f"allconcepts_{tty}{'_full' if full_rxnorm else ''}.json"
-    # Ensure TTY in filename matches _cache_path logic
-    # Use import_rxnorm's path helper to get correct name
+    # Use import_rxnorm's path helper to get the correct name
     path = import_rxnorm._cache_path(tty, full_rxnorm=full_rxnorm)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Write JSON structure expected by ijson stream
@@ -128,22 +133,38 @@ def _write_cache_file(tmp_path: Path, tty: str, concepts: list[tuple[str, str, s
 # In-memory fake DB session for tests that don't have live Postgres
 # ---------------------------------------------------------------------------
 
+def _split_sql_list(inner: str) -> list[str]:
+    """Split a literal SQL IN (...) body into unquoted string values."""
+    return [v.strip().strip("'\"") for v in inner.split(",") if v.strip()]
+
+
 class _FakeDrug:
-    def __init__(self, id, name, rxcui=None, source=None, source_updated_at=None):
+    def __init__(
+        self,
+        id,
+        name,
+        rxcui=None,
+        source=None,
+        source_updated_at=None,
+        term_type=None,
+    ):
         self.id = id
         self.name = name
         self.rxcui = rxcui
         self.source = source
         self.source_updated_at = source_updated_at
+        self.term_type = term_type
         self.generic_name = None
         self.drug_class = None
+        self.is_active = True
         self.created_at = datetime.now(timezone.utc)
         self.updated_at = datetime.now(timezone.utc)
 
 
 class _FakeResult:
-    def __init__(self, rows):
+    def __init__(self, rows, rowcount=None):
         self._rows = rows
+        self.rowcount = rowcount
 
     def scalar_one_or_none(self):
         return self._rows[0] if self._rows else None
@@ -152,95 +173,136 @@ class _FakeResult:
         assert len(self._rows) == 1
         return self._rows[0]
 
+    def all(self):
+        return list(self._rows)
+
     def scalars(self):
         class _S:
             def __init__(self, rows):
                 self._rows = rows
 
             def all(self):
-                return self._rows
+                return list(self._rows)
 
         return _S(self._rows)
 
 
 class _FakeSession:
-    """Very small in-memory emulation of ReferenceDrug table."""
+    """In-memory emulation of reference_drugs + rxnorm_concept_relations.
 
-    # class-level store to simulate persistence across sessions
+    Interprets the importer's actual SQL (compiled with literal_binds) so
+    the supported statements are deterministic:
+      * SELECT ... WHERE rxcui IN (...)
+      * SELECT ... WHERE lower(reference_drugs.name) IN (...)
+      * SELECT rxcui, term_type WHERE rxcui IS NOT NULL [AND term_type IN (...)]
+      * INSERT INTO rxnorm_concept_relations ... ON CONFLICT DO NOTHING
+    """
+
+    # class-level stores to simulate persistence across sessions
     store: dict[str, _FakeDrug] = {}  # rxcui -> drug
-    name_store: dict[str, _FakeDrug] = {}  # lower(name) -> drug
+    name_store: dict[str, list[_FakeDrug]] = {}  # lower(name) -> [drug, ...]
     id_store: dict[uuid.UUID, _FakeDrug] = {}
+    relations_store: dict[tuple[str, str, str], dict] = {}  # (source, rela, target) -> row
+    relations_log: list[dict] = []  # committed edges, in commit order
 
     def __init__(self):
         self._added = []
         self.execute_count = 0
         self.committed = False
         self.rolled_back = False
+        self._pending_relations: list[dict] = []
 
     async def execute(self, stmt):
         self.execute_count += 1
-        # Try to interpret stmt: we support WHERE rxcui IN (...) and WHERE lower(name) IN (...)
-        # Fallback: return empty
-        compiled = str(stmt)
-        # Heuristic: check if statement contains 'rxcui'
-        if "rxcui" in compiled.lower():
-            # Extract IN list via stmt params? Easier: inspect store directly
-            # We need to know which rxcui are being queried: check if any store key in compiled string?
-            # Instead, return all that match IN list by inspecting the bound params.
-            # SQLAlchemy compiled with IN will have literal_binds? Simpler: return all store values that are in the requested list if we can extract.
-            # For fake, we can just return everything that matches any requested rxcui by checking if rxcui in compiled string as quoted.
-            # But our tests control rxcui values; easiest is to return full matching set via manual filtering using the rxcui_list from test setup.
-            # We'll just return those where rxcui is in our store and appears in compiled text or, for batch, return all.
-            # For deterministic test of N+1, we only care that execute is called 2x per batch, not result correctness.
-            # So return matching drugs by scanning store and checking if drug.rxcui string appears in compiled.
-            matched = []
-            for drug in self.__class__.store.values():
-                if drug.rxcui is None:
-                    continue
-                if f"'{drug.rxcui}'" in compiled or f'"{drug.rxcui}"' in compiled or drug.rxcui in compiled:
-                    matched.append(drug)
-            # If compiled doesn't contain literal (because bound params), fallback to returning all store values that are requested via separate tracking
-            # For simplicity, if matched empty but store not empty, return values that were requested via IN list passed through stmt compile kwargs
-            # We'll try to get bound params from stmt
-            try:
-                params = stmt.compile(compile_kwargs={"literal_binds": True}).params  # type: ignore
-            except Exception:
-                params = {}
-            # If we couldn't parse, return all store values if IN clause present
-            if not matched and "IN" in compiled:
-                # Return all drugs whose rxcui is in store and whose lower name also maybe matched
-                # For rxcui IN test, return those with rxcui in store
-                # For lower(name) IN test, return those where lower(name) matches
-                matched = list(self.__class__.store.values())
-                # Filter by lower name if lower appears
-                if "lower" in compiled.lower():
-                    matched = list(self.__class__.name_store.values())
+        try:
+            literal_sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+        except Exception:  # noqa: BLE001
+            literal_sql = str(stmt)
+        lower_sql = literal_sql.lower()
+
+        # 1) Relation upsert: INSERT INTO rxnorm_concept_relations ... ON CONFLICT
+        if "rxnorm_concept_relations" in lower_sql and "on conflict" in lower_sql:
+            return self._handle_relation_upsert(literal_sql)
+
+        # 2) SELECT ... WHERE reference_drugs.rxcui IN (...)
+        m = re.search(r"reference_drugs\.rxcui in \(([^)]*)\)", literal_sql, re.I)
+        if m:
+            values = _split_sql_list(m.group(1))
+            matched = [self.__class__.store[v] for v in values if v in self.__class__.store]
             return _FakeResult(matched)
-        if "lower" in compiled.lower() or "name" in compiled.lower():
-            # lower(name) IN (...)
-            matched = []
-            for drug in self.__class__.name_store.values():
-                if f"'{drug.name.lower()}'" in compiled.lower() or drug.name.lower() in compiled.lower():
-                    matched.append(drug)
-            if not matched and "IN" in compiled:
-                matched = list(self.__class__.name_store.values())
+
+        # 3) SELECT ... WHERE lower(reference_drugs.name) IN (...)
+        m = re.search(r"lower\(reference_drugs\.name\) in \(([^)]*)\)", literal_sql, re.I)
+        if m:
+            values = [v.lower() for v in _split_sql_list(m.group(1))]
+            matched: list[_FakeDrug] = []
+            for v in values:
+                matched.extend(self.__class__.name_store.get(v, []))
             return _FakeResult(matched)
+
+        # 4) SELECT rxcui, term_type WHERE rxcui IS NOT NULL [AND term_type IN (...)]
+        if "is not null" in lower_sql and "term_type" in lower_sql:
+            tty_filter = None
+            m = re.search(r"reference_drugs\.term_type in \(([^)]*)\)", literal_sql, re.I)
+            if m:
+                tty_filter = {v.upper() for v in _split_sql_list(m.group(1))}
+            rows = [
+                (d.rxcui, d.term_type)
+                for d in self.__class__.store.values()
+                if d.rxcui is not None
+                and (tty_filter is None or d.term_type in tty_filter)
+            ]
+            return _FakeResult(rows)
+
         return _FakeResult([])
+
+    def _handle_relation_upsert(self, literal_sql: str) -> _FakeResult:
+        header = re.search(
+            r"insert into rxnorm_concept_relations \(([^)]*)\)", literal_sql, re.I
+        )
+        columns = [c.strip() for c in header.group(1).split(",")]
+        values_part = re.split(r"\bvalues\b", literal_sql, flags=re.I)[1]
+        # Stop at ON CONFLICT so its parenthesized column list is not parsed
+        # as a value tuple
+        values_part = re.split(r"\bon conflict\b", values_part, flags=re.I)[0].strip()
+        tuples = re.findall(r"\(([^)]*)\)", values_part)
+        inserted = 0
+        for tup in tuples:
+            row = dict(zip(columns, _split_sql_list(tup)))
+            key = (row["source_rxcui"], row["relation_type"], row["target_rxcui"])
+            self._pending_relations.append(row)
+            if key not in self.__class__.relations_store:
+                inserted += 1
+        return _FakeResult([], rowcount=inserted)
 
     def add(self, obj):
         # Emulate ORM add: assign to stores
-        fake = _FakeDrug(id=obj.id, name=obj.name, rxcui=obj.rxcui, source=obj.source, source_updated_at=obj.source_updated_at)
+        fake = _FakeDrug(
+            id=obj.id,
+            name=obj.name,
+            rxcui=obj.rxcui,
+            source=obj.source,
+            source_updated_at=obj.source_updated_at,
+            term_type=getattr(obj, "term_type", None),
+        )
         if fake.rxcui:
             self.__class__.store[fake.rxcui] = fake
-        self.__class__.name_store[fake.name.lower()] = fake
+        self.__class__.name_store.setdefault(fake.name.lower(), []).append(fake)
         self.__class__.id_store[fake.id] = fake
         self._added.append(fake)
 
     async def commit(self):
         self.committed = True
+        for row in self._pending_relations:
+            key = (row["source_rxcui"], row["relation_type"], row["target_rxcui"])
+            if key not in self.__class__.relations_store:
+                self.__class__.relations_store[key] = row
+                self.__class__.relations_log.append(row)
+        self._pending_relations = []
 
     async def rollback(self):
         self.rolled_back = True
+        self._pending_relations = []
 
     async def refresh(self, obj):
         pass
@@ -261,6 +323,8 @@ def fake_db(monkeypatch):
     _FakeSession.store.clear()
     _FakeSession.name_store.clear()
     _FakeSession.id_store.clear()
+    _FakeSession.relations_store.clear()
+    _FakeSession.relations_log.clear()
     # Patch AsyncSessionLocal to return FakeSession
     fake_session = _FakeSession()
 
@@ -411,8 +475,8 @@ def test_cache_partial_not_renamed_on_failure(monkeypatch):
     cache_path = import_rxnorm._cache_path("IN")
     partial_path = cache_path.with_suffix(cache_path.suffix + ".partial")
     assert not cache_path.exists()
-    # partial should not become final; may exist or not but final must not exist
-    assert not cache_path.exists()
+    # partial should not become final, and the importer cleans it up
+    assert not partial_path.exists()
 
 
 def test_cache_reuse_across_calls(monkeypatch, tmp_path):
@@ -444,7 +508,6 @@ def test_streaming_uses_ijson_not_json_loads(monkeypatch, tmp_path):
         raise AssertionError("json.loads should not be used for large catalog streaming")
 
     # The streaming path uses ijson.items, not json.loads
-    # We patch json.loads only during the stream iteration
     # fetch_all_concepts currently uses streaming internally, so it should not call json.loads for the catalog
     # We test _stream_concepts directly
     monkeypatch.setattr(json, "loads", _fail_loads)
@@ -471,6 +534,22 @@ def test_streaming_parses_large_file_bounded(monkeypatch, tmp_path):
     for _ in gen:
         count += 1
     assert count == 100
+
+
+def test_streaming_tolerates_extra_payload_fields(tmp_path):
+    # Bulk endpoint documents rxcui/name/tty; extra fields must be ignored.
+    fake_data = {
+        "minConceptGroup": {
+            "minConcept": [
+                {"rxcui": "1", "name": "With Extras", "tty": "IN", "sab": "RXNORM", "rxfn": "s000"},
+            ]
+        }
+    }
+    path = import_rxnorm._cache_path("IN")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(fake_data))
+    result = list(import_rxnorm._stream_concepts(path))
+    assert [(c.rxcui, c.name, c.tty) for c in result] == [("1", "With Extras", "IN")]
 
 
 # ---------------------------------------------------------------------------
@@ -504,8 +583,16 @@ def test_streaming_tty_filtering_full_rxnorm_with_bn(tmp_path):
     assert {c.tty for c in result} == {"IN", "BN"}
 
 
+def test_count_streamed_concepts(tmp_path):
+    concepts = [(str(i), f"Drug {i:03d}", "IN") for i in range(7)]
+    path = _write_cache_file(tmp_path, "IN", concepts)
+    assert import_rxnorm._count_streamed_concepts(path, tty_filter={"IN"}) == 7
+    # Filter that matches nothing -> 0
+    assert import_rxnorm._count_streamed_concepts(path, tty_filter={"SCD"}) == 0
+
+
 # ---------------------------------------------------------------------------
-# --tty and --full-rxnorm CLI wiring (3)
+# --tty and --full-rxnorm CLI wiring (4)
 # ---------------------------------------------------------------------------
 
 def test_tty_cli_parsing():
@@ -522,12 +609,44 @@ def test_tty_cli_space_and_comma_separated():
     assert import_rxnorm._parse_tty_filter("IN BN") == {"IN", "BN"}
     assert import_rxnorm._parse_tty_filter("IN,BN") == {"IN", "BN"}
     assert import_rxnorm._parse_tty_filter("IN, BN PIN") == {"IN", "BN", "PIN"}
+    # TTYs are case-insensitive
+    assert import_rxnorm._parse_tty_filter("in scd") == {"IN", "SCD"}
+
+
+def test_default_tty_is_full_supported_set():
+    ns = import_rxnorm._parse_args([])
+    assert set(import_rxnorm._parse_tty_filter(ns.tty)) == set(import_rxnorm.DEFAULT_TTY_SET)
+    # The default set is exactly the 8 clinically meaningful TTYs
+    assert set(import_rxnorm.DEFAULT_TTY_SET) == {
+        "IN", "PIN", "MIN", "SCD", "SBD", "GPCK", "BPCK", "DF",
+    }
+
+
+def test_default_rela_set_is_documented_default():
+    ns = import_rxnorm._parse_args([])
+    assert set(ns.rela.split()) == set(import_rxnorm.DEFAULT_RELA_SET)
+    assert "has_ingredient" in set(ns.rela.split())
+
+
+def test_validate_tties_accepts_default_set():
+    import_rxnorm._validate_tties(set(import_rxnorm.DEFAULT_TTY_SET))  # no exception
+    import_rxnorm._validate_tties({"IN", "BN", "SCDC"})  # enum members outside the default set
+
+
+def test_validate_tties_rejects_unknown():
+    with pytest.raises(ValueError):
+        import_rxnorm._validate_tties({"IN", "NOT_A_TTY"})
+
+
+@pytest.mark.asyncio
+async def test_invalid_tty_fails_fast(tmp_path):
+    with pytest.raises(SystemExit):
+        await import_rxnorm.main(["--tty", "BOGUS"])
 
 
 @pytest.mark.asyncio
 async def test_full_rxnorm_cli_wiring_via_main(monkeypatch, tmp_path):
     # Mock cache ensure and stream to avoid network/DB
-    fake_concepts = [("1", "A", "IN")]
     # Create both cache files: prescribable and full
     prescribable = _write_cache_file(tmp_path, "IN", [("1", "A", "IN")], full_rxnorm=False)
     full = _write_cache_file(tmp_path, "IN", [("1", "A", "IN"), ("2", "B", "BN")], full_rxnorm=True)
@@ -730,7 +849,7 @@ def test_error_reporting_includes_batch_and_offset():
 
 
 # ---------------------------------------------------------------------------
-# import_batch — idempotency, RxCUI, name backfill, ambiguous, dry-run (5)
+# import_batch — idempotency, RxCUI, name backfill, ambiguous, dry-run (6)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -740,6 +859,7 @@ async def test_import_batch_inserts_new_drug(fake_db):
     stats = await import_rxnorm.import_batch([concept], dry_run=False)
     assert stats.inserted_new == 1
     assert _FakeSession.store["rx-0001"].name == "New Drug A"
+    assert _FakeSession.store["rx-0001"].term_type == "IN"
 
 
 @pytest.mark.asyncio
@@ -748,7 +868,7 @@ async def test_import_batch_backfills_existing_row_preserving_id(fake_db):
     drug_id = uuid.uuid4()
     existing = _FakeDrug(id=drug_id, name="Backfill Drug", rxcui=None)
     _FakeSession.store["old"] = existing  # not used
-    _FakeSession.name_store["backfill drug"] = existing
+    _FakeSession.name_store["backfill drug"] = [existing]
     _FakeSession.id_store[drug_id] = existing
 
     concept = import_rxnorm.RxNormConcept(rxcui="rx-9999", name="Backfill Drug", tty="IN")
@@ -756,6 +876,7 @@ async def test_import_batch_backfills_existing_row_preserving_id(fake_db):
     assert stats.backfilled_existing_by_name == 1
     assert existing.rxcui == "rx-9999"
     assert existing.id == drug_id
+    assert existing.term_type == "IN"
 
 
 @pytest.mark.asyncio
@@ -764,15 +885,32 @@ async def test_import_batch_is_idempotent_on_rerun(fake_db):
     first = await import_rxnorm.import_batch([concept], dry_run=False)
     assert first.inserted_new == 1
     second = await import_rxnorm.import_batch([concept], dry_run=False)
-    assert second.updated_existing_by_rxcui == 1
+    # Same source -> no-op, counted as already_current (no duplicate, no rewrite)
+    assert second.already_current == 1
     assert second.inserted_new == 0
+    assert second.updated_existing_by_rxcui == 0
+
+
+@pytest.mark.asyncio
+async def test_import_batch_refreshes_provenance_when_source_differs(fake_db):
+    drug_id = uuid.uuid4()
+    existing = _FakeDrug(id=drug_id, name="Foreign Drug", rxcui="rx-f1", source="FDA Label", term_type=None)
+    _FakeSession.store["rx-f1"] = existing
+    _FakeSession.name_store["foreign drug"] = [existing]
+
+    concept = import_rxnorm.RxNormConcept(rxcui="rx-f1", name="Foreign Drug", tty="IN")
+    stats = await import_rxnorm.import_batch([concept], dry_run=False)
+    assert stats.updated_existing_by_rxcui == 1
+    assert existing.source == "RxNorm"
+    assert existing.source_updated_at is not None
+    assert existing.term_type == "IN"  # backfilled because it was NULL
 
 
 @pytest.mark.asyncio
 async def test_import_batch_skips_ambiguous_name_match(fake_db):
     drug_id = uuid.uuid4()
     existing = _FakeDrug(id=drug_id, name="Ambig Drug", rxcui="original-rxcui")
-    _FakeSession.name_store["ambig drug"] = existing
+    _FakeSession.name_store["ambig drug"] = [existing]
     _FakeSession.store["original-rxcui"] = existing
     _FakeSession.id_store[drug_id] = existing
 
@@ -780,6 +918,63 @@ async def test_import_batch_skips_ambiguous_name_match(fake_db):
     stats = await import_rxnorm.import_batch([concept], dry_run=False)
     assert stats.skipped_ambiguous == 1
     assert existing.rxcui == "original-rxcui"
+
+
+@pytest.mark.asyncio
+async def test_import_batch_multiple_rows_same_name_is_ambiguous_not_crash(fake_db):
+    d1 = _FakeDrug(id=uuid.uuid4(), name="Twin", rxcui=None)
+    d2 = _FakeDrug(id=uuid.uuid4(), name="TWIN", rxcui=None)
+    _FakeSession.name_store["twin"] = [d1, d2]
+
+    concept = import_rxnorm.RxNormConcept(rxcui="twin-1", name="Twin", tty="IN")
+    stats = await import_rxnorm.import_batch([concept], dry_run=False)
+    assert stats.skipped_ambiguous == 1
+    assert "twin-1" not in _FakeSession.store
+    assert d1.rxcui is None and d2.rxcui is None
+
+
+@pytest.mark.asyncio
+async def test_import_batch_same_name_different_rxcui_across_ttys_not_merged(fake_db):
+    # An IN row is already imported (e.g. a backfilled seed drug).
+    _FakeSession.store["1191"] = _FakeDrug(
+        id=uuid.uuid4(), name="Warfarin", rxcui="1191", source="RxNorm", term_type="IN"
+    )
+    _FakeSession.name_store["warfarin"] = [_FakeSession.store["1191"]]
+
+    # An SCD concept with the same display name but a different RxCUI must
+    # become its own row — RxCUI + TTY identity is authoritative, names never merge.
+    concept = import_rxnorm.RxNormConcept(rxcui="1192", name="Warfarin", tty="SCD")
+    stats = await import_rxnorm.import_batch([concept], dry_run=False)
+    assert stats.inserted_new == 1
+    assert stats.backfilled_existing_by_name == 0
+    assert stats.skipped_ambiguous == 0
+    assert _FakeSession.store["1192"].term_type == "SCD"
+    assert _FakeSession.store["1191"].term_type == "IN"
+
+
+@pytest.mark.asyncio
+async def test_import_batch_term_type_preserved_on_reimport(fake_db):
+    drug_id = uuid.uuid4()
+    existing = _FakeDrug(id=drug_id, name="Keep", rxcui="t-1", source="RxNorm", term_type="SCD")
+    _FakeSession.store["t-1"] = existing
+
+    # A conflicting TTY arriving later for the same RxCUI must not clobber it
+    concept = import_rxnorm.RxNormConcept(rxcui="t-1", name="Keep", tty="IN")
+    stats = await import_rxnorm.import_batch([concept], dry_run=False)
+    assert stats.already_current == 1
+    assert existing.term_type == "SCD"
+
+
+@pytest.mark.asyncio
+async def test_import_batch_duplicate_rxcui_in_batch_imports_once(fake_db):
+    concepts = [
+        import_rxnorm.RxNormConcept(rxcui="dup-1", name="Dup A", tty="IN"),
+        import_rxnorm.RxNormConcept(rxcui="dup-1", name="Dup A", tty="IN"),
+    ]
+    stats = await import_rxnorm.import_batch(concepts, dry_run=False)
+    assert stats.inserted_new == 1
+    assert stats.already_current == 1
+    assert _FakeSession.store["dup-1"].name == "Dup A"
 
 
 @pytest.mark.asyncio
@@ -791,14 +986,13 @@ async def test_import_batch_dry_run_writes_nothing(fake_db):
 
 
 # ---------------------------------------------------------------------------
-# N+1 / query efficiency (1)
+# N+1 / query efficiency (2)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_n_plus_one_query_efficiency_per_batch(monkeypatch, tmp_path):
-    # Ensure batch of N concepts results in 2 queries, not 2*N
+    # Ensure batch of N IN concepts results in 2 queries, not 2*N
     concepts = [import_rxnorm.RxNormConcept(rxcui=str(i), name=f"Drug {i}", tty="IN") for i in range(10)]
-    # Use a fake session that counts execute calls
     fake = _FakeSession()
     _FakeSession.store.clear()
     _FakeSession.name_store.clear()
@@ -817,6 +1011,28 @@ async def test_n_plus_one_query_efficiency_per_batch(monkeypatch, tmp_path):
     assert stats.inserted_new == 10
 
 
+@pytest.mark.asyncio
+async def test_non_in_batch_uses_single_query(monkeypatch, tmp_path):
+    # Non-IN TTYs never do name matching -> exactly 1 query per batch
+    concepts = [import_rxnorm.RxNormConcept(rxcui=str(i), name=f"Clinical {i}", tty="SCD") for i in range(10)]
+    fake = _FakeSession()
+    _FakeSession.store.clear()
+    _FakeSession.name_store.clear()
+
+    class _CM:
+        async def __aenter__(self):
+            return fake
+
+        async def __aexit__(self, *a):
+            pass
+
+    monkeypatch.setattr(import_rxnorm, "AsyncSessionLocal", lambda: _CM())
+    stats = await import_rxnorm._import_batch_optimized(concepts, dry_run=False)
+    assert fake.execute_count == 1
+    assert stats.inserted_new == 10
+    assert all(_FakeSession.store[str(i)].term_type == "SCD" for i in range(10))
+
+
 # ---------------------------------------------------------------------------
 # Empty / malformed input (2)
 # ---------------------------------------------------------------------------
@@ -826,6 +1042,7 @@ async def test_empty_input_returns_empty_stats(fake_db):
     stats = await import_rxnorm.import_batch([], dry_run=False)
     assert stats.inserted_new == 0
     assert stats.updated_existing_by_rxcui == 0
+    assert stats.already_current == 0
     assert stats.backfilled_existing_by_name == 0
     assert stats.skipped_ambiguous == 0
 
@@ -851,6 +1068,420 @@ def test_malformed_input_skipped_not_crash(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Multi-TTY automatic import (the new default workflow)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_multi_tty_full_import_all_ttys(fake_db, tmp_path):
+    in_concepts = [(f"10{i:02d}", f"Ing {i}", "IN") for i in range(4)]
+    scd_concepts = [(f"20{i:02d}", f"Clinical {i}", "SCD") for i in range(3)]
+    _write_cache_file(tmp_path, "IN", in_concepts)
+    _write_cache_file(tmp_path, "SCD", scd_concepts)
+
+    await import_rxnorm.main(["--tty", "IN SCD", "--no-checkpoint"])
+
+    for rxcui, _name, _tty in in_concepts:
+        assert _FakeSession.store[rxcui].term_type == "IN"
+    for rxcui, _name, _tty in scd_concepts:
+        assert _FakeSession.store[rxcui].term_type == "SCD"
+    assert len(_FakeSession.store) == 7
+    # Deterministic TTY processing order (default set order first)
+    assert import_rxnorm._tty_order({"SCD", "IN"}) == ["IN", "SCD"]
+
+
+@pytest.mark.asyncio
+async def test_auto_tty_discovery_skips_empty_tty(fake_db, tmp_path, caplog):
+    _write_cache_file(tmp_path, "IN", [("1", "A", "IN")])
+    _write_cache_file(tmp_path, "SCD", [])  # zero concepts in source data
+
+    with caplog.at_level(logging.INFO, logger="scripts.import_rxnorm"):
+        await import_rxnorm.main(["--tty", "IN SCD", "--no-checkpoint"])
+
+    assert "1" in _FakeSession.store
+    assert len(_FakeSession.store) == 1
+    assert "no concepts available" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_auto_batching_processes_all_without_manual_offsets(fake_db, tmp_path):
+    concepts = [(str(i), f"Drug {i:05d}", "IN") for i in range(1200)]
+    _write_cache_file(tmp_path, "IN", concepts)
+
+    await import_rxnorm.main(["--tty", "IN", "--batch-size", "500"])
+
+    # All 1200 concepts processed across 3 automatic batches; checkpoint at end
+    assert len(_FakeSession.store) == 1200
+    assert import_rxnorm._read_checkpoint("IN") == 1200
+
+
+@pytest.mark.asyncio
+async def test_idempotent_full_reimport(fake_db, tmp_path, monkeypatch):
+    concepts = [(str(i), f"Drug {i:05d}", "IN") for i in range(3)]
+    _write_cache_file(tmp_path, "IN", concepts)
+    await import_rxnorm.main(["--tty", "IN", "--no-checkpoint"])
+    assert len(_FakeSession.store) == 3
+
+    # Second full run: spy on the real batch function to verify the no-op path
+    real = import_rxnorm._import_batch_optimized
+    spy: list[import_rxnorm.ImportStats] = []
+
+    async def _spy(batch, *, dry_run, source_name="RxNorm"):
+        s = await real(batch, dry_run=dry_run, source_name=source_name)
+        spy.append(s)
+        return s
+
+    monkeypatch.setattr(import_rxnorm, "_import_batch_optimized", _spy)
+    await import_rxnorm.main(["--tty", "IN", "--no-checkpoint"])
+
+    assert sum(s.already_current for s in spy) == 3
+    assert sum(s.inserted_new for s in spy) == 0
+    assert len(_FakeSession.store) == 3  # still exactly 3 rows
+
+
+@pytest.mark.asyncio
+async def test_limit_is_per_tty(fake_db, tmp_path):
+    _write_cache_file(tmp_path, "IN", [(str(i), f"IN {i}", "IN") for i in range(5)])
+    _write_cache_file(tmp_path, "SCD", [(f"9{i}", f"SCD {i}", "SCD") for i in range(5)])
+
+    await import_rxnorm.main(["--tty", "IN SCD", "--limit", "2", "--no-checkpoint"])
+
+    # --limit caps each TTY at 2 -> 4 rows total (no cross-TTY bleed)
+    assert len(_FakeSession.store) == 4
+
+
+@pytest.mark.asyncio
+async def test_multi_tty_resume_after_failure(fake_db, tmp_path, monkeypatch):
+    in_concepts = [(str(i), f"IN {i}", "IN") for i in range(4)]
+    scd_concepts = [(f"9{i}", f"SCD {i}", "SCD") for i in range(2)]
+    _write_cache_file(tmp_path, "IN", in_concepts)
+    _write_cache_file(tmp_path, "SCD", scd_concepts)
+
+    real = import_rxnorm._import_batch_optimized
+    call = {"n": 0}
+
+    async def _fail_second(batch, *, dry_run, source_name="RxNorm"):
+        call["n"] += 1
+        if call["n"] == 2:
+            raise RuntimeError("injected")
+        return await real(batch, dry_run=dry_run, source_name=source_name)
+
+    monkeypatch.setattr(import_rxnorm, "_import_batch_optimized", _fail_second)
+    with pytest.raises(RuntimeError, match="Batch 2 failed"):
+        await import_rxnorm.main(["--tty", "IN SCD", "--batch-size", "2"])
+    # IN committed 1 batch (2 rows) before failing; SCD never started
+    assert import_rxnorm._read_checkpoint("IN") == 2
+    assert import_rxnorm._read_checkpoint("SCD") == 0
+    assert len(_FakeSession.store) == 2
+
+    # Resume: IN continues from its checkpoint, then SCD runs to completion
+    monkeypatch.setattr(import_rxnorm, "_import_batch_optimized", real)
+    await import_rxnorm.main(["--tty", "IN SCD", "--batch-size", "2"])
+    assert len(_FakeSession.store) == 6
+    assert import_rxnorm._read_checkpoint("IN") == 4
+    assert import_rxnorm._read_checkpoint("SCD") == 2
+
+
+@pytest.mark.asyncio
+async def test_multi_tty_single_fetch_failure_skips_only_that_tty(fake_db, tmp_path, monkeypatch, caplog):
+    _write_cache_file(tmp_path, "IN", [("1", "A", "IN")])
+    _write_cache_file(tmp_path, "SCD", [("2", "B", "SCD")])
+
+    real_ensure = import_rxnorm._ensure_cache
+
+    def _flaky_ensure(tty, **kw):
+        if tty == "SCD":
+            raise httpx.HTTPError("network down for SCD")
+        return real_ensure(tty, **kw)
+
+    monkeypatch.setattr(import_rxnorm, "_ensure_cache", _flaky_ensure)
+    with caplog.at_level(logging.INFO, logger="scripts.import_rxnorm"):
+        await import_rxnorm.main(["--tty", "IN SCD", "--no-checkpoint"])
+
+    # IN imported, SCD skipped with an error, run completed
+    assert "1" in _FakeSession.store
+    assert "2" not in _FakeSession.store
+    assert "FETCH FAILED" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_single_tty_fetch_failure_is_fatal(monkeypatch, tmp_path):
+    _write_cache_file(tmp_path, "IN", [("1", "A", "IN")])
+
+    def _down(tty, **kw):
+        raise httpx.HTTPError("network down")
+
+    monkeypatch.setattr(import_rxnorm, "_ensure_cache", _down)
+    with pytest.raises(httpx.HTTPError):
+        await import_rxnorm.main(["--tty", "IN", "--no-checkpoint"])
+
+
+@pytest.mark.asyncio
+async def test_import_summary_logged(fake_db, tmp_path, caplog):
+    _write_cache_file(tmp_path, "IN", [(str(i), f"Drug {i:03d}", "IN") for i in range(3)])
+    _write_cache_file(tmp_path, "SCD", [("7", "Clin", "SCD")])
+
+    with caplog.at_level(logging.INFO, logger="scripts.import_rxnorm"):
+        await import_rxnorm.main(["--tty", "IN SCD", "--no-checkpoint"])
+
+    text = caplog.text
+    assert "RxNorm Import Complete" in text
+    assert "Total concepts discovered: 4" in text  # derived from the data, not hard-coded
+    assert "inserted=4" in text
+
+
+# ---------------------------------------------------------------------------
+# Clean shutdown (Windows async SSL/event-loop fix)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_engine_disposed_on_main_exit(fake_db, tmp_path, monkeypatch):
+    _write_cache_file(tmp_path, "IN", [("1", "A", "IN")])
+    dispose = AsyncMock()
+    monkeypatch.setattr(import_rxnorm, "engine", SimpleNamespace(dispose=dispose))
+
+    await import_rxnorm.main(["--tty", "IN", "--no-checkpoint"])
+
+    assert dispose.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_engine_disposed_even_when_batch_fails(fake_db, tmp_path, monkeypatch):
+    _write_cache_file(tmp_path, "IN", [("1", "A", "IN")])
+
+    async def _boom(batch, *, dry_run, source_name="RxNorm"):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(import_rxnorm, "_import_batch_optimized", _boom)
+    dispose = AsyncMock()
+    monkeypatch.setattr(import_rxnorm, "engine", SimpleNamespace(dispose=dispose))
+
+    with pytest.raises(RuntimeError):
+        await import_rxnorm.main(["--tty", "IN", "--no-checkpoint"])
+
+    assert dispose.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_engine_disposed_in_related_mode(fake_db, tmp_path, monkeypatch):
+    _FakeSession.store["a1"] = _FakeDrug(
+        id=uuid.uuid4(), name="A", rxcui="a1", source="RxNorm", term_type="SCD"
+    )
+    dispose = AsyncMock()
+    monkeypatch.setattr(import_rxnorm, "engine", SimpleNamespace(dispose=dispose))
+    monkeypatch.setattr(import_rxnorm, "_fetch_related", lambda *a, **kw: {"relatedGroup": {}})
+
+    await import_rxnorm.main(["--related", "--tty", "SCD"])
+
+    assert dispose.await_count == 1
+
+
+# ---------------------------------------------------------------------------
+# --related mode: typed RxNorm relationship edges
+# ---------------------------------------------------------------------------
+
+def _fake_related_payload(targets: list[tuple[str, str | None]]) -> dict:
+    """Build a getRelatedByRelationship-shaped payload for (rxcui, tty) targets."""
+    groups: dict[str | None, list[dict]] = {}
+    for rxcui, tty in targets:
+        groups.setdefault(tty, []).append(
+            {"rxcui": rxcui, "name": f"Name {rxcui}", "tty": tty or "", "language": "ENG"}
+        )
+    concept_groups = [
+        {"tty": tty or "", "conceptProperties": props}
+        for tty, props in groups.items()
+    ]
+    return {"relatedGroup": {"rxcui": "", "conceptGroup": concept_groups}}
+
+
+def test_parse_related_edges_defensive():
+    # Single object instead of array, missing tty
+    payload = {
+        "relatedGroup": {
+            "conceptGroup": {
+                "tty": "IN",
+                "conceptProperties": {"rxcui": "32968", "name": "clopidogrel"},
+            }
+        }
+    }
+    assert import_rxnorm._parse_related_edges(payload, "has_ingredient") == [("32968", "IN")]
+
+    # Empty / absent groups
+    assert import_rxnorm._parse_related_edges({"relatedGroup": {}}, "isa") == []
+    assert import_rxnorm._parse_related_edges({}, "isa") == []
+
+    # Duplicates, zero rxcui, missing property-level tty (inherits the
+    # group's tty, as the API structures the data)
+    payload2 = {
+        "relatedGroup": {
+            "conceptGroup": [
+                {
+                    "tty": "IN",
+                    "conceptProperties": [
+                        {"rxcui": "1", "name": "a"},
+                        {"rxcui": "1", "name": "a"},  # duplicate -> once
+                        {"rxcui": 0, "name": "zero"},  # zero rxcui -> dropped
+                        {"rxcui": "2", "name": "b", "tty": None},
+                    ],
+                }
+            ]
+        }
+    }
+    assert import_rxnorm._parse_related_edges(payload2, "has_ingredient") == [("1", "IN"), ("2", "IN")]
+
+    # No tty anywhere -> None
+    payload3 = {
+        "relatedGroup": {
+            "conceptGroup": [
+                {"conceptProperties": [{"rxcui": "9", "name": "x"}]}
+            ]
+        }
+    }
+    assert import_rxnorm._parse_related_edges(payload3, "isa") == [("9", None)]
+
+
+def test_related_cache_path_shape(tmp_path):
+    p = import_rxnorm._related_cache_path("123", "has_ingredient")
+    assert p.name == "related_123_has_ingredient.json"
+    assert p.parent == import_rxnorm.CACHE_DIR
+
+
+@pytest.mark.asyncio
+async def test_related_mode_fetches_and_stores_typed_edges(fake_db, tmp_path, monkeypatch):
+    # Seed already-imported concepts (as a prior concept import would create)
+    _FakeSession.store["174742"] = _FakeDrug(
+        id=uuid.uuid4(), name="Plavix 75 MG", rxcui="174742", source="RxNorm", term_type="SBD"
+    )
+    _FakeSession.store["197377"] = _FakeDrug(
+        id=uuid.uuid4(), name="acetaminophen 500 MG", rxcui="197377", source="RxNorm", term_type="SCD"
+    )
+    calls: list[tuple[str, str]] = []
+
+    def _fake_fetch(rxcui, rela, *, refresh_cache=False, timeout_seconds=30.0):
+        calls.append((rxcui, rela))
+        if rxcui == "174742" and rela == "has_ingredient":
+            return _fake_related_payload([("32968", "IN")])
+        return _fake_related_payload([])
+
+    monkeypatch.setattr(import_rxnorm, "_fetch_related", _fake_fetch)
+    await import_rxnorm.main(["--related", "--rela", "has_ingredient", "--tty", "SBD SCD"])
+
+    # One lookup per (rxcui, rela) — one call each for the 2 seeded concepts
+    assert sorted(calls) == sorted([("174742", "has_ingredient"), ("197377", "has_ingredient")])
+    # Typed edge stored with the target's TTY as reported by the API
+    key = ("174742", "has_ingredient", "32968")
+    assert key in _FakeSession.relations_store
+    assert _FakeSession.relations_store[key]["target_tty"] == "IN"
+    assert _FakeSession.relations_store[key]["source"] == "RxNorm"
+    # No edges for the concept without relations
+    assert not any(k[0] == "197377" for k in _FakeSession.relations_store)
+
+
+@pytest.mark.asyncio
+async def test_related_mode_idempotent_on_rerun(fake_db, tmp_path, monkeypatch):
+    _FakeSession.store["174742"] = _FakeDrug(
+        id=uuid.uuid4(), name="Plavix 75 MG", rxcui="174742", source="RxNorm", term_type="SBD"
+    )
+    fetches = {"n": 0}
+
+    def _fake_fetch(rxcui, rela, *, refresh_cache=False, timeout_seconds=30.0):
+        fetches["n"] += 1
+        return _fake_related_payload([("32968", "IN")])
+
+    monkeypatch.setattr(import_rxnorm, "_fetch_related", _fake_fetch)
+    await import_rxnorm.main(["--related", "--rela", "has_ingredient", "--tty", "SBD"])
+    first_edges = len(_FakeSession.relations_log)
+    assert first_edges == 1
+
+    # Re-run: same lookups (cache hit path would avoid HTTP; fetch mock still
+    # called) but the unique constraint must prevent duplicate edges.
+    await import_rxnorm.main(["--related", "--rela", "has_ingredient", "--tty", "SBD"])
+    assert len(_FakeSession.relations_log) == 1
+    assert len(_FakeSession.relations_store) == 1
+
+
+@pytest.mark.asyncio
+async def test_related_mode_uses_disk_cache(fake_db, tmp_path, monkeypatch):
+    _FakeSession.store["174742"] = _FakeDrug(
+        id=uuid.uuid4(), name="Plavix 75 MG", rxcui="174742", source="RxNorm", term_type="SBD"
+    )
+    # Pre-seed the disk cache for the lookup
+    cache_path = import_rxnorm._related_cache_path("174742", "has_ingredient")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(_fake_related_payload([("32968", "IN")])))
+
+    def _no_network(*a, **kw):
+        raise AssertionError("no network should be hit when the disk cache exists")
+
+    monkeypatch.setattr(import_rxnorm, "_fetch_related", _no_network)
+    await import_rxnorm.main(["--related", "--rela", "has_ingredient", "--tty", "SBD"])
+
+    assert ("174742", "has_ingredient", "32968") in _FakeSession.relations_store
+
+
+@pytest.mark.asyncio
+async def test_related_mode_http_failure_skips_and_counts(fake_db, tmp_path, monkeypatch):
+    _FakeSession.store["a1"] = _FakeDrug(
+        id=uuid.uuid4(), name="A1", rxcui="a1", source="RxNorm", term_type="SCD"
+    )
+    _FakeSession.store["a2"] = _FakeDrug(
+        id=uuid.uuid4(), name="A2", rxcui="a2", source="RxNorm", term_type="SCD"
+    )
+
+    def _flaky(rxcui, rela, *, refresh_cache=False, timeout_seconds=30.0):
+        if rxcui == "a1":
+            raise httpx.HTTPError("down")
+        return _fake_related_payload([("t1", "IN")])
+
+    monkeypatch.setattr(import_rxnorm, "_fetch_related", _flaky)
+    await import_rxnorm.main(["--related", "--rela", "has_ingredient", "--tty", "SCD"])
+
+    # The good one is stored; the failed one is not cached and will retry
+    assert ("a2", "has_ingredient", "t1") in _FakeSession.relations_store
+    assert not import_rxnorm._related_cache_path("a1", "has_ingredient").exists()
+    assert not any(k[0] == "a1" for k in _FakeSession.relations_store)
+
+
+@pytest.mark.asyncio
+async def test_related_mode_dry_run_writes_nothing(fake_db, tmp_path, monkeypatch):
+    _FakeSession.store["a1"] = _FakeDrug(
+        id=uuid.uuid4(), name="A1", rxcui="a1", source="RxNorm", term_type="SCD"
+    )
+    monkeypatch.setattr(
+        import_rxnorm, "_fetch_related", lambda *a, **kw: _fake_related_payload([("t1", "IN")])
+    )
+    await import_rxnorm.main(["--related", "--rela", "has_ingredient", "--tty", "SCD", "--dry-run"])
+    assert not _FakeSession.relations_store
+    assert not _FakeSession.relations_log
+
+
+@pytest.mark.asyncio
+async def test_related_mode_respects_related_limit(fake_db, tmp_path, monkeypatch):
+    for i, tty in enumerate(["SCD", "SCD", "SBD"]):
+        _FakeSession.store[str(i)] = _FakeDrug(
+            id=uuid.uuid4(), name=f"D{i}", rxcui=str(i), source="RxNorm", term_type=tty
+        )
+    calls: list[tuple[str, str]] = []
+
+    def _counting(rxcui, rela, *, refresh_cache=False, timeout_seconds=30.0):
+        calls.append((rxcui, rela))
+        return _fake_related_payload([])
+
+    monkeypatch.setattr(import_rxnorm, "_fetch_related", _counting)
+    # 3 concepts x 2 rela types = 6 possible lookups; limit 3 -> exactly 3
+    await import_rxnorm.main(
+        ["--related", "--rela", "isa has_ingredient", "--tty", "SCD SBD", "--related-limit", "3"]
+    )
+    assert len(calls) == 3
+
+
+@pytest.mark.asyncio
+async def test_related_mode_without_imported_concepts(fake_db):
+    # No concepts imported yet -> warn and do nothing, no crash
+    await import_rxnorm.main(["--related", "--rela", "has_ingredient"])
+    assert not _FakeSession.relations_store
+
+
+# ---------------------------------------------------------------------------
 # Memory flat behavior (1)
 # ---------------------------------------------------------------------------
 
@@ -868,7 +1499,6 @@ def test_memory_flat_across_sizes(tmp_path):
         path = _write_cache_file(tmp_path, f"MEM{n}", concepts)
         tracemalloc.start()
         # Stream and count, not accumulating full list
-        peak_before = tracemalloc.get_traced_memory()[1]
         count = 0
         for _ in import_rxnorm._stream_concepts(path):
             count += 1
@@ -883,7 +1513,7 @@ def test_memory_flat_across_sizes(tmp_path):
         except Exception:
             pass
         assert count == n
-        return peak_after - peak_before if peak_after > peak_before else peak_after
+        return peak_after
 
     m5 = _measure(5000)
     m20 = _measure(20000)

@@ -1,3 +1,81 @@
+- **Phase B+ — Multi-TTY RxNorm import, relationship edges, clean shutdown:**
+  - New Alembic migration
+    `backend/alembic/versions/0003_add_rxnorm_concept_relations.py`
+    (revision `0003_add_rxnorm_concept_relations`, revises
+    `0002_add_term_type_is_active`): adds `rxnorm_concept_relations`
+    (`source_rxcui`, `target_rxcui`, `relation_type`, `target_tty`,
+    `source`, `created_at`; unique
+    `(source_rxcui, relation_type, target_rxcui)`, index on
+    `target_rxcui`, RLS select policy for authenticated users — same
+    treatment as the other shared reference tables). Additive only; no
+    existing table/column/enum touched; no FKs by design (relation
+    endpoints may not be imported yet — rxcuis are logical references).
+    Reversible (`downgrade` drops the policy + table). Alembic history is
+    now `0001_baseline -> 0002_add_term_type_is_active -> 0003_add_rxnorm_concept_relations`.
+  - `backend/scripts/import_rxnorm.py` is now a **multi-TTY automatic
+    importer**: a bare `python -m scripts.import_rxnorm` imports the full
+    supported TTY set (`IN PIN MIN SCD SBD GPCK BPCK DF`) — per-TTY
+    cache, per-TTY counts **derived from the cached data** (never
+    hard-coded), logged import plan, automatic bounded batching to
+    completion, per-TTY checkpoints with automatic resume (no manual
+    `--offset`), per-TTY fetch-failure isolation in multi-TTY runs, and a
+    final per-TTY + totals summary. `--tty`/`--limit` (now per-TTY)/
+    `--offset` remain for controlled/testing imports.
+  - Upsert semantics made TTY-aware: RxCUI + TTY identity is authoritative
+    — same name under a different TTY/RxCUI is never merged (name
+    backfill is reserved for IN/ingredient concepts, where it preserves
+    the curated seed rows' `id`); a name shared by multiple rows is
+    treated as ambiguous (skipped, logged) instead of crashing; an
+    already-current row is a no-op counted `already_current`;
+    `term_type` is backfilled only when still NULL (first TTY wins).
+    Non-IN batches use 1 query (rxcui `IN`) instead of 2.
+  - New opt-in **`--related` mode** populates
+    `rxnorm_concept_relations` from RxNav's per-concept
+    `getRelatedByRelationship` endpoint (default relation set:
+    `has_ingredient has_precise_ingredient has_tradename isa has_form
+    has_dose_form has_part`), with per-(rxcui, rela) disk caching,
+    resumable re-runs, `ON CONFLICT DO NOTHING` upserts (idempotent),
+    `--rela`/`--related-limit`/`--related-delay` controls, and defensive
+    payload parsing (only relationships the API actually returns are
+    stored — nothing is invented; the bulk endpoint carries no
+    relationship fields per NLM's documentation, which is why this is a
+    separate opt-in mode rather than part of the default import).
+  - **Clean-shutdown fix (Windows/Python 3.10 "Fatal error on SSL
+    transport" / `Event loop is closed` after a successful import):**
+    `main()` now disposes the shared async engine
+    (`app.db.session.engine`) in a `finally` block on the still-open event
+    loop, so pooled asyncpg connections are closed before
+    `asyncio.run()` closes the loop. Root cause was the unclosed
+    connection pool, not a data problem — commits were always durable;
+    the traceback was interpreter-shutdown noise.
+  - `backend/app/db/models.py`: new `RxnormConceptRelation` mapped model
+    (typed mirror of the 0003 table); models docstring updated to name
+    the real migration sources.
+  - `GET /api/v1/reference-drugs/search` (`backend/app/api/v1/reference_drugs.py`
+    + `backend/app/schemas/reference_drug.py`): response now includes the
+    additive nullable `term_type` field (legacy rows return `null` —
+    existing consumers unaffected), and an optional `term_type` query
+    filter (e.g. `?term_type=IN,SCD`; unknown values → 422). Default
+    (no filter) behavior is unchanged.
+  - Tests: `tests/test_import_rxnorm.py` extended from 42 to 76 tests
+    (multi-TTY import, automatic batching/discovery, per-TTY counts,
+    idempotent full re-import, duplicate RxCUI, same-name/different-RxCUI
+    across TTYs, TTY preservation, multiple-rows-same-name ambiguity,
+    per-TTY limit, multi-TTY resume after failure, fetch-failure
+    isolation, engine-dispose on exit (incl. failure path), full
+    `--related` coverage: typed edges, idempotency, disk cache, HTTP
+    failure, dry-run, limit, empty catalog, defensive parsing). The fake
+    DB session now parses the importer's actual compiled SQL (literal
+    `IN` lists + `ON CONFLICT` upserts), making query-count and
+    idempotency assertions deterministic.
+    `tests/test_reference_drugs_search_api.py`: response-contract test
+    updated for the additive `term_type` field + new tests (term_type
+    exposure, TTY filter, invalid TTY 422, filter-parsing unit test).
+  - Docs: `backend/scripts/README.md` rewritten (supported TTYs,
+    automatic import, batching/resume, `--related`, CLI reference,
+    clean-shutdown note); `README.md` database-setup note updated;
+    `backend/alembic/README.md` future-migration list updated.
+
 - **Phase B (0002) — `reference_drugs.term_type` enum + `is_active`:**
   - New Alembic migration `backend/alembic/versions/0002_add_term_type_is_active.py`
     (revision `0002_add_term_type_is_active`, revises `0001_baseline`):
