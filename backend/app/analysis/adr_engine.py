@@ -33,6 +33,20 @@ therefore a simple `adr_rules.drug_id IN (patient's active drug ids)`
 membership query, with no directionality concerns (unlike
 `interaction_rules`' drug_a/drug_b pairing).
 
+Ingredient resolution (added alongside 0003 / rxnorm_concept_relations):
+when a patient is prescribed a branded drug (SBD), branded pack (BPCK),
+clinical drug (SCD) or other formulation, the ADR rules are typically
+keyed to the underlying ingredient (IN/PIN). Before matching against
+`adr_rules`, we resolve the set of active drug IDs to include the
+ingredient IDs reachable via one ``has_ingredient`` /
+``has_precise_ingredient`` edge, using LEFT JOIN semantics (selected
+IDs are always preserved; missing/unimported/NULL rxcui rows resolve to
+themselves only). The resolution is one-hop only and performed by
+:mod:`app.analysis.ingredient_resolver`. The user's selected drug id is
+reported back in the finding so the UI can tie it to the medication the
+patient is actually taking; rule matches on an ingredient show the
+ingredient's name (the drug the rule is keyed to).
+
 Severity Calculation scope (mirrors Phase 10's confirmed scope): each
 finding simply surfaces its matched rule's own `severity` value as-is (no
 new severity is computed or invented here). `highest_severity()` is a
@@ -56,6 +70,7 @@ from typing import Literal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analysis.ingredient_resolver import resolve_to_ingredient_ids
 from app.db.models import AdrRule, Medication, ReferenceDrug
 
 SeverityLevel = Literal["mild", "moderate", "severe"]
@@ -110,10 +125,17 @@ async def detect_adrs(patient_id: uuid.UUID, db: AsyncSession) -> list[ADRFindin
     if not active_drug_ids:
         return []
 
+    # Resolve selected drug IDs to ingredient IDs via rxnorm_concept_relations
+    # (one-hop, LEFT-JOIN semantics -- selected IDs are always preserved; see
+    # ingredient_resolver.py for the full contract). ADR rules are typically
+    # keyed to ingredients (IN/PIN), so this lets a patient taking a branded
+    # or clinical-drug formulation match rules written against its ingredient.
+    match_ids = await resolve_to_ingredient_ids(active_drug_ids, db)
+
     result = await db.execute(
         select(AdrRule, ReferenceDrug.name)
         .join(ReferenceDrug, ReferenceDrug.id == AdrRule.drug_id)
-        .where(AdrRule.drug_id.in_(active_drug_ids))
+        .where(AdrRule.drug_id.in_(match_ids))
     )
 
     return [
