@@ -75,12 +75,30 @@ Phase 15 implementation, but kept in case a future change to
 llm_service.py reintroduces an unimplemented path) and
 `LLMExplanationError` (Phase 15's real failure mode -- every configured
 provider either failed or returned output that failed schema
-validation). Any other, unexpected exception propagates and fails the
-whole graph run, since that would indicate a genuine bug rather than a
-documented failure mode. On either caught exception, the node stores
-`llm_result: None` and a human-readable `llm_error` message in state;
-nothing is fabricated, and the deterministic pipeline still persists via
-the Persist Node regardless of this step's outcome.
+validation).
+
+Any OTHER, unexpected exception is also converted into the same
+fail-closed result rather than propagating. This is the node's core
+contract: the LLM layer is explanatory only, so no failure inside it --
+documented or not -- may prevent the already-computed deterministic
+analysis from reaching the Persist Node. An unexpected exception here
+previously aborted `graph.ainvoke()` before `persist` ever ran, which
+silently discarded a perfectly valid deterministic result (no
+`analysis_runs` row, no timeline event, no `analysis_run_id`). Such an
+exception still indicates a genuine bug, so it is logged with
+`logger.exception(...)` (full traceback, ERROR level) rather than the
+`logger.warning(...)` used for the two documented failure modes -- the
+bug stays loud and diagnosable in the logs, it just no longer takes the
+deterministic result down with it.
+
+The catch is deliberately `except Exception`, never a bare `except`:
+`asyncio.CancelledError` derives from `BaseException` (Python 3.8+), so
+cooperative task cancellation still propagates and is never swallowed.
+
+On every caught exception the node stores `llm_result: None` and a
+non-empty, human-readable `llm_error` message in state; nothing is
+fabricated, and the deterministic pipeline still persists via the
+Persist Node regardless of this step's outcome.
 """
 import logging
 import uuid
@@ -239,6 +257,23 @@ def _timeline_engine_node(db: AsyncSession):
     return node
 
 
+def _unexpected_llm_error_message(exc: BaseException) -> str:
+    """
+    Build the `llm_error` string stored for an unexpected LLM failure.
+
+    Always non-empty, even when `str(exc)` is (e.g. `RuntimeError()`
+    raised with no message) -- `llm_error` is the only in-state signal
+    that the explanation is missing *because something went wrong*, as
+    opposed to simply never having been attempted, so it must never
+    degrade to `""`. The exception class name is included so the log
+    record and the persisted-run diagnostics agree on what actually
+    failed.
+    """
+    detail = str(exc).strip()
+    base = f"unexpected {type(exc).__name__} during LLM explanation"
+    return f"{base}: {detail}" if detail else base
+
+
 def _llm_explanation_node(db: AsyncSession):
     async def node(state: AnalysisState) -> dict:
         try:
@@ -261,6 +296,31 @@ def _llm_explanation_node(db: AsyncSession):
                 extra={"patient_id": state["patient_id"]},
             )
             return {"llm_result": None, "llm_error": str(exc)}
+        except Exception as exc:  # noqa: BLE001 -- deliberate, see below.
+            # Any UNEXPECTED failure of the LLM layer (a provider raising
+            # a raw httpx/network error that escaped llm_service.py's
+            # normalization, a TypeError/AttributeError from a bug in the
+            # explanation path, a misbehaving third-party client, ...)
+            # must degrade exactly like the two documented failure modes
+            # above. The deterministic analysis is already computed at
+            # this point and is the product of record; letting an
+            # explanation-layer bug propagate would abort the graph
+            # before the Persist Node runs and throw that valid result
+            # away entirely.
+            #
+            # `except Exception` -- NOT a bare `except` -- so
+            # `asyncio.CancelledError` (a BaseException since Python 3.8)
+            # still propagates and task cancellation is never swallowed.
+            #
+            # Logged via logger.exception() so the full traceback is
+            # captured at ERROR level: this path always indicates a bug
+            # worth fixing, unlike the expected failures above.
+            logger.exception(
+                "Unexpected error in the LLM explanation node; persisting the "
+                "deterministic analysis without an explanation.",
+                extra={"patient_id": state["patient_id"]},
+            )
+            return {"llm_result": None, "llm_error": _unexpected_llm_error_message(exc)}
         return {"llm_result": result, "llm_error": None}
 
     return node
