@@ -67,15 +67,33 @@ that report once it passes basic validation.
 `generate_explanation` raises `LLMExplanationError` (never fabricates a
 result) when every configured provider fails. `app/services/
 langgraph_workflow.py`'s `llm_explanation` node catches this alongside
-`NotImplementedError` and leaves the LLM-generated columns on
+`NotImplementedError` -- and, as a final safety net, any other
+unexpected exception -- and leaves the LLM-generated columns on
 `analysis_runs` NULL rather than failing the whole analysis run -- the
 deterministic pipeline always persists regardless of this step's outcome.
+
+This module's own job is to make that safety net a formality rather than
+the primary defense: every *anticipated* failure mode (a provider call
+failing, a network/transport/timeout error, a response that cannot be
+parsed or does not match the expected schema) is normalized to
+`LLMExplanationError` here, so callers only ever have to reason about
+one exception type. `llm_providers.py` already normalizes httpx errors
+to `LLMProviderError`; `_call_providers_with_fallback` additionally
+treats a raw `httpx.HTTPError` escaping a provider as that provider
+having failed, so a normalization gap in any current or future provider
+degrades to the documented fallback path instead of escaping as an
+httpx-specific exception. Genuinely unexpected programming errors are
+deliberately NOT caught here -- they are the workflow node's fail-closed
+catch to handle, and swallowing them at this level would hide bugs
+behind a generic "all providers failed" message.
 """
 import json
 import logging
 import time
 from dataclasses import dataclass
 from typing import Literal
+
+import httpx
 
 from app.analysis.safety_score_engine import SafetyScoreResult
 from app.analysis.timeline_engine import TimelineContext
@@ -326,6 +344,17 @@ def _parse_and_validate(raw: str) -> LLMExplanationResult:
     regardless of which provider produced it. Does not clamp or modify
     a well-formed confidence value; only rejects malformed ones.
     """
+    # A provider is contracted to return text (`LLMCompletion.text: str`),
+    # but a non-str slipping through (a provider bug, a model returning a
+    # structured block where text was expected) is a *parse* failure, not
+    # a crash: without this guard `raw.strip()` below would raise a bare
+    # AttributeError instead of the LLMExplanationError this function
+    # promises, and the fallback provider would never be tried.
+    if not isinstance(raw, str):
+        raise LLMExplanationError(
+            f"response text was {type(raw).__name__}, expected str."
+        )
+
     candidate = _extract_json_object(_strip_markdown_fences(raw))
 
     try:
@@ -412,13 +441,15 @@ def _log_successful_completion(
 async def _call_providers_with_fallback(prompt: str) -> LLMExplanationResult:
     """
     Try each provider in order. A provider "counts" as failed for
-    fallback purposes if EITHER the call itself fails (`LLMProviderError`)
-    OR its response fails schema validation (`LLMExplanationError` from
-    `_parse_and_validate`) -- malformed-but-successful output is treated
-    the same as an unreachable provider, since neither yields a usable
-    result (approved Phase 15 design decision). Only if every provider
-    fails does this raise, combining all per-provider failure messages so
-    the eventual `llm_error` string is diagnostic rather than generic.
+    fallback purposes if EITHER the call itself fails (`LLMProviderError`,
+    or a raw `httpx.HTTPError` that escaped the provider's own
+    normalization) OR its response fails schema validation
+    (`LLMExplanationError` from `_parse_and_validate`) -- malformed-but-
+    successful output is treated the same as an unreachable provider,
+    since neither yields a usable result (approved Phase 15 design
+    decision). Only if every provider fails does this raise, combining
+    all per-provider failure messages so the eventual `llm_error` string
+    is diagnostic rather than generic.
 
     `fallback_used` (for logging) is True whenever the provider that
     ultimately succeeds is not the first one in `_PROVIDERS` -- i.e.
@@ -436,6 +467,25 @@ async def _call_providers_with_fallback(prompt: str) -> LLMExplanationResult:
         except LLMProviderError as exc:
             logger.warning("LLM provider call failed: %s", exc)
             failures.append(str(exc))
+            continue
+        except httpx.HTTPError as exc:
+            # Defense in depth. `llm_providers.py` already normalizes
+            # every network/timeout/transport failure to
+            # `LLMProviderError`, so this should be unreachable with the
+            # providers shipped today -- but a normalization gap (a new
+            # provider, or an httpx error raised outside a provider's own
+            # try/except, e.g. while the client is being closed) would
+            # otherwise escape `generate_explanation` as an httpx-specific
+            # exception, skipping the remaining providers entirely and
+            # breaking this module's documented "only ever raises
+            # LLMExplanationError" contract. Treating it as a failure of
+            # this provider keeps the fallback chain intact.
+            logger.warning(
+                "LLM provider '%s' raised an unnormalized transport error: %s",
+                provider.name,
+                exc,
+            )
+            failures.append(f"{provider.name}: transport error: {exc}")
             continue
         latency_ms = round((time.monotonic() - started) * 1000)
 
