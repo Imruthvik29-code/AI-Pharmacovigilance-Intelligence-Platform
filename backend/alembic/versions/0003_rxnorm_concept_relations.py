@@ -1,6 +1,6 @@
 """Add rxnorm_concept_relations — typed RxNorm relationship edges.
 
-Revision ID: 0003_add_rxnorm_concept_relations
+Revision ID: 0003_rxnorm_concept_relations
 Revises: 0002_add_term_type_is_active
 Create Date: 2026-08-19
 

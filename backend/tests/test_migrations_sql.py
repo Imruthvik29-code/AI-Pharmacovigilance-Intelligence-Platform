@@ -142,7 +142,7 @@ def test_0003_comment_literals_are_single_well_formed_strings():
     balanced-quote test above, and directly here by verifying the parsed
     COMMENT body matches the intended natural-language text.
     """
-    m0003 = _find_migration("0003_add_rxnorm_concept_relations")
+    m0003 = _find_migration("0003_rxnorm_concept_relations")
     comments = _extract_comment_targets(m0003)
 
     table_comment = comments[("TABLE", "rxnorm_concept_relations")]
@@ -171,7 +171,7 @@ def test_0003_comment_literals_are_single_well_formed_strings():
 
 def test_0003_upgrade_creates_expected_objects():
     """Static check that the 0003 upgrade creates the expected table/index/policy."""
-    m0003 = _find_migration("0003_add_rxnorm_concept_relations")
+    m0003 = _find_migration("0003_rxnorm_concept_relations")
     sql_blobs = [sql for _ln, sql in _extract_op_execute_sql(m0003)]
     joined = "\n".join(sql_blobs).lower()
 
@@ -185,7 +185,7 @@ def test_0003_upgrade_creates_expected_objects():
 
 def test_0003_downgrade_drops_policy_before_table():
     """Downgrade must drop the policy before dropping the table (order matters)."""
-    m0003 = _find_migration("0003_add_rxnorm_concept_relations")
+    m0003 = _find_migration("0003_rxnorm_concept_relations")
     source = m0003.read_text(encoding="utf-8")
     downgrade_start = source.index("def downgrade")
     downgrade_body = source[downgrade_start:]
@@ -198,7 +198,7 @@ def test_0003_downgrade_drops_policy_before_table():
 
 def test_0003_does_not_alter_existing_tables():
     """0003 is additive -- it must not ALTER/DROP any pre-existing table."""
-    m0003 = _find_migration("0003_add_rxnorm_concept_relations")
+    m0003 = _find_migration("0003_rxnorm_concept_relations")
     # Only inspect the upgrade() body.
     source = m0003.read_text(encoding="utf-8")
     upgrade_start = source.index("def upgrade")
