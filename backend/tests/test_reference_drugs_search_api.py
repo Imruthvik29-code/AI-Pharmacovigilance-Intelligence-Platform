@@ -20,7 +20,7 @@ NOTE: This module uses its own test-specific async engine/sessionmaker to avoid
 "Event loop is closed" errors with pytest-asyncio asyncio_mode=auto. The global
 AsyncSessionLocal from app.db.session shares a single engine across all tests,
 which causes connections bound to one test's closed event loop to be reused by
-a subsequent test. This module creates its own engine per-test to ensure each
+a subsequent test. This module creates its own engine for each test to ensure each
 test's connections are bound to its own pytest-managed event loop.
 """
 import uuid
@@ -65,8 +65,8 @@ def test_sessionmaker(_test_db_engine):
     )
 
 
-@pytest.fixture
-def _override_current_user(user_id):
+def _make_override_current_user(user_id):
+    """Build the FastAPI auth override used by these integration tests."""
     async def _fake_current_user() -> CurrentUser:
         return CurrentUser(id=user_id, email="test@example.com")
 
@@ -139,35 +139,35 @@ async def test_search_requires_authentication(client):
 
 @pytest.mark.asyncio
 async def test_search_rejects_query_shorter_than_two_chars(existing_auth_user_id, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
     resp = await client.get("/api/v1/reference-drugs/search?q=a")
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_search_requires_q_param(existing_auth_user_id, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
     resp = await client.get("/api/v1/reference-drugs/search")
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_limit_below_minimum_returns_422(existing_auth_user_id, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
     resp = await client.get("/api/v1/reference-drugs/search?q=war&limit=0")
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_limit_exceeding_maximum_returns_422(existing_auth_user_id, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
     resp = await client.get("/api/v1/reference-drugs/search?q=war&limit=101")
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_default_limit_is_twenty(existing_auth_user_id, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
     resp = await client.get("/api/v1/reference-drugs/search?q=a")
     assert resp.status_code == 200
     assert len(resp.json()) <= 20
@@ -175,7 +175,7 @@ async def test_default_limit_is_twenty(existing_auth_user_id, client, test_sessi
 
 @pytest.mark.asyncio
 async def test_limit_is_respected(existing_auth_user_id, created_drug_ids, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
 
     tag = str(uuid.uuid4())[:8]
     for i in range(5):
@@ -188,7 +188,7 @@ async def test_limit_is_respected(existing_auth_user_id, created_drug_ids, clien
 
 @pytest.mark.asyncio
 async def test_search_is_case_insensitive_partial_match(existing_auth_user_id, created_drug_ids, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
 
     tag = str(uuid.uuid4())[:8]
     created_drug_ids.append(await _insert_drug(f"Zzspirtest{tag}Spironolactone", sessionmaker=test_sessionmaker))
@@ -201,7 +201,7 @@ async def test_search_is_case_insensitive_partial_match(existing_auth_user_id, c
 
 @pytest.mark.asyncio
 async def test_search_matches_substring_anywhere_in_name(existing_auth_user_id, created_drug_ids, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
 
     tag = str(uuid.uuid4())[:8]
     created_drug_ids.append(await _insert_drug(f"Prefix-{tag}-Suffix", sessionmaker=test_sessionmaker))
@@ -213,7 +213,7 @@ async def test_search_matches_substring_anywhere_in_name(existing_auth_user_id, 
 
 @pytest.mark.asyncio
 async def test_query_whitespace_is_ignored(existing_auth_user_id, created_drug_ids, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
 
     tag = str(uuid.uuid4())[:8]
     created_drug_ids.append(await _insert_drug(f"Zzwhitespace{tag}Warfarin", sessionmaker=test_sessionmaker))
@@ -232,12 +232,12 @@ async def test_ordering_exact_then_prefix_then_alphabetical_substring(
     matches (alphabetical among themselves), then substring-only matches
     (alphabetical among themselves).
     """
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
 
     tag = str(uuid.uuid4())[:8]
     query = f"zzq{tag}"
 
-    exact_name = query  # exact match (queried in different case to prove case-insensitivity)
+    exact_name = query
     prefix_b = f"{query}Bbb"
     prefix_a = f"{query}Aaa"
     substring_only = f"before-{query}-after"
@@ -256,7 +256,7 @@ async def test_ordering_exact_then_prefix_then_alphabetical_substring(
 
 @pytest.mark.asyncio
 async def test_response_includes_expected_fields_only(existing_auth_user_id, created_drug_ids, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
 
     unique_name = f"Zzfieldstest-{uuid.uuid4()}"
     created_drug_ids.append(
@@ -269,8 +269,6 @@ async def test_response_includes_expected_fields_only(existing_auth_user_id, cre
     assert len(body) == 1
     entry = body[0]
 
-    # term_type is an additive nullable field: present in the response
-    # contract, NULL for rows without a known TTY.
     assert set(entry.keys()) == {"id", "name", "rxcui", "source", "term_type"}
     assert entry["name"] == unique_name
     assert entry["rxcui"] == "12345"
@@ -280,7 +278,7 @@ async def test_response_includes_expected_fields_only(existing_auth_user_id, cre
 
 @pytest.mark.asyncio
 async def test_response_exposes_term_type(existing_auth_user_id, created_drug_ids, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
 
     unique_name = f"Zztttest-{uuid.uuid4()}"
     created_drug_ids.append(
@@ -295,7 +293,7 @@ async def test_response_exposes_term_type(existing_auth_user_id, created_drug_id
 
 @pytest.mark.asyncio
 async def test_term_type_filter_limits_results(existing_auth_user_id, created_drug_ids, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
 
     tag = str(uuid.uuid4())[:8]
     in_name = f"Zzttfilter{tag}-Ingredient"
@@ -307,22 +305,18 @@ async def test_term_type_filter_limits_results(existing_auth_user_id, created_dr
         await _insert_drug(scd_name, rxcui=f"ttf-scd-{tag}", source="RxNorm", term_type="SCD", sessionmaker=test_sessionmaker)
     )
 
-    # No filter -> both TTYs visible (original behavior preserved)
     resp = await client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}")
     assert resp.status_code == 200
     assert len(resp.json()) == 2
 
-    # IN only -> just the ingredient
     resp = await client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}&term_type=IN")
     assert resp.status_code == 200
     assert [d["name"] for d in resp.json()] == [in_name]
 
-    # Multi-TTY filter, case-insensitive
     resp = await client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}&term_type=in,scd")
     assert resp.status_code == 200
     assert len(resp.json()) == 2
 
-    # Filter with no matching TTY -> empty
     resp = await client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}&term_type=DF")
     assert resp.status_code == 200
     assert resp.json() == []
@@ -330,14 +324,13 @@ async def test_term_type_filter_limits_results(existing_auth_user_id, created_dr
 
 @pytest.mark.asyncio
 async def test_term_type_filter_invalid_returns_422(existing_auth_user_id, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
     resp = await client.get("/api/v1/reference-drugs/search?q=war&term_type=NOT_A_TTY")
     assert resp.status_code == 422
     assert "NOT_A_TTY" in resp.json()["detail"]
 
 
 def test_parse_term_type_filter_unit():
-    # No DB needed — pure validation helper
     from app.api.v1.reference_drugs import _parse_term_type_filter
     from fastapi import HTTPException
 
@@ -352,7 +345,7 @@ def test_parse_term_type_filter_unit():
 
 @pytest.mark.asyncio
 async def test_search_with_no_matches_returns_empty_list(existing_auth_user_id, client, test_sessionmaker):
-    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
     resp = await client.get(f"/api/v1/reference-drugs/search?q=zzznomatch{uuid.uuid4()}")
     assert resp.status_code == 200
     assert resp.json() == []
