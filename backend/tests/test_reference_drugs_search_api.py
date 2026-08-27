@@ -168,7 +168,7 @@ async def test_limit_exceeding_maximum_returns_422(existing_auth_user_id, client
 @pytest.mark.asyncio
 async def test_default_limit_is_twenty(existing_auth_user_id, client, test_sessionmaker):
     app.dependency_overrides[get_current_user] = _make_override_current_user(existing_auth_user_id)
-    resp = await client.get("/api/v1/reference-drugs/search?q=a")
+    resp = await client.get("/api/v1/reference-drugs/search?q=war")
     assert resp.status_code == 200
     assert len(resp.json()) <= 20
 
