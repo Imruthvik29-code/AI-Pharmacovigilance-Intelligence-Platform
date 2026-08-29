@@ -92,32 +92,16 @@ from app.services.timeline_writer import log_timeline_event
 router = APIRouter(tags=["schedule"])
 logger = logging.getLogger("app.schedule")
 
-# Defensive cap on total doses generated in a single call -- guards against
-# pathological inputs (e.g. times_per_day=24 with a multi-year
-# duration_days, or a very small interval_hours over a long duration)
-# producing tens of thousands of rows. Not a spec requirement; purely a
-# safety guard.
 MAX_GENERATED_DOSES = 3650
-
-# Anchor time-of-day for the first generated dose, since Medication only
-# stores a date (start_date), not a datetime, but scheduled_time is a
-# timestamptz. Documented default, not a silent guess.
 DEFAULT_FIRST_DOSE_TIME = time(hour=8, tzinfo=timezone.utc)
-
-# Small epsilon to guard the floor() calculation in the interval-only
-# branch against floating point representation error (e.g. duration_days
-# * 24 / interval_hours landing at 3.999999999 instead of 4.0).
 _FLOOR_EPSILON = 1e-9
 
-# Maps a dose mark status to its timeline event_type, per the canonical
-# event_type list documented in spec section 5.
 _MARK_EVENT_TYPES = {
     "taken": "dose_taken",
     "missed": "dose_missed",
     "skipped": "dose_skipped",
 }
 
-# Maps a dose mark status to a human-readable verb for timeline titles.
 _MARK_TITLE_VERBS = {
     "taken": "Took",
     "missed": "Missed",
@@ -161,16 +145,8 @@ async def _get_owned_medication(
 async def _get_owned_dose(
     dose_id: uuid.UUID, current_user: CurrentUser, db: AsyncSession
 ) -> tuple[MedicationDose, uuid.UUID, str | None]:
-    """
-    Fetch a dose by id, scoped to the current user via its medication's
-    parent patient, or raise 404.
-
-    Returns (dose, patient_id, drug_name) -- patient_id and drug_name are
-    fetched alongside the dose (rather than via separate queries) since
-    both are needed by mark_dose regardless: patient_id to run the
-    missed-dose sweep and log timeline events, drug_name for the timeline
-    event title.
-    """
+    """Fetch a dose by id, scoped to the current user via its medication's
+    parent patient, or raise 404."""
     result = await db.execute(
         select(MedicationDose, Medication.patient_id, ReferenceDrug.name)
         .join(Medication, Medication.id == MedicationDose.medication_id)
@@ -189,21 +165,7 @@ async def _get_owned_dose(
 
 
 def _compute_schedule_params(medication: Medication) -> tuple[int, float]:
-    """
-    Determine (total_doses, interval_hours) for schedule generation.
-
-    Two supported input shapes, per the caller's validated preconditions
-    (duration_days set, and at least one of times_per_day/interval_hours
-    set):
-
-    1. times_per_day is set (interval_hours optional):
-       total_doses = times_per_day * duration_days
-       interval_hours = medication.interval_hours or (24 / times_per_day)
-
-    2. times_per_day is None, interval_hours is set:
-       interval_hours = medication.interval_hours
-       total_doses = floor(duration_days * 24 / interval_hours), min 1
-    """
+    """Determine (total_doses, interval_hours) for schedule generation."""
     if medication.times_per_day is not None:
         total_doses = medication.times_per_day * medication.duration_days
         interval_hours = medication.interval_hours or (24 / medication.times_per_day)
@@ -218,24 +180,7 @@ def _compute_schedule_params(medication: Medication) -> tuple[int, float]:
 
 
 async def _sweep_missed_doses(patient_id: uuid.UUID, db: AsyncSession) -> None:
-    """
-    Lazy, query-time substitute for a "missed-dose background check"
-    (spec section 10, Phase 9) -- there is no job scheduler in the tech
-    stack (spec section 4), so this runs synchronously whenever a
-    dose-related route for this patient is hit.
-
-    Flips every dose belonging to `patient_id` where `scheduled_time` has
-    already passed and `status IS NULL` to `missed`, logging a
-    `dose_missed` timeline event per affected dose. Applies regardless of
-    the parent medication's status (active/paused/discontinued/etc.) --
-    a dose that was due is either taken or missed in reality, independent
-    of the medication's current lifecycle state.
-
-    Does NOT commit -- callers commit alongside whatever else their
-    request does (a plain read in list_upcoming_doses, or the dose write
-    in mark_dose), so the sweep's changes and the caller's own changes
-    land in the same transaction.
-    """
+    """Lazily mark all overdue, unmarked doses for a patient as missed."""
     now = datetime.now(timezone.utc)
     result = await db.execute(
         select(MedicationDose, ReferenceDrug.name)
@@ -321,32 +266,21 @@ async def generate_schedule(
     anchor = datetime.combine(medication.start_date, DEFAULT_FIRST_DOSE_TIME)
     now = datetime.now(timezone.utc)
 
-    # ----------------------------
-    # Pass 1: Create Schedule rows
-    # ----------------------------
     schedule_rows: list[MedicationSchedule] = []
-
     for i in range(total_doses):
         scheduled_time = anchor + timedelta(hours=interval_hours * i)
-
         schedule_row = MedicationSchedule(
             id=uuid.uuid4(),
             medication_id=medication_id,
             scheduled_time=scheduled_time,
             created_at=now,
         )
-
         db.add(schedule_row)
         schedule_rows.append(schedule_row)
 
-    # Persist all parent rows first
     await db.flush()
 
-    # ----------------------------
-    # Pass 2: Create Dose rows
-    # ----------------------------
     created_doses: list[MedicationDose] = []
-
     for schedule_row in schedule_rows:
         dose_row = MedicationDose(
             id=uuid.uuid4(),
@@ -358,7 +292,6 @@ async def generate_schedule(
             created_at=now,
             updated_at=now,
         )
-
         db.add(dose_row)
         created_doses.append(dose_row)
 
@@ -385,19 +318,7 @@ async def list_upcoming_doses(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[UpcomingDoseResponse]:
-    """
-    List upcoming (future, unmarked) doses for a patient's active medications.
-
-    Phase 9: runs the missed-dose sweep for this patient first (see
-    `_sweep_missed_doses`) and commits it -- this route now has a small,
-    documented write side-effect (flipping overdue unmarked doses to
-    "missed") in addition to its read. The sweep itself never changes
-    what this query returns (it only touches doses with
-    `scheduled_time < now`, and this query only ever returns
-    `scheduled_time >= now`), but it keeps stored dose status accurate
-    for anything reading `medication_doses` directly (e.g. a future
-    adherence-statistics feature).
-    """
+    """List upcoming future, unmarked doses for active medications."""
     await _assert_patient_owned(patient_id, current_user, db)
 
     await _sweep_missed_doses(patient_id, db)
@@ -442,23 +363,18 @@ async def mark_dose(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MedicationDose:
-    """
-    Mark a dose as taken, missed, or skipped (Phase 9 -- Adherence).
-
-    Runs the missed-dose sweep for this dose's patient first, so a dose
-    that has itself gone overdue and unmarked is flipped to "missed"
-    (and thus rejected below as "already marked") rather than silently
-    overwritten by an unrelated explicit mark. A dose can only be marked
-    once -- a second attempt (whether the first mark was explicit or
-    sweep-applied) returns 409, since the spec defines no "correct a
-    mark" flow.
-    """
+    """Mark a dose once; overdue doses are first swept to missed."""
     dose, patient_id, drug_name = await _get_owned_dose(dose_id, current_user, db)
 
     await _sweep_missed_doses(patient_id, db)
-    await db.flush()  # ensure `dose.status` reflects any sweep-applied change
+    await db.flush()
 
     if dose.status is not None:
+        # The sweep is a real state-changing operation. If this request is
+        # rejected because the target dose is now missed (or was already
+        # explicitly marked), persist the sweep before returning 409 rather
+        # than rolling the state change back with the failed request.
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Dose already marked as '{dose.status}'.",
