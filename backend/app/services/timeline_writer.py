@@ -2,8 +2,9 @@
 Timeline event writer (Phase 7).
 
 A small, reusable helper other API modules call to record a
-a`timeline_events` row as a side effect of their own writes (e.g.
+`timeline_events` row as a side effect of their own writes (e.g.
 medications.py logs `medication_started` when a medication is created).
+
 Deliberately NOT listed in the spec's folder structure (section 6) under
 `services/` -- that list wasn't exhaustive at the file-name granularity,
 and this is a natural, additive fit alongside `patient_context_builder.py`
