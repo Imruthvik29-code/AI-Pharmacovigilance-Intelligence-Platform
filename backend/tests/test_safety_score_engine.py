@@ -35,7 +35,7 @@ from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.analysis.adherence_engine import AdherenceFinding
 from app.analysis.safety_score_engine import (
@@ -50,7 +50,7 @@ from app.analysis.safety_score_engine import (
     calculate_safety_score,
 )
 from app.core.security import CurrentUser, get_current_user
-from app.db.models import ReferenceDrug
+from app.db.models import MedicationDose, ReferenceDrug
 from app.db.session import AsyncSessionLocal
 from app.main import app
 
@@ -284,7 +284,7 @@ async def test_combined_interaction_and_adr_findings_compose_correctly(
 
 @pytest.mark.asyncio
 async def test_adherence_penalty_included_when_below_adequate_threshold(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    existing_auth_user_id, created_patient_ids
 ):
     """
     A medication with 0% adherence (all due doses unmarked, never swept)
@@ -296,10 +296,11 @@ async def test_adherence_penalty_included_when_below_adequate_threshold(
     patient = _create_patient("Poor Adherence Only Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
+    levothyroxine_id = await _drug_id_by_name("Levothyroxine")
     past_start = date.today() - timedelta(days=2)
     medication = _create_active_medication(
         patient["id"],
-        str(existing_drug_id),
+        str(levothyroxine_id),
         start_date=str(past_start),
         times_per_day=2,
         duration_days=1,
@@ -320,12 +321,19 @@ async def test_adherence_penalty_included_when_below_adequate_threshold(
 
 @pytest.mark.asyncio
 async def test_adequate_adherence_produces_no_penalty(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    existing_auth_user_id, created_patient_ids
 ):
     """
     Full adherence (100% taken) must appear in `adherence_findings` (the
     raw measurement is always returned) but must NOT produce a penalty
     entry -- adequate adherence isn't a safety finding.
+
+    This test intentionally seeds the past-due dose rows and then marks
+    them directly in the DB. The API mark route performs the production
+    lazy missed-dose sweep before accepting a mark, so using that route
+    here would convert these already-due fixtures to `missed` first. The
+    safety-score test is about the scoring engine's interpretation of
+    persisted dose states, not the Phase 9 mark endpoint.
     """
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
@@ -335,18 +343,25 @@ async def test_adequate_adherence_produces_no_penalty(
     past_start = date.today() - timedelta(days=1)
     medication = _create_active_medication(
         patient["id"],
-        str(existing_drug_id),
+        str(await _drug_id_by_name("Levothyroxine")),
         start_date=str(past_start),
         times_per_day=2,
         duration_days=1,
     )
     doses = _generate_schedule(medication["id"])
-    for dose in doses:
-        _mark_dose(dose["id"], "taken")
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(MedicationDose)
+            .where(MedicationDose.medication_id == uuid.UUID(medication["id"]))
+            .values(status="taken")
+        )
+        await session.commit()
 
     async with AsyncSessionLocal() as session:
         result = await calculate_safety_score(uuid.UUID(patient["id"]), session)
 
+    assert len(doses) == 2
     assert len(result.adherence_findings) == 1
     assert result.adherence_findings[0].adherence_rate == 1.0
     assert [p for p in result.penalties if p.category == "adherence"] == []
