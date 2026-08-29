@@ -278,7 +278,7 @@ async def test_personal_evidence_includes_linked_symptom(
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
     patient = _create_patient("Symptom Evidence Patient")
-    created_patient_ids.append(uuid.UUID(patient["id"]))
+    created_patient_ids.append(uuid.UUID(patient["id"]));
 
     warfarin_id = await _drug_id_by_name("Warfarin")
     medication = _create_active_medication(patient["id"], str(warfarin_id))
@@ -362,12 +362,13 @@ async def test_personal_evidence_scoped_to_active_medication_for_adherence_findi
     medication = _create_active_medication(
         patient["id"],
         str(await _drug_id_by_name("Levothyroxine")),
-        start_date=str(date.today() + timedelta(days=1)),
+        start_date=str(date.today() - timedelta(days=2)),
         times_per_day=1,
         duration_days=1,
     )
-    doses = _generate_schedule(medication["id"])
-    _mark_dose(doses[0]["id"], "missed")
+    _generate_schedule(medication["id"])
+    sweep_resp = client.get(f"/api/v1/patients/{patient['id']}/doses/upcoming")
+    assert sweep_resp.status_code == 200
 
     async with AsyncSessionLocal() as session:
         score_result = await calculate_safety_score(uuid.UUID(patient["id"]), session)
