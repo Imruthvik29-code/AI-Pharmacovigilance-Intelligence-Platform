@@ -157,11 +157,10 @@ async def test_interaction_medical_evidence_includes_mechanism_and_recommendatio
     assert finding_evidence.finding in score_result.interaction_findings
 
     statements = {item.statement for item in finding_evidence.medical_evidence}
-    assert len(finding_evidence.medical_evidence) == 2  # mechanism + recommendation
+    assert len(finding_evidence.medical_evidence) == 2
     assert all(item.source == "FDA Label" for item in finding_evidence.medical_evidence)
     assert all(item.kind == "medical" for item in finding_evidence.medical_evidence)
     assert all(item.occurred_at is None for item in finding_evidence.medical_evidence)
-    # Exact wording comes from the seeded rule -- just confirm non-empty and distinct.
     assert len(statements) == 2
 
 
@@ -187,7 +186,7 @@ async def test_adr_medical_evidence_includes_reaction_and_frequency(
     assert len(finding_evidence.medical_evidence) == 1
     item = finding_evidence.medical_evidence[0]
     assert "Bleeding / bruising" in item.statement
-    assert "common" in item.statement  # frequency_class folded into the statement
+    assert "common" in item.statement
     assert item.source == "FDA Label"
 
 
@@ -256,9 +255,8 @@ async def test_personal_evidence_includes_dose_events(
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
     warfarin_id = await _drug_id_by_name("Warfarin")
-    past_start = date.today() - timedelta(days=1)
     medication = _create_active_medication(
-        patient["id"], str(warfarin_id), start_date=str(past_start),
+        patient["id"], str(warfarin_id), start_date=str(date.today() + timedelta(days=1)),
         times_per_day=1, duration_days=1,
     )
     doses = _generate_schedule(medication["id"])
@@ -341,7 +339,7 @@ async def test_personal_evidence_excludes_unrelated_medication_events(
     metformin_id = await _drug_id_by_name("Metformin")
     _create_active_medication(patient["id"], str(warfarin_id))
     _create_active_medication(patient["id"], str(aspirin_id))
-    _create_active_medication(patient["id"], str(metformin_id))  # unrelated to the interaction
+    _create_active_medication(patient["id"], str(metformin_id))
 
     async with AsyncSessionLocal() as session:
         score_result = await calculate_safety_score(uuid.UUID(patient["id"]), session)
@@ -354,17 +352,19 @@ async def test_personal_evidence_excludes_unrelated_medication_events(
 
 @pytest.mark.asyncio
 async def test_personal_evidence_scoped_to_active_medication_for_adherence_finding(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    existing_auth_user_id, created_patient_ids
 ):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
     patient = _create_patient("Adherence Personal Evidence Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
-    past_start = date.today() - timedelta(days=2)
     medication = _create_active_medication(
-        patient["id"], str(existing_drug_id), start_date=str(past_start),
-        times_per_day=1, duration_days=1,
+        patient["id"],
+        str(await _drug_id_by_name("Levothyroxine")),
+        start_date=str(date.today() + timedelta(days=1)),
+        times_per_day=1,
+        duration_days=1,
     )
     doses = _generate_schedule(medication["id"])
     _mark_dose(doses[0]["id"], "missed")
