@@ -4,27 +4,22 @@ Symptom endpoints (spec section 7):
     POST   /patients/{id}/symptoms
     GET    /patients/{id}/symptoms
 
-No PUT or DELETE routes -- the frozen spec (section 7) lists only these
-two routes for symptoms, mirroring how conditions.py (Phase 5) implements
-strictly what the spec declares rather than adding extra CRUD surface.
+Symptoms are intentionally immutable through the API. PUT/DELETE item
+routes therefore exist only as explicit method guards and return 405 rather
+than the less informative 404 that FastAPI otherwise returns for an entirely
+unregistered path.
 
 Ownership: every symptom is scoped through its parent patient's user_id,
-mirroring conditions.py/medications.py -- a symptom or patient not owned
-by the caller (or not existing) returns 404, never 403 (existence is
-never confirmed to a non-owner). The ownership helpers here are kept
-local rather than imported from sibling modules, since those modules'
-helpers are private to their own files (same rationale documented in
-conditions.py and medications.py).
+mirroring conditions.py/medications.py -- a symptom or patient not owned by
+the caller (or not existing) returns 404, never 403.
 
-condition_id / medication_id validation: if provided, each must reference
-a row that exists and belongs to the same patient the symptom is being
-logged for. This is the same data-integrity guard pattern used for
-medications.condition_id in Phase 4 -- a mismatch is a 400, not a 404,
-since the id is well-formed and exists, just not applicable to this
-patient.
+condition_id / medication_id validation: if provided, each must reference a
+row that exists and belongs to the same patient the symptom is being logged
+for. A mismatch is a 400 because the id is well-formed and exists, but is not
+applicable to this patient.
 
-Phase 7 addition: every created symptom logs a `symptom_reported`
-timeline event via app/services/timeline_writer.py, added to the same DB
+Phase 7 addition: every created symptom logs a `symptom_reported` timeline
+event via app/services/timeline_writer.py, added to the same DB
 session/transaction as the symptom insert itself.
 """
 import logging
@@ -157,12 +152,7 @@ async def list_symptoms(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[Symptom]:
-    """List all symptoms for a patient owned by the authenticated user.
-
-    Ordered chronologically by onset_date (then created_at as a tiebreaker
-    for same-day entries), since a symptom log is most useful read in the
-    order things happened.
-    """
+    """List all symptoms for a patient owned by the authenticated user."""
     await _assert_patient_owned(patient_id, current_user, db)
 
     result = await db.execute(
@@ -171,3 +161,23 @@ async def list_symptoms(
         .order_by(Symptom.onset_date, Symptom.created_at)
     )
     return list(result.scalars().all())
+
+
+@router.put("/symptoms/{symptom_id}", status_code=status.HTTP_405_METHOD_NOT_ALLOWED)
+async def update_symptom_not_allowed(symptom_id: uuid.UUID):
+    """Symptoms are immutable; updates are intentionally unsupported."""
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Symptoms cannot be updated.",
+        headers={"Allow": "GET"},
+    )
+
+
+@router.delete("/symptoms/{symptom_id}", status_code=status.HTTP_405_METHOD_NOT_ALLOWED)
+async def delete_symptom_not_allowed(symptom_id: uuid.UUID):
+    """Symptoms are retained as an audit record and cannot be deleted."""
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Symptoms cannot be deleted.",
+        headers={"Allow": "GET"},
+    )
