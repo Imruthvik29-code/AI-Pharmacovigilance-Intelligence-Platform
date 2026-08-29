@@ -31,7 +31,7 @@ Requires:  at least one row in auth.users (see conftest.py) and the
            seeded reference_drugs from 002_seed_data.sql.
 """
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -64,7 +64,7 @@ def _create_patient(name: str = "Schedule Test Patient") -> dict:
 def _create_medication(patient_id: str, drug_id: str, **kwargs) -> dict:
     resp = client.post(
         f"/api/v1/patients/{patient_id}/medications",
-        json={"drug_id": drug_id, "start_date": str(date.today()), **kwargs},
+        json={"drug_id": drug_id, "start_date": str(date.today() + timedelta(days=1)), **kwargs},
     )
     assert resp.status_code == 201
     return resp.json()
@@ -121,10 +121,8 @@ def test_generate_schedule_spacing_defaults_to_even_daily_spread(
 
     doses = sorted(_generate_schedule(medication["id"]), key=lambda d: d["scheduled_time"])
 
-    from datetime import datetime
-
-    t0 = datetime.fromisoformat(doses[0]["scheduled_time"])
-    t1 = datetime.fromisoformat(doses[1]["scheduled_time"])
+    t0 = datetime.fromisoformat(doses[0]["scheduled_time"].replace("Z", "+00:00"))
+    t1 = datetime.fromisoformat(doses[1]["scheduled_time"].replace("Z", "+00:00"))
     assert (t1 - t0).total_seconds() == 12 * 3600  # 24h / 2 doses = 12h apart
 
 
@@ -147,10 +145,8 @@ def test_generate_schedule_respects_explicit_interval_hours(
     doses = sorted(_generate_schedule(medication["id"]), key=lambda d: d["scheduled_time"])
     assert len(doses) == 2
 
-    from datetime import datetime
-
-    t0 = datetime.fromisoformat(doses[0]["scheduled_time"])
-    t1 = datetime.fromisoformat(doses[1]["scheduled_time"])
+    t0 = datetime.fromisoformat(doses[0]["scheduled_time"].replace("Z", "+00:00"))
+    t1 = datetime.fromisoformat(doses[1]["scheduled_time"].replace("Z", "+00:00"))
     assert (t1 - t0).total_seconds() == 8 * 3600
 
 
@@ -286,10 +282,8 @@ def test_generate_schedule_with_interval_hours_only_spacing_matches_interval(
 
     doses = sorted(_generate_schedule(medication["id"]), key=lambda d: d["scheduled_time"])
 
-    from datetime import datetime
-
-    t0 = datetime.fromisoformat(doses[0]["scheduled_time"])
-    t1 = datetime.fromisoformat(doses[1]["scheduled_time"])
+    t0 = datetime.fromisoformat(doses[0]["scheduled_time"].replace("Z", "+00:00"))
+    t1 = datetime.fromisoformat(doses[1]["scheduled_time"].replace("Z", "+00:00"))
     assert (t1 - t0).total_seconds() == 6 * 3600
 
     # floor(2 days * 24h / 6h) = 8 doses.
