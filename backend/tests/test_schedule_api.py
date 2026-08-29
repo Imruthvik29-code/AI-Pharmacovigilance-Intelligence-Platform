@@ -64,7 +64,7 @@ def _create_patient(name: str = "Schedule Test Patient") -> dict:
 def _create_medication(patient_id: str, drug_id: str, **kwargs) -> dict:
     resp = client.post(
         f"/api/v1/patients/{patient_id}/medications",
-        json={"drug_id": drug_id, "start_date": str(date.today()), **kwargs},
+        json={"drug_id": drug_id, "start_date": str(date.today() + timedelta(days=1)), **kwargs},
     )
     assert resp.status_code == 201
     return resp.json()
@@ -123,8 +123,8 @@ def test_generate_schedule_spacing_defaults_to_even_daily_spread(
 
     from datetime import datetime
 
-    t0 = datetime.fromisoformat(doses[0]["scheduled_time"])
-    t1 = datetime.fromisoformat(doses[1]["scheduled_time"])
+    t0 = datetime.fromisoformat(doses[0]["scheduled_time"].replace("Z", "+00:00"))
+    t1 = datetime.fromisoformat(doses[1]["scheduled_time"].replace("Z", "+00:00"))
     assert (t1 - t0).total_seconds() == 12 * 3600  # 24h / 2 doses = 12h apart
 
 
@@ -149,8 +149,8 @@ def test_generate_schedule_respects_explicit_interval_hours(
 
     from datetime import datetime
 
-    t0 = datetime.fromisoformat(doses[0]["scheduled_time"])
-    t1 = datetime.fromisoformat(doses[1]["scheduled_time"])
+    t0 = datetime.fromisoformat(doses[0]["scheduled_time"].replace("Z", "+00:00"))
+    t1 = datetime.fromisoformat(doses[1]["scheduled_time"].replace("Z", "+00:00"))
     assert (t1 - t0).total_seconds() == 8 * 3600
 
 
@@ -288,8 +288,8 @@ def test_generate_schedule_with_interval_hours_only_spacing_matches_interval(
 
     from datetime import datetime
 
-    t0 = datetime.fromisoformat(doses[0]["scheduled_time"])
-    t1 = datetime.fromisoformat(doses[1]["scheduled_time"])
+    t0 = datetime.fromisoformat(doses[0]["scheduled_time"].replace("Z", "+00:00"))
+    t1 = datetime.fromisoformat(doses[1]["scheduled_time"].replace("Z", "+00:00"))
     assert (t1 - t0).total_seconds() == 6 * 3600
 
     # floor(2 days * 24h / 6h) = 8 doses.
