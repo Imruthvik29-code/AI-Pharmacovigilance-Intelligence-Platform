@@ -35,7 +35,7 @@ from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.analysis.adherence_engine import AdherenceFinding
 from app.analysis.safety_score_engine import (
@@ -99,6 +99,34 @@ async def _drug_id_by_name(name: str) -> uuid.UUID:
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(ReferenceDrug.id).where(ReferenceDrug.name == name))
         return result.scalar_one()
+
+
+async def _drug_id_without_adr_rule() -> uuid.UUID:
+    """Return a seeded reference drug without an ADR rule.
+
+    Adherence-only integration tests must not accidentally inherit a
+    drug-specific ADR penalty merely because `LIMIT 1` happens to return
+    Warfarin (or another drug with seeded ADR data).
+    """
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text(
+                """
+                SELECT rd.id
+                FROM reference_drugs AS rd
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM adr_rules AS ar
+                    WHERE ar.drug_id = rd.id
+                )
+                LIMIT 1
+                """
+            )
+        )
+        drug_id = result.scalar_one_or_none()
+    if drug_id is None:
+        pytest.skip("No seeded reference_drugs row without an ADR rule is available")
+    return drug_id
 
 
 # ---------------------------------------------------------------------
@@ -224,13 +252,7 @@ async def test_no_findings_yields_perfect_score(
 async def test_single_severe_interaction_deducts_thirty_points(
     existing_auth_user_id, created_patient_ids
 ):
-    """Warfarin + Aspirin -> severe interaction only (no ADR data seeded
-    would also apply here in reality, so this test uses two drugs
-    deliberately chosen NOT to also carry ADR rules... however Warfarin
-    and Aspirin DO have seeded ADRs. To isolate the interaction penalty
-    only, this test instead asserts on the interaction penalty entry
-    specifically rather than the total score, since ADR findings for
-    these same drugs are expected and covered by the next test."""
+    """Warfarin + Aspirin -> severe interaction only (30 points)."""
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
 
     patient = _create_patient("Single Interaction Patient")
@@ -284,7 +306,7 @@ async def test_combined_interaction_and_adr_findings_compose_correctly(
 
 @pytest.mark.asyncio
 async def test_adherence_penalty_included_when_below_adequate_threshold(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    existing_auth_user_id, created_patient_ids
 ):
     """
     A medication with 0% adherence (all due doses unmarked, never swept)
@@ -296,10 +318,11 @@ async def test_adherence_penalty_included_when_below_adequate_threshold(
     patient = _create_patient("Poor Adherence Only Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
+    adherence_test_drug_id = await _drug_id_without_adr_rule()
     past_start = date.today() - timedelta(days=2)
     medication = _create_active_medication(
         patient["id"],
-        str(existing_drug_id),
+        str(adherence_test_drug_id),
         start_date=str(past_start),
         times_per_day=2,
         duration_days=1,
@@ -320,7 +343,7 @@ async def test_adherence_penalty_included_when_below_adequate_threshold(
 
 @pytest.mark.asyncio
 async def test_adequate_adherence_produces_no_penalty(
-    existing_auth_user_id, existing_drug_id, created_patient_ids
+    existing_auth_user_id, created_patient_ids
 ):
     """
     Full adherence (100% taken) must appear in `adherence_findings` (the
@@ -332,10 +355,11 @@ async def test_adequate_adherence_produces_no_penalty(
     patient = _create_patient("Adequate Adherence Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
+    adherence_test_drug_id = await _drug_id_without_adr_rule()
     past_start = date.today() - timedelta(days=1)
     medication = _create_active_medication(
         patient["id"],
-        str(existing_drug_id),
+        str(adherence_test_drug_id),
         start_date=str(past_start),
         times_per_day=2,
         duration_days=1,
