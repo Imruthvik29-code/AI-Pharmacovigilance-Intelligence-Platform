@@ -256,9 +256,9 @@ async def test_personal_evidence_includes_dose_events(
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
     warfarin_id = await _drug_id_by_name("Warfarin")
-    past_start = date.today() - timedelta(days=1)
+    future_start = date.today() + timedelta(days=1)
     medication = _create_active_medication(
-        patient["id"], str(warfarin_id), start_date=str(past_start),
+        patient["id"], str(warfarin_id), start_date=str(future_start),
         times_per_day=1, duration_days=1,
     )
     doses = _generate_schedule(medication["id"])
@@ -361,9 +361,9 @@ async def test_personal_evidence_scoped_to_active_medication_for_adherence_findi
     patient = _create_patient("Adherence Personal Evidence Patient")
     created_patient_ids.append(uuid.UUID(patient["id"]))
 
-    past_start = date.today() - timedelta(days=2)
+    future_start = date.today() + timedelta(days=1)
     medication = _create_active_medication(
-        patient["id"], str(existing_drug_id), start_date=str(past_start),
+        patient["id"], str(existing_drug_id), start_date=str(future_start),
         times_per_day=1, duration_days=1,
     )
     doses = _generate_schedule(medication["id"])
