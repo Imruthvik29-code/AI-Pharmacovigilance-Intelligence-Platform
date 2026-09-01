@@ -164,7 +164,9 @@ async def test_limit_exceeding_maximum_returns_422(existing_auth_user_id, client
 @pytest.mark.asyncio
 async def test_default_limit_is_twenty(existing_auth_user_id, client, test_sessionmaker):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
-    resp = await client.get("/api/v1/reference-drugs/search?q=a")
+    # The endpoint intentionally requires at least two query characters;
+    # use a valid two-character query when testing the default limit.
+    resp = await client.get("/api/v1/reference-drugs/search?q=wa")
     assert resp.status_code == 200
     assert len(resp.json()) <= 20
 
