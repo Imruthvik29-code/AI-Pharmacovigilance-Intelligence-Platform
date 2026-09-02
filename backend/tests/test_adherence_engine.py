@@ -11,13 +11,9 @@ Same approach as Phase 10/11: no HTTP endpoint exists yet for this engine
 `app.analysis.adherence_engine.analyze_adherence` directly against an
 `AsyncSessionLocal` session. Patient/medication/schedule fixtures are
 created through the existing, already-tested API endpoints via
-`TestClient` (Phase 3/4/8), and explicit dose marking uses Phase 9's
-`POST /doses/{id}/mark` endpoint. Overdue-unmarked-dose scenarios
-deliberately do NOT call `GET /patients/{id}/doses/upcoming` or
-`POST /doses/{id}/mark` first -- the whole point of these tests is to
-confirm `analyze_adherence()` counts overdue unmarked doses as missed on
-its own, independent of whether the Phase 9 lazy sweep has run (see
-adherence_engine.py's module docstring for the rationale).
+`TestClient` (Phase 3/4/8). Overdue-unmarked-dose scenarios deliberately
+avoid the schedule API's lazy sweep when constructing explicit status
+combinations so these tests isolate adherence calculation behavior.
 
 No dedicated cleanup fixture is needed beyond the existing
 `created_patient_ids` (from conftest.py) -- medications/schedules/doses
@@ -33,9 +29,11 @@ from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import update
 
 from app.analysis.adherence_engine import AdherenceFinding, analyze_adherence
 from app.core.security import CurrentUser, get_current_user
+from app.db.models import MedicationDose
 from app.db.session import AsyncSessionLocal
 from app.main import app
 
@@ -76,10 +74,15 @@ def _generate_schedule(medication_id: str) -> list[dict]:
     return resp.json()
 
 
-def _mark_dose(dose_id: str, status: str) -> dict:
-    resp = client.post(f"/api/v1/doses/{dose_id}/mark", json={"status": status})
-    assert resp.status_code == 200
-    return resp.json()
+async def _set_dose_status(dose_id: str, status: str) -> None:
+    """Set an explicit historical dose status without triggering the lazy sweep."""
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(MedicationDose)
+            .where(MedicationDose.id == uuid.UUID(dose_id))
+            .values(status=status)
+        )
+        await session.commit()
 
 
 # ---------------------------------------------------------------------
@@ -138,8 +141,7 @@ async def test_all_due_doses_unmarked_counts_as_fully_missed(
 ):
     """
     Doses scheduled well in the past, never explicitly marked and never
-    swept (no call to GET .../doses/upcoming or POST .../mark first),
-    must still be counted as missed -- confirming analyze_adherence()
+    swept, must still be counted as missed -- confirming analyze_adherence()
     does not depend on the Phase 9 lazy sweep having run.
     """
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
@@ -156,7 +158,7 @@ async def test_all_due_doses_unmarked_counts_as_fully_missed(
         duration_days=1,
     )
     doses = _generate_schedule(medication["id"])
-    assert all(d["status"] is None for d in doses)  # confirm still unswept
+    assert all(d["status"] is None for d in doses)
 
     async with AsyncSessionLocal() as session:
         findings = await analyze_adherence(uuid.UUID(patient["id"]), session)
@@ -192,9 +194,9 @@ async def test_mixed_taken_missed_skipped_counts_correctly(
     doses = sorted(_generate_schedule(medication["id"]), key=lambda d: d["scheduled_time"])
     assert len(doses) == 3
 
-    _mark_dose(doses[0]["id"], "taken")
-    _mark_dose(doses[1]["id"], "missed")
-    _mark_dose(doses[2]["id"], "skipped")
+    await _set_dose_status(doses[0]["id"], "taken")
+    await _set_dose_status(doses[1]["id"], "missed")
+    await _set_dose_status(doses[2]["id"], "skipped")
 
     async with AsyncSessionLocal() as session:
         findings = await analyze_adherence(uuid.UUID(patient["id"]), session)
@@ -227,7 +229,7 @@ async def test_fully_adherent_medication_rate_is_one(
     )
     doses = _generate_schedule(medication["id"])
     for dose in doses:
-        _mark_dose(dose["id"], "taken")
+        await _set_dose_status(dose["id"], "taken")
 
     async with AsyncSessionLocal() as session:
         findings = await analyze_adherence(uuid.UUID(patient["id"]), session)
