@@ -28,8 +28,8 @@ one. `created_medication_ids` + its cleanup fixture follow the exact same
 explicit-tracking pattern as `created_patient_ids`, for the same reason
 (no transactional rollback available under TestClient).
 
-Phase 5 addition: `created_condition_ids` + its cleanup fixture follow
-the same explicit-tracking pattern for conditions. No `existing_*_id`
+Phase 5 addition: `created_condition_ids` + its cleanup fixture follow the
+same explicit-tracking pattern for conditions. No `existing_*_id`
 fixture is needed here since conditions have no external FK dependency
 beyond `patient_id`, which tests already create directly via the
 patients API.
@@ -65,7 +65,7 @@ _E2E_CREATED_IDS: dict[str, set[uuid.UUID]] = {
 
 
 def _is_e2e_module(request: pytest.FixtureRequest) -> bool:
-    return request.node.module.__name__ == "test_e2e_verification"
+    return request.node.path.name == "test_e2e_verification.py"
 
 
 def _defer_e2e_ids(
@@ -137,8 +137,8 @@ async def existing_drug_id():
 def created_patient_ids() -> list[uuid.UUID]:
     """
     Tests append the id of any patient they create to this list. The
-    autouse cleanup fixture below deletes exactly those rows after the
-    test finishes, regardless of pass/fail.
+autouse cleanup fixture below deletes exactly those rows after the
+test finishes, regardless of pass/fail.
     """
     return []
 
