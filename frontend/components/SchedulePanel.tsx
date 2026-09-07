@@ -149,7 +149,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
                       <p className="truncate text-sm font-medium text-ink">{drugLabel.name}</p>
                       <p className="mt-0.5 text-xs text-muted">{medication.dose ?? "Dose not recorded"}</p>
                     </div>
-                    <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className={primaryButtonClass}>
+                    <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className={primaryButtonClass} aria-label={`Create schedule for ${drugLabel.name}`}>
                       {generatingMedicationId === medication.id ? "Creating…" : "Create schedule"}
                     </button>
                   </div>
@@ -168,6 +168,7 @@ function DoseRow({ dose, medication, busy, onMark }: { dose: UpcomingDoseRespons
   const validDate = !Number.isNaN(scheduled.getTime());
   const dateLabel = validDate ? new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" }).format(scheduled) : "Scheduled dose";
   const timeLabel = validDate ? new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(scheduled) : "";
+  const medicationLabel = dose.drug_name || displayDrugName(medication?.drug_id ?? "").name;
 
   return (
     <div className="rounded-2xl border border-line bg-card px-4 py-4 sm:px-5">
@@ -176,15 +177,15 @@ function DoseRow({ dose, medication, busy, onMark }: { dose: UpcomingDoseRespons
           <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent" aria-hidden="true">◷</div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <p className="font-medium text-ink">{dose.drug_name}</p>
+              <p className="font-medium text-ink">{medicationLabel}</p>
               <span className="text-xs text-muted">{dose.dose ?? medication?.dose ?? "Dose not recorded"}</span>
             </div>
             <p className="mt-1 text-sm text-muted">{dateLabel} · {timeLabel}</p>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 lg:min-w-[300px]">
+        <div className="grid grid-cols-3 gap-2 lg:min-w-[300px]" aria-label={`Update ${medicationLabel} dose status`}>
           {statusActions.map((action) => (
-            <button key={action.status} type="button" onClick={() => onMark(dose, action.status)} disabled={busy} className={action.status === "taken" ? primaryButtonClass : secondaryButtonClass}>
+            <button key={action.status} type="button" onClick={() => onMark(dose, action.status)} disabled={busy} className={action.status === "taken" ? primaryButtonClass : secondaryButtonClass} aria-label={`${action.label} ${medicationLabel} dose`}>
               {busy ? "…" : action.label}
             </button>
           ))}
