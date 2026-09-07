@@ -37,10 +37,6 @@ from app.core.security import CurrentUser, get_current_user
 from app.db.models import ReferenceDrug
 from app.main import app
 
-# Test-specific DB engine/sessionmaker to avoid cross-test event-loop issues.
-# Each test gets its own pytest-managed event loop with asyncio_mode=auto.
-# The global engine from app.db.session is shared and can have connections
-# bound to closed event loops. This module creates a fresh engine for each test.
 _test_engine = None
 
 
@@ -65,8 +61,8 @@ def test_sessionmaker(_test_db_engine):
     )
 
 
-@pytest.fixture
 def _override_current_user(user_id):
+    """Return a dependency override for an authenticated test user."""
     async def _fake_current_user() -> CurrentUser:
         return CurrentUser(id=user_id, email="test@example.com")
 
@@ -168,7 +164,9 @@ async def test_limit_exceeding_maximum_returns_422(existing_auth_user_id, client
 @pytest.mark.asyncio
 async def test_default_limit_is_twenty(existing_auth_user_id, client, test_sessionmaker):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
-    resp = await client.get("/api/v1/reference-drugs/search?q=a")
+    # The endpoint intentionally requires at least two query characters;
+    # use a valid two-character query when testing the default limit.
+    resp = await client.get("/api/v1/reference-drugs/search?q=wa")
     assert resp.status_code == 200
     assert len(resp.json()) <= 20
 
@@ -237,7 +235,7 @@ async def test_ordering_exact_then_prefix_then_alphabetical_substring(
     tag = str(uuid.uuid4())[:8]
     query = f"zzq{tag}"
 
-    exact_name = query  # exact match (queried in different case to prove case-insensitivity)
+    exact_name = query
     prefix_b = f"{query}Bbb"
     prefix_a = f"{query}Aaa"
     substring_only = f"before-{query}-after"
@@ -269,8 +267,6 @@ async def test_response_includes_expected_fields_only(existing_auth_user_id, cre
     assert len(body) == 1
     entry = body[0]
 
-    # term_type is an additive nullable field: present in the response
-    # contract, NULL for rows without a known TTY.
     assert set(entry.keys()) == {"id", "name", "rxcui", "source", "term_type"}
     assert entry["name"] == unique_name
     assert entry["rxcui"] == "12345"
@@ -307,22 +303,18 @@ async def test_term_type_filter_limits_results(existing_auth_user_id, created_dr
         await _insert_drug(scd_name, rxcui=f"ttf-scd-{tag}", source="RxNorm", term_type="SCD", sessionmaker=test_sessionmaker)
     )
 
-    # No filter -> both TTYs visible (original behavior preserved)
     resp = await client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}")
     assert resp.status_code == 200
     assert len(resp.json()) == 2
 
-    # IN only -> just the ingredient
     resp = await client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}&term_type=IN")
     assert resp.status_code == 200
     assert [d["name"] for d in resp.json()] == [in_name]
 
-    # Multi-TTY filter, case-insensitive
     resp = await client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}&term_type=in,scd")
     assert resp.status_code == 200
     assert len(resp.json()) == 2
 
-    # Filter with no matching TTY -> empty
     resp = await client.get(f"/api/v1/reference-drugs/search?q=zzttfilter{tag}&term_type=DF")
     assert resp.status_code == 200
     assert resp.json() == []
@@ -337,7 +329,6 @@ async def test_term_type_filter_invalid_returns_422(existing_auth_user_id, clien
 
 
 def test_parse_term_type_filter_unit():
-    # No DB needed — pure validation helper
     from app.api.v1.reference_drugs import _parse_term_type_filter
     from fastapi import HTTPException
 

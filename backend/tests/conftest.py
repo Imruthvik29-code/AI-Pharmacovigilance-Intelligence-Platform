@@ -28,24 +28,83 @@ one. `created_medication_ids` + its cleanup fixture follow the exact same
 explicit-tracking pattern as `created_patient_ids`, for the same reason
 (no transactional rollback available under TestClient).
 
-Phase 5 addition: `created_condition_ids` + its cleanup fixture follow
-the same explicit-tracking pattern for conditions. No `existing_*_id`
+Phase 5 addition: `created_condition_ids` + its cleanup fixture follow the
+same explicit-tracking pattern for conditions. No `existing_*_id`
 fixture is needed here since conditions have no external FK dependency
 beyond `patient_id`, which tests already create directly via the
 patients API.
 
 Phase 6 addition: `created_symptom_ids` + its cleanup fixture follow the
-same explicit-tracking pattern for symptoms. No `existing_*_id` fixture
-is needed here either -- symptoms' optional condition_id/medication_id
+same explicit-tracking pattern for symptoms. No `existing_*_id`
+fixture is needed here either -- symptoms' optional condition_id/medication_id
 references are created directly via the conditions/medications APIs
 within each test that needs them.
+
+E2E lifecycle note: `test_e2e_verification.py` intentionally carries
+patient/medication/condition/symptom ids across multiple ordered tests.
+Those tests therefore cannot use the normal per-test cleanup lifecycle.
+For that module only, created ids are deferred to a session teardown and
+cleaned in dependency order after the E2E sequence completes. All other
+tests retain the existing per-test cleanup behavior.
 """
+import asyncio
 import uuid
 
 import pytest
 from sqlalchemy import bindparam, text
 
 from app.db.session import AsyncSessionLocal
+
+
+_E2E_CREATED_IDS: dict[str, set[uuid.UUID]] = {
+    "patients": set(),
+    "medications": set(),
+    "conditions": set(),
+    "symptoms": set(),
+}
+
+
+def _is_e2e_module(request: pytest.FixtureRequest) -> bool:
+    return request.node.path.name == "test_e2e_verification.py"
+
+
+def _defer_e2e_ids(
+    request: pytest.FixtureRequest,
+    kind: str,
+    ids: list[uuid.UUID],
+) -> bool:
+    """Defer cleanup only for the stateful E2E module."""
+    if not _is_e2e_module(request):
+        return False
+    _E2E_CREATED_IDS[kind].update(ids)
+    return True
+
+
+async def _cleanup_e2e_rows() -> None:
+    """Clean E2E rows after the whole ordered verification sequence finishes."""
+    cleanup_order = (
+        ("symptoms", "symptoms"),
+        ("conditions", "conditions"),
+        ("medications", "medications"),
+        ("patients", "patients"),
+    )
+    async with AsyncSessionLocal() as session:
+        for kind, table in cleanup_order:
+            ids = _E2E_CREATED_IDS[kind]
+            if not ids:
+                continue
+            stmt = text(f"DELETE FROM {table} WHERE id IN :ids").bindparams(
+                bindparam("ids", expanding=True)
+            )
+            await session.execute(stmt, {"ids": list(ids)})
+        await session.commit()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _cleanup_e2e_created_rows():
+    yield
+    if any(_E2E_CREATED_IDS.values()):
+        asyncio.run(_cleanup_e2e_rows())
 
 
 @pytest.fixture
@@ -78,8 +137,8 @@ async def existing_drug_id():
 def created_patient_ids() -> list[uuid.UUID]:
     """
     Tests append the id of any patient they create to this list. The
-    autouse cleanup fixture below deletes exactly those rows after the
-    test finishes, regardless of pass/fail.
+autouse cleanup fixture below deletes exactly those rows after the
+test finishes, regardless of pass/fail.
     """
     return []
 
@@ -103,9 +162,14 @@ def created_symptom_ids() -> list[uuid.UUID]:
 
 
 @pytest.fixture(autouse=True)
-async def _cleanup_created_patients(created_patient_ids: list[uuid.UUID]):
+async def _cleanup_created_patients(
+    request: pytest.FixtureRequest,
+    created_patient_ids: list[uuid.UUID],
+):
     yield
     if not created_patient_ids:
+        return
+    if _defer_e2e_ids(request, "patients", created_patient_ids):
         return
     stmt = text("DELETE FROM patients WHERE id IN :ids").bindparams(
         bindparam("ids", expanding=True)
@@ -116,9 +180,14 @@ async def _cleanup_created_patients(created_patient_ids: list[uuid.UUID]):
 
 
 @pytest.fixture(autouse=True)
-async def _cleanup_created_medications(created_medication_ids: list[uuid.UUID]):
+async def _cleanup_created_medications(
+    request: pytest.FixtureRequest,
+    created_medication_ids: list[uuid.UUID],
+):
     yield
     if not created_medication_ids:
+        return
+    if _defer_e2e_ids(request, "medications", created_medication_ids):
         return
     stmt = text("DELETE FROM medications WHERE id IN :ids").bindparams(
         bindparam("ids", expanding=True)
@@ -129,9 +198,14 @@ async def _cleanup_created_medications(created_medication_ids: list[uuid.UUID]):
 
 
 @pytest.fixture(autouse=True)
-async def _cleanup_created_conditions(created_condition_ids: list[uuid.UUID]):
+async def _cleanup_created_conditions(
+    request: pytest.FixtureRequest,
+    created_condition_ids: list[uuid.UUID],
+):
     yield
     if not created_condition_ids:
+        return
+    if _defer_e2e_ids(request, "conditions", created_condition_ids):
         return
     stmt = text("DELETE FROM conditions WHERE id IN :ids").bindparams(
         bindparam("ids", expanding=True)
@@ -142,9 +216,14 @@ async def _cleanup_created_conditions(created_condition_ids: list[uuid.UUID]):
 
 
 @pytest.fixture(autouse=True)
-async def _cleanup_created_symptoms(created_symptom_ids: list[uuid.UUID]):
+async def _cleanup_created_symptoms(
+    request: pytest.FixtureRequest,
+    created_symptom_ids: list[uuid.UUID],
+):
     yield
     if not created_symptom_ids:
+        return
+    if _defer_e2e_ids(request, "symptoms", created_symptom_ids):
         return
     stmt = text("DELETE FROM symptoms WHERE id IN :ids").bindparams(
         bindparam("ids", expanding=True)
