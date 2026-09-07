@@ -1,0 +1,10 @@
+{
+  "name": "PV Intelligence",
+  "short_name": "PV Intelligence",
+  "description": "Medication safety and pharmacovigilance workspace.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f6f8f7",
+  "theme_color": "#123c3a",
+  "icons": []
+}
