@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/lib/api/errors";
 import { generateMedicationSchedule, listUpcomingDoses, markDose } from "@/lib/api/schedule";
 import type { DoseStatus, MedicationResponse, UpcomingDoseResponse } from "@/lib/api/types";
+import { displayDrugName } from "@/lib/drugs/nameCache";
 import { cardClass, primaryButtonClass, secondaryButtonClass } from "@/lib/ui/classes";
 import { StatusBanner } from "@/components/StatusBanner";
 
@@ -140,17 +141,20 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
               </div>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {schedulableMedications.map((medication) => (
-                <div key={medication.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper/25 px-3.5 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-ink">{medication.id.slice(0, 8)}…</p>
-                    <p className="mt-0.5 text-xs text-muted">{medication.dose ?? "Dose not recorded"}</p>
+              {schedulableMedications.map((medication) => {
+                const drugLabel = displayDrugName(medication.drug_id);
+                return (
+                  <div key={medication.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper/25 px-3.5 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-ink">{drugLabel.name}</p>
+                      <p className="mt-0.5 text-xs text-muted">{medication.dose ?? "Dose not recorded"}</p>
+                    </div>
+                    <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className={primaryButtonClass}>
+                      {generatingMedicationId === medication.id ? "Creating…" : "Create schedule"}
+                    </button>
                   </div>
-                  <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className={primaryButtonClass}>
-                    {generatingMedicationId === medication.id ? "Creating…" : "Create schedule"}
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ) : null}
