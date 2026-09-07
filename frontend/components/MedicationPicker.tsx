@@ -24,6 +24,7 @@ export function MedicationPicker({
   const listId = useId();
   const inputId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const searchRequestRef = useRef(0);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ReferenceDrugSearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -39,6 +40,8 @@ export function MedicationPicker({
 
   useEffect(() => {
     const q = query.trim();
+    const requestId = ++searchRequestRef.current;
+
     if (q.length < REFERENCE_DRUG_MIN_QUERY_LENGTH) {
       setResults([]);
       setSearching(false);
@@ -48,6 +51,7 @@ export function MedicationPicker({
       return;
     }
     if (selected && q === selected.name) {
+      setSearching(false);
       return;
     }
 
@@ -56,15 +60,19 @@ export function MedicationPicker({
       setSearchError(null);
       try {
         const found = await searchReferenceDrugs(q);
+        if (requestId !== searchRequestRef.current) return;
         setResults(found);
         setOpen(true);
         setActiveIndex(found.length > 0 ? 0 : -1);
       } catch (error) {
+        if (requestId !== searchRequestRef.current) return;
         setResults([]);
         setOpen(false);
         setSearchError(error instanceof ApiError ? error.detail : "Catalog search failed.");
       } finally {
-        setSearching(false);
+        if (requestId === searchRequestRef.current) {
+          setSearching(false);
+        }
       }
     }, 300);
 
