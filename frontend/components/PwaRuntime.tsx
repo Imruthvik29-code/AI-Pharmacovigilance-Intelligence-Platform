@@ -27,6 +27,7 @@ export function PwaRuntime() {
       const promptEvent = event as BeforeInstallPromptEvent;
       window.__pvInstallPrompt = promptEvent;
       setInstallPrompt(promptEvent);
+      setDismissed(false);
     };
 
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
@@ -36,14 +37,20 @@ export function PwaRuntime() {
   if (!installPrompt || dismissed) return null;
 
   async function install() {
-    await installPrompt.prompt();
-    await installPrompt.userChoice;
+    const promptEvent = installPrompt;
+    if (!promptEvent) return;
+
+    await promptEvent.prompt();
+    await promptEvent.userChoice;
     setInstallPrompt(null);
     window.__pvInstallPrompt = undefined;
   }
 
   return (
-    <aside className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-xl items-center gap-4 rounded-2xl border border-line bg-card p-4 shadow-[0_18px_50px_rgba(20,32,41,0.14)] sm:inset-x-auto sm:right-6 sm:left-auto">
+    <aside
+      aria-label="Install PV Intelligence"
+      className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-xl items-center gap-4 rounded-2xl border border-line bg-card p-4 shadow-[0_18px_50px_rgba(20,32,41,0.14)] sm:inset-x-auto sm:right-6 sm:left-auto"
+    >
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-ink">Keep PV Intelligence close</p>
         <p className="mt-0.5 text-xs leading-5 text-muted">Install the workspace for quicker access.</p>
@@ -57,7 +64,10 @@ export function PwaRuntime() {
       </button>
       <button
         type="button"
-        onClick={() => setDismissed(true)}
+        onClick={() => {
+          setDismissed(true);
+          window.__pvInstallPrompt = undefined;
+        }}
         className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-paper hover:text-ink"
         aria-label="Dismiss install prompt"
       >
