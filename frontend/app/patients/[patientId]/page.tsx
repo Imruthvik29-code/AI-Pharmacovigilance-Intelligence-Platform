@@ -9,6 +9,7 @@ import { AuthGate } from "@/components/AuthGate";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { MedicationList } from "@/components/MedicationList";
 import { MedicationPicker } from "@/components/MedicationPicker";
+import { SchedulePanel } from "@/components/SchedulePanel";
 import { StatusBanner } from "@/components/StatusBanner";
 import { TimelineList } from "@/components/TimelineList";
 import { listAnalysisRuns, runAnalysis } from "@/lib/api/analysis";
@@ -173,6 +174,10 @@ export default function PatientPage() {
 
             <div className="mt-8">
               <AnalysisHero run={analysis} historyError={analysisHistoryError} historyLoaded={analysisHistoryLoaded} running={running} />
+            </div>
+
+            <div className="mt-8">
+              <SchedulePanel patientId={patientId} medications={medications} onTimelineRefresh={() => void refreshSecondary()} />
             </div>
 
             <div className="mt-8 grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
