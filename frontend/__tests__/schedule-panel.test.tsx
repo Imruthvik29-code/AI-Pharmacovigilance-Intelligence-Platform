@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SchedulePanel } from "@/components/SchedulePanel";
 
-const { generateMedicationSchedule, listUpcomingDoses, markDose } = vi.hoisted(() => ({
+const { displayDrugName, generateMedicationSchedule, listUpcomingDoses, markDose } = vi.hoisted(() => ({
+  displayDrugName: vi.fn(),
   generateMedicationSchedule: vi.fn(),
   listUpcomingDoses: vi.fn(),
   markDose: vi.fn(),
@@ -13,6 +14,10 @@ vi.mock("@/lib/api/schedule", () => ({
   generateMedicationSchedule,
   listUpcomingDoses,
   markDose,
+}));
+
+vi.mock("@/lib/drugs/nameCache", () => ({
+  displayDrugName,
 }));
 
 const medication = {
@@ -43,6 +48,7 @@ const dose = {
 describe("SchedulePanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    displayDrugName.mockReturnValue({ name: "Examplecin", cached: true, termType: "IN" });
     listUpcomingDoses.mockResolvedValue([dose]);
     generateMedicationSchedule.mockResolvedValue([]);
     markDose.mockResolvedValue({ ...dose, status: "taken", actual_time: "2026-09-08T10:30:00Z" });
@@ -63,17 +69,32 @@ describe("SchedulePanel", () => {
     expect(listUpcomingDoses).toHaveBeenCalledTimes(2);
   });
 
-  it("creates a schedule for an eligible active medication", async () => {
+  it("creates a schedule for an eligible active medication without exposing its id", async () => {
     const user = userEvent.setup();
     listUpcomingDoses.mockResolvedValue([]);
+    displayDrugName.mockReturnValue({ name: "Examplecin", cached: true, termType: "IN" });
     render(<SchedulePanel patientId="patient-1" medications={[medication]} />);
 
     expect(await screen.findByText("No upcoming doses")).toBeInTheDocument();
+    expect(screen.getByText("Examplecin")).toBeInTheDocument();
+    expect(screen.queryByText(/medication-1/)).not.toBeInTheDocument();
+    expect(displayDrugName).toHaveBeenCalledWith("drug-1");
+
     await user.click(screen.getByRole("button", { name: "Create schedule" }));
 
     await waitFor(() => {
       expect(generateMedicationSchedule).toHaveBeenCalledWith("medication-1");
     });
     expect(await screen.findByText(/Schedule generated/)).toBeInTheDocument();
+  });
+
+  it("uses the honest uncached label when the drug name is unavailable", async () => {
+    listUpcomingDoses.mockResolvedValue([]);
+    displayDrugName.mockReturnValue({ name: "Name not cached in this browser", cached: false, termType: null });
+    render(<SchedulePanel patientId="patient-1" medications={[medication]} />);
+
+    expect(await screen.findByText("Name not cached in this browser")).toBeInTheDocument();
+    expect(screen.queryByText(/drug-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/medication-1/)).not.toBeInTheDocument();
   });
 });
