@@ -61,7 +61,7 @@ describe("SchedulePanel", () => {
     expect(await screen.findByText("Examplecin")).toBeInTheDocument();
     expect(listUpcomingDoses).toHaveBeenCalledWith("patient-1");
 
-    await user.click(screen.getByRole("button", { name: "Taken" }));
+    await user.click(screen.getByRole("button", { name: "Taken Examplecin dose" }));
 
     await waitFor(() => {
       expect(markDose).toHaveBeenCalledWith("dose-1", { status: "taken" });
@@ -80,7 +80,7 @@ describe("SchedulePanel", () => {
     expect(screen.queryByText(/medication-1/)).not.toBeInTheDocument();
     expect(displayDrugName).toHaveBeenCalledWith("drug-1");
 
-    await user.click(screen.getByRole("button", { name: "Create schedule" }));
+    await user.click(screen.getByRole("button", { name: "Create schedule for Examplecin" }));
 
     await waitFor(() => {
       expect(generateMedicationSchedule).toHaveBeenCalledWith("medication-1");
