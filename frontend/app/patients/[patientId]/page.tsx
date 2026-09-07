@@ -40,21 +40,26 @@ export default function PatientPage() {
 
   usePageTitle(patient?.name ?? "Patient");
 
-  const refreshSecondary = useCallback(async () => {
+  const refreshSecondary = useCallback(async (isCurrent: () => boolean = () => true) => {
     try {
-      setTimeline(await listTimeline(patientId));
+      const nextTimeline = await listTimeline(patientId);
+      if (!isCurrent()) return;
+      setTimeline(nextTimeline);
       setTimelineError(null);
     } catch (err) {
+      if (!isCurrent()) return;
       setTimelineError(err instanceof ApiError ? err.detail : "Could not load timeline.");
     }
     try {
       const runs = await listAnalysisRuns(patientId);
+      if (!isCurrent()) return;
       setAnalysis(runs[0] ?? null);
       setAnalysisHistoryError(null);
     } catch (err) {
+      if (!isCurrent()) return;
       setAnalysisHistoryError(err instanceof ApiError ? err.detail : "Could not load analysis history.");
     } finally {
-      setAnalysisHistoryLoaded(true);
+      if (isCurrent()) setAnalysisHistoryLoaded(true);
     }
   }, [patientId]);
 
@@ -76,7 +81,7 @@ export default function PatientPage() {
         } catch (err) {
           if (!cancelled) setMedError(err instanceof ApiError ? err.detail : "Could not load medications.");
         }
-        await refreshSecondary();
+        await refreshSecondary(() => !cancelled);
       } catch (err) {
         if (!cancelled) {
           if (err instanceof ApiError && err.status === 401) {
