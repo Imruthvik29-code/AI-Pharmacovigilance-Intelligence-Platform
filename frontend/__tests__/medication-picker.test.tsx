@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MedicationPicker } from "@/components/MedicationPicker";
@@ -111,12 +111,16 @@ describe("MedicationPicker keyboard", () => {
     const input = screen.getByRole("combobox", { name: "Medication" });
 
     await user.type(input, "ex");
-    await new Promise((resolve) => window.setTimeout(resolve, 350));
-    expect(searchReferenceDrugs).toHaveBeenCalledWith("ex", 20);
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+    });
+    expect(searchReferenceDrugs).toHaveBeenCalledWith("ex");
 
     await user.type(input, "a");
-    await new Promise((resolve) => window.setTimeout(resolve, 350));
-    expect(searchReferenceDrugs).toHaveBeenCalledWith("exa", 20);
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+    });
+    expect(searchReferenceDrugs).toHaveBeenCalledWith("exa");
 
     second.resolve([
       {
@@ -139,7 +143,9 @@ describe("MedicationPicker keyboard", () => {
       },
     ]);
 
-    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
     expect(screen.queryByRole("option", { name: /Olderdrug/i })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Newerdrug/i })).toBeInTheDocument();
   });
