@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MedicationPicker } from "@/components/MedicationPicker";
+import { searchReferenceDrugs } from "@/lib/api/referenceDrugs";
 
 vi.mock("@/lib/api/referenceDrugs", () => ({
   searchReferenceDrugs: vi.fn(async () => [
@@ -26,9 +27,41 @@ vi.mock("@/lib/api/medications", () => ({
   createMedication: vi.fn(),
 }));
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+type CatalogDrug = {
+  id: string;
+  name: string;
+  rxcui: string | null;
+  source: string | null;
+  term_type: string | null;
+};
+
 describe("MedicationPicker keyboard", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    vi.mocked(searchReferenceDrugs).mockImplementation(async () => [
+      {
+        id: "drug-1",
+        name: "Examplecin",
+        rxcui: null,
+        source: "FDA Label",
+        term_type: null,
+      },
+      {
+        id: "drug-2",
+        name: "Exampleolol",
+        rxcui: null,
+        source: "FDA Label",
+        term_type: "IN",
+      },
+    ]);
   });
 
   it("moves the highlighted option and selects with Enter", async () => {
@@ -64,5 +97,50 @@ describe("MedicationPicker keyboard", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.queryByText(/Selected/)).not.toBeInTheDocument();
+  });
+
+  it("ignores an older catalog response after the query changes", async () => {
+    const first = deferred<CatalogDrug[]>();
+    const second = deferred<CatalogDrug[]>();
+    vi.mocked(searchReferenceDrugs).mockImplementation((query) =>
+      query === "ex" ? first.promise : second.promise,
+    );
+
+    const user = userEvent.setup();
+    render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
+    const input = screen.getByRole("combobox", { name: "Medication" });
+
+    await user.type(input, "ex");
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
+    expect(searchReferenceDrugs).toHaveBeenCalledWith("ex", 20);
+
+    await user.type(input, "a");
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
+    expect(searchReferenceDrugs).toHaveBeenCalledWith("exa", 20);
+
+    second.resolve([
+      {
+        id: "new-drug",
+        name: "Newerdrug",
+        rxcui: null,
+        source: "FDA Label",
+        term_type: null,
+      },
+    ]);
+    expect(await screen.findByRole("option", { name: /Newerdrug/i })).toBeInTheDocument();
+
+    first.resolve([
+      {
+        id: "old-drug",
+        name: "Olderdrug",
+        rxcui: null,
+        source: "FDA Label",
+        term_type: null,
+      },
+    ]);
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(screen.queryByRole("option", { name: /Olderdrug/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Newerdrug/i })).toBeInTheDocument();
   });
 });
