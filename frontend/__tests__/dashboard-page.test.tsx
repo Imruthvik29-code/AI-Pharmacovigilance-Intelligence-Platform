@@ -47,6 +47,7 @@ vi.mock("@/lib/hooks/usePageTitle", () => ({
 
 const samplePatient: PatientResponse = {
   id: "patient-1",
+  user_id: "user-1",
   name: "Asha Rao",
   age: 42,
   sex: "female",
@@ -54,6 +55,7 @@ const samplePatient: PatientResponse = {
   renal_flag: false,
   hepatic_flag: false,
   created_at: "2026-09-08T08:00:00Z",
+  updated_at: "2026-09-08T08:00:00Z",
 };
 
 beforeEach(() => {
