@@ -8,6 +8,7 @@ import { listMedications } from "@/lib/api/medications";
 import { listSymptoms } from "@/lib/api/symptoms";
 import { listTimeline } from "@/lib/api/timeline";
 import { listAnalysisRuns, runAnalysis } from "@/lib/api/analysis";
+import type { AnalysisRunResponse, MedicationResponse } from "@/lib/api/types";
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ patientId: "patient-123" }),
@@ -99,32 +100,44 @@ const medication = {
   drug_generic_name: "aspirin",
   drug_term_type: "IN",
   drug_source: "RxNorm",
+  condition_id: null,
+  purpose_text: null,
+  dose: "100 mg",
   dosage: "100 mg",
   frequency: "once daily",
   times_per_day: 1,
   interval_hours: null,
+  duration_days: 30,
   start_date: "2026-09-01",
   end_date: null,
   status: "active",
-  condition_id: null,
   created_at: "2026-09-01T10:00:00Z",
   updated_at: "2026-09-01T10:00:00Z",
-};
+} satisfies MedicationResponse;
 
 const analysis = {
   id: "analysis-123",
   patient_id: "patient-123",
+  analysis_version: "1.0",
+  deterministic_result: {
+    safety_score: 82,
+    risk_level: "moderate",
+    starting_score: 100,
+    total_points_deducted: 18,
+    interaction_findings: [],
+    adr_findings: [],
+    adherence_findings: [],
+    penalties: [],
+  },
   safety_score: 82,
   risk_level: "moderate",
-  deterministic_findings: [],
-  evidence: [],
-  timeline_context: [],
   llm_summary: null,
   llm_reasoning: null,
-  llm_recommendations: [],
-  llm_provider: null,
+  llm_recommendations: null,
+  confidence_score: null,
+  confidence_level: null,
   created_at: "2026-09-08T10:00:00Z",
-};
+} satisfies AnalysisRunResponse;
 
 describe("PatientPage", () => {
   beforeEach(() => {
