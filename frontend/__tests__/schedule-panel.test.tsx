@@ -35,6 +35,10 @@ const medication = {
   end_date: null,
   created_at: "2026-09-07T08:00:00Z",
   updated_at: "2026-09-07T08:00:00Z",
+  drug_name: null,
+  drug_generic_name: null,
+  drug_term_type: null,
+  drug_source: null,
 };
 
 const dose = {
