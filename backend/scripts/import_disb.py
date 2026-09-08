@@ -27,9 +27,12 @@ import argparse
 import asyncio
 import csv
 import logging
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,8 +42,6 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 # Allow ``python scripts/import_disb.py`` from backend/ as well as
 # ``python -m scripts.import_disb``.
-import sys
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.db.models import ReferenceDrug  # noqa: E402
@@ -70,7 +71,7 @@ EXPECTED_HEADER = (
 
 @dataclass(frozen=True)
 class DisbMedicine:
-    id: str
+    id: uuid.UUID
     name: str
     generic_name: str | None
     source_updated_at: datetime | None
@@ -100,8 +101,12 @@ def _parse_row(row: dict[str, str]) -> DisbMedicine | None:
     name = _normalise(row.get("medicineName"))
     if not source_id or not name:
         return None
+    try:
+        parsed_id = uuid.UUID(source_id)
+    except ValueError as exc:
+        raise ValueError(f"Invalid DISB medicine id: {source_id!r}") from exc
     return DisbMedicine(
-        id=source_id,
+        id=parsed_id,
         name=name,
         generic_name=_normalise(row.get("genericName")),
         source_updated_at=_parse_timestamp(row.get("lastUpdatedon")),
@@ -163,7 +168,7 @@ def _export_tsv(disb_dir: Path, output: Path) -> int:
         command = [
             java,
             "-cp",
-            f"{lucene_jar}{__import__('os').pathsep}{work_dir}",
+            f"{lucene_jar}{os.pathsep}{work_dir}",
             "LuceneMedicineExporter",
             str(medicine_index),
             str(output),
@@ -180,9 +185,9 @@ def _export_tsv(disb_dir: Path, output: Path) -> int:
         return max(sum(1 for _ in csv.reader(handle, delimiter="\t")) - 1, 0)
 
 
-async def _import_batch(rows: list[DisbMedicine], dry_run: bool) -> tuple[int, int, int]:
+async def _import_batch(rows: list[DisbMedicine], dry_run: bool) -> tuple[int, int, int, int]:
     if dry_run:
-        return len(rows), 0, 0
+        return len(rows), 0, 0, 0
 
     now = datetime.now(timezone.utc)
     values = [
@@ -200,12 +205,13 @@ async def _import_batch(rows: list[DisbMedicine], dry_run: bool) -> tuple[int, i
     ]
 
     async with AsyncSessionLocal() as db:
+        ids = [medicine.id for medicine in rows]
         existing = {
             row.id: row.source
             for row in (
                 await db.execute(
                     select(ReferenceDrug.id, ReferenceDrug.source).where(
-                        ReferenceDrug.id.in_([medicine.id for medicine in rows])
+                        ReferenceDrug.id.in_(ids)
                     )
                 )
             ).all()
@@ -214,13 +220,12 @@ async def _import_batch(rows: list[DisbMedicine], dry_run: bool) -> tuple[int, i
         safe_values = []
         skipped_conflicts = 0
         for value in values:
-            previous_source = existing.get(value["id"])
-            if previous_source is not None and previous_source != SOURCE_NAME:
+            if value["id"] in existing and existing[value["id"]] != SOURCE_NAME:
                 skipped_conflicts += 1
                 logger.warning(
                     "Skipping DISB source-id collision for %s: existing source=%s",
                     value["id"],
-                    previous_source,
+                    existing[value["id"]],
                 )
                 continue
             safe_values.append(value)
@@ -243,7 +248,7 @@ async def _import_batch(rows: list[DisbMedicine], dry_run: bool) -> tuple[int, i
 
     inserted = sum(1 for medicine in rows if medicine.id not in existing)
     updated = len(rows) - inserted - skipped_conflicts
-    return len(rows), inserted, updated
+    return len(rows), inserted, updated, skipped_conflicts
 
 
 async def run(args: argparse.Namespace) -> None:
@@ -259,8 +264,9 @@ async def run(args: argparse.Namespace) -> None:
         logger.info("DISB catalog rows discovered: %d", discovered)
         logger.info("Rows selected for import: %d", planned)
 
-        processed = inserted = updated = 0
+        processed = inserted = updated = skipped_conflicts = 0
         batch: list[DisbMedicine] = []
+        seen_ids: set[uuid.UUID] = set()
         with export_path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle, delimiter="\t")
             for row in reader:
@@ -270,27 +276,34 @@ async def run(args: argparse.Namespace) -> None:
                 if medicine is None:
                     logger.warning("Skipping DISB row without id/name")
                     continue
+                if medicine.id in seen_ids:
+                    logger.warning("Skipping duplicate DISB medicine id %s", medicine.id)
+                    continue
+                seen_ids.add(medicine.id)
                 batch.append(medicine)
                 if len(batch) >= args.batch_size:
-                    _, batch_inserted, batch_updated = await _import_batch(batch, args.dry_run)
+                    _, batch_inserted, batch_updated, batch_skipped = await _import_batch(batch, args.dry_run)
                     processed += len(batch)
                     inserted += batch_inserted
                     updated += batch_updated
+                    skipped_conflicts += batch_skipped
                     batch.clear()
                     logger.info("Processed %d/%d", processed, planned)
 
             if batch:
-                _, batch_inserted, batch_updated = await _import_batch(batch, args.dry_run)
+                _, batch_inserted, batch_updated, batch_skipped = await _import_batch(batch, args.dry_run)
                 processed += len(batch)
                 inserted += batch_inserted
                 updated += batch_updated
+                skipped_conflicts += batch_skipped
 
         logger.info(
-            "DISB import complete: discovered=%d processed=%d inserted=%d updated=%d dry_run=%s",
+            "DISB import complete: discovered=%d processed=%d inserted=%d updated=%d skipped_conflicts=%d dry_run=%s",
             discovered,
             processed,
             inserted,
             updated,
+            skipped_conflicts,
             args.dry_run,
         )
 
