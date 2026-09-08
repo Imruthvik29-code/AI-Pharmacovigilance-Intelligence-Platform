@@ -103,8 +103,6 @@ const medication = {
   condition_id: null,
   purpose_text: null,
   dose: "100 mg",
-  dosage: "100 mg",
-  frequency: "once daily",
   times_per_day: 1,
   interval_hours: null,
   duration_days: 30,
