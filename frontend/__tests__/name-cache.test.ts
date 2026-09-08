@@ -15,6 +15,7 @@ describe("drug name cache", () => {
     rememberDrug({
       id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
       name: "Examplecin",
+      generic_name: null,
       rxcui: "123",
       source: "RxNorm",
       term_type: "IN",
