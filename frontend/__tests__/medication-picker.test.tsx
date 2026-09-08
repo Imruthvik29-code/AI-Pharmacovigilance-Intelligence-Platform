@@ -87,7 +87,8 @@ describe("MedicationPicker keyboard", () => {
     );
 
     await user.keyboard("{Enter}");
-    expect(screen.getByText(/Selected/)).toHaveTextContent("Exampleolol");
+    expect(screen.getByText("Medication selected")).toBeInTheDocument();
+    expect(screen.getByText(/Exampleolol/)).toBeInTheDocument();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
