@@ -7,9 +7,10 @@ at repository root, per `ARCHITECTURE_DECISIONS.md` §6.1).
 
 ## Status
 
-- **Phase B Data Quality & Migration Foundation** — Alembic is **Independent** and **Before** any schema extension (term_type/is_active, ingredient_mapping, search indexes) — per Section 24.4
-- **Current baseline:** Existing databases already have 001–003 applied manually
-- **New databases:** Continue using 001–003 until a full baseline migration is generated, or use a proper baseline revision that builds schema from scratch (see Workflow below)
+- **Phase B Data Quality & Migration Foundation** — Alembic is **Independent** and **Before** schema extensions.
+- **Current tracked history:** `0001_baseline -> 0002_add_term_type_is_active -> 0003_add_rxnorm_concept_relations -> 0004_add_reference_drug_search_trigram_indexes`.
+- Existing production databases originally received 001–003 manually and were reconciled to the Alembic history; subsequent schema changes are tracked as migrations.
+- `0004` adds the `pg_trgm` extension and GIN trigram indexes used by the existing `reference_drugs` name/generic-name search. It changes no API or medication-identity semantics.
 
 ## Configuration
 
@@ -23,57 +24,26 @@ at repository root, per `ARCHITECTURE_DECISIONS.md` §6.1).
 
 ## Workflow
 
-### For existing databases (already have 001–003 applied manually)
+### For existing databases
 
-Mark the schema as already at the baseline without re-executing DDL:
-
-```bash
-cd /path/to/repo
-# Ensure backend/.env has DATABASE_URL
-cd backend
-alembic stamp <baseline_revision>
-# e.g.
-alembic stamp 0001_baseline
-```
-
-This creates/updates the `alembic_version` table only — no DDL executed.
-
-Then future migrations can be applied normally:
+Existing databases that already contain the legacy 001–003 schema should have their Alembic version stamped/reconciled once without re-executing the legacy DDL. After reconciliation, future migrations are applied normally:
 
 ```bash
+cd /path/to/repo/backend
 alembic upgrade head
 ```
 
 ### For new databases (from scratch)
 
-**Option 1 — Continue using 001–003 until full baseline migration exists (recommended during transition):**
-
-```bash
-psql "$DATABASE_URL" -f ../001_initial_schema.sql
-psql "$DATABASE_URL" -f ../002_seed_data.sql
-psql "$DATABASE_URL" -f ../003_reference_drugs_external_reference.sql
-alembic stamp <baseline_revision>
-```
-
-**Option 2 — Generate a proper baseline revision that builds schema from scratch (future):**
-
-```bash
-# Once Base.metadata fully reflects desired schema, generate baseline:
-alembic revision --autogenerate -m "baseline schema from scratch"
-# Review the generated DDL carefully — especially ENUM creation (create_type=False in models means Alembic will NOT auto-create ENUMs unless configured)
-# Then:
-alembic upgrade head
-```
+During the transition, continue using the legacy 001–003 SQL files to create the initial schema, then stamp the appropriate baseline before applying subsequent Alembic revisions. A future full baseline revision can replace this transitional procedure.
 
 ### Creating a new migration
 
 ```bash
 cd backend
-alembic revision --autogenerate -m "add term_type enum and is_active to reference_drugs"
-# Edit the generated file in backend/alembic/versions/ — review DDL, especially for ENUMs
-# Then:
+alembic revision --autogenerate -m "describe the schema change"
+# Review the generated file carefully, especially ENUM creation and indexes.
 alembic upgrade head
-# Verify:
 alembic current
 alembic history
 ```
@@ -86,37 +56,35 @@ alembic downgrade base
 alembic upgrade head
 ```
 
-All upgrades/downgrades should be reproducible — per Section 24.4 Success Criteria.
+All upgrades/downgrades should be reproducible.
 
 ## Why Alembic Now?
 
-Per `ARCHITECTURE_DECISIONS.md` §6.4 final decision: migration tooling adoption should occur while migration-file count remains low (early), not deferred to late phase. Cost of adopting tracked migrations is proportional to untracked history at adoption time — every additional manually-applied file between now and eventual adoption increases retroactive-reconciliation burden. Repository currently has 3 sequential SQL files manual — low count — ideal time to adopt.
+Per `ARCHITECTURE_DECISIONS.md` §6.4 final decision: migration tooling adoption should occur while migration-file count remains low (early), not deferred to late phase. Cost of adopting tracked migrations is proportional to untracked history at adoption time.
 
 ## Relationship to Architecture Documentation
 
-- Section 19.4 — Migration tooling early adoption while count low — was DEFERRED, now IMPLEMENTED after this sprint
-- Section 21.14 — Current limitations list included "no evidence of Alembic" — after this sprint, reclassify to implemented for Alembic specifically
-- Section 23.2 — Current limitations included "no evidence of Alembic" — same reclassification
-- Section 24.4 Phase B — Alembic objective with Objective/Reason/Dependencies/Success Criteria — this sprint satisfies it
-- No new architectural decisions introduced — only versioned workflow for already-approved schema changes (term_type/is_active shipped in `0002`, rxnorm_concept_relations shipped in `0003`; remaining candidates: ingredient_mapping, idx_reference_drugs_name_lower)
+- Migration tooling is implemented and tracked early.
+- `0002` owns the RxNorm TTY enum and `reference_drugs.term_type`/`is_active` additions.
+- `0003` owns the RxNorm relationship-edge table.
+- `0004` owns the reference-drug search trigram indexes required by the current ~100k-row catalog search workload.
+- No medication identity, safety-engine, or API architecture is introduced by `0004`.
 
 ## Verification
 
-Without live DB (arena container, no Supabase):
+Without live DB:
 
 ```bash
 python -m py_compile backend/alembic/env.py
 alembic --help
-alembic history  # should show empty or baseline once created
+alembic history
 ```
 
-With live DB (requires DATABASE_URL):
+With live DB:
 
 ```bash
 alembic current
-alembic upgrade head --sql  # offline SQL preview
-alembic upgrade head
-alembic downgrade base
+alembic upgrade head --sql
 alembic upgrade head
 ```
 
