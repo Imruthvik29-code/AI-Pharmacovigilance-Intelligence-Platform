@@ -1,9 +1,10 @@
 """Import the DISB v1.25 medicine catalog into ``reference_drugs``.
 
-DISB ships its medicine catalog as a Lucene index. This importer uses the
-small Java exporter in ``scripts/disb/LuceneMedicineExporter.java`` to stream
-that index to a temporary TSV and then persists validated rows to PostgreSQL
-in bounded transactions.
+DISB ships its medicine catalog as a Lucene index. This importer extracts the
+Lucene core dependency bundled inside the Spring Boot DISB JAR, uses the small
+Java exporter in ``scripts/disb/LuceneMedicineExporter.java`` to stream the
+index to a temporary TSV, and then persists validated rows to PostgreSQL in
+bounded transactions.
 
 The DISB package is intentionally an external input: it must never be copied
 into this repository. Keep the source package under the terms in its
@@ -33,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,6 +53,7 @@ logger = logging.getLogger("scripts.import_disb")
 
 SOURCE_NAME = "CDCI/DISB"
 DEFAULT_BATCH_SIZE = 500
+LUCENE_VERSION = "9.12.1"
 EXPORTER_SOURCE = Path(__file__).resolve().parent / "disb" / "LuceneMedicineExporter.java"
 EXPECTED_HEADER = (
     "id",
@@ -113,14 +116,31 @@ def _parse_row(row: dict[str, str]) -> DisbMedicine | None:
     )
 
 
-def _locate_lucene_jar(disb_dir: Path) -> Path:
-    candidates = list(disb_dir.rglob("lucene-core-*.jar"))
+def _locate_disb_jar(disb_dir: Path) -> Path:
+    candidates = list(disb_dir.rglob("disb-1.25.jar"))
     if not candidates:
         raise FileNotFoundError(
-            "Could not find lucene-core-*.jar inside the DISB package. "
-            "Pass the extracted DISB v1.25 directory containing disb-1.25.jar and Data/."
+            "Could not find disb-1.25.jar inside the DISB package. "
+            "Pass the extracted DISB v1.25 directory containing the JAR and Data/."
         )
     return candidates[0]
+
+
+def _extract_lucene_jar(disb_dir: Path, work_dir: Path) -> Path:
+    """Extract the Lucene core JAR bundled inside the DISB Spring Boot JAR."""
+    disb_jar = _locate_disb_jar(disb_dir)
+    expected = f"BOOT-INF/lib/lucene-core-{LUCENE_VERSION}.jar"
+    output = work_dir / f"lucene-core-{LUCENE_VERSION}.jar"
+    with zipfile.ZipFile(disb_jar) as archive:
+        try:
+            with archive.open(expected) as source, output.open("wb") as target:
+                shutil.copyfileobj(source, target)
+        except KeyError as exc:
+            matches = [name for name in archive.namelist() if name.startswith("BOOT-INF/lib/lucene-core-")]
+            raise FileNotFoundError(
+                f"Could not find bundled {expected} in {disb_jar}. Found: {matches!r}"
+            ) from exc
+    return output
 
 
 def _locate_medicine_index(disb_dir: Path) -> Path:
@@ -160,10 +180,10 @@ def _export_tsv(disb_dir: Path, output: Path) -> int:
     if java is None:
         raise RuntimeError("JDK 17+ is required: java was not found on PATH.")
 
-    lucene_jar = _locate_lucene_jar(disb_dir)
     medicine_index = _locate_medicine_index(disb_dir)
     with tempfile.TemporaryDirectory(prefix="disb-exporter-") as temp:
         work_dir = Path(temp)
+        lucene_jar = _extract_lucene_jar(disb_dir, work_dir)
         _compile_exporter(lucene_jar, work_dir)
         command = [
             java,
@@ -320,12 +340,12 @@ async def main() -> None:
         parser.error("--batch-size must be >= 1")
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be >= 1")
-
-    logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s %(levelname)s %(message)s")
-    try:
-        await run(args)
-    finally:
-        await engine.dispose()
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    await run(args)
+    await engine.dispose()
 
 
 if __name__ == "__main__":
