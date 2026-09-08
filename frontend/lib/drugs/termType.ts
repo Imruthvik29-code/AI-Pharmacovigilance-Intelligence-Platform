@@ -26,7 +26,9 @@ export function isIngredientTerm(termType: string | null): boolean {
 }
 
 export function medicationSearchSubtitle(drug: ReferenceDrugSearchResult): string {
-  if (drug.term_type) return termTypeLabel(drug.term_type);
-  if (drug.source) return drug.source;
-  return "Medication catalog match";
+  const type = termTypeLabel(drug.term_type);
+  if (drug.generic_name && drug.generic_name.trim().toLowerCase() !== drug.name.trim().toLowerCase()) {
+    return `${type} · ${drug.generic_name}`;
+  }
+  return type;
 }
