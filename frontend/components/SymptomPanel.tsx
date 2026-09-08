@@ -121,11 +121,14 @@ export function SymptomPanel({
             <label className="block text-sm font-medium" htmlFor={medicationId}>Related medication <span className="font-normal text-muted">(optional)</span></label>
             <select id={medicationId} value={medication} onChange={(event) => setMedication(event.target.value)} className={fieldClass}>
               <option value="">Not specified</option>
-              {medications.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {displayDrugName(item.drug_id)}{item.dose ? ` · ${item.dose}` : ""}
-                </option>
-              ))}
+              {medications.map((item) => {
+                const displayed = displayDrugName(item.drug_id);
+                return (
+                  <option key={item.id} value={item.id}>
+                    {displayed.name}{item.dose ? ` · ${item.dose}` : ""}
+                  </option>
+                );
+              })}
             </select>
             {medications.length === 0 ? <p className="mt-1 text-[11px] text-muted">No medications are recorded for this patient.</p> : null}
           </div>
