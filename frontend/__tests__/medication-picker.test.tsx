@@ -9,6 +9,7 @@ vi.mock("@/lib/api/referenceDrugs", () => ({
     {
       id: "drug-1",
       name: "Examplecin",
+      generic_name: null,
       rxcui: null,
       source: "FDA Label",
       term_type: null,
@@ -16,6 +17,7 @@ vi.mock("@/lib/api/referenceDrugs", () => ({
     {
       id: "drug-2",
       name: "Exampleolol",
+      generic_name: "Exampleolol",
       rxcui: null,
       source: "FDA Label",
       term_type: "IN",
@@ -38,6 +40,7 @@ function deferred<T>() {
 type CatalogDrug = {
   id: string;
   name: string;
+  generic_name: string | null;
   rxcui: string | null;
   source: string | null;
   term_type: string | null;
@@ -50,6 +53,7 @@ describe("MedicationPicker keyboard", () => {
       {
         id: "drug-1",
         name: "Examplecin",
+        generic_name: null,
         rxcui: null,
         source: "FDA Label",
         term_type: null,
@@ -57,6 +61,7 @@ describe("MedicationPicker keyboard", () => {
       {
         id: "drug-2",
         name: "Exampleolol",
+        generic_name: "Exampleolol",
         rxcui: null,
         source: "FDA Label",
         term_type: "IN",
@@ -126,6 +131,7 @@ describe("MedicationPicker keyboard", () => {
       {
         id: "new-drug",
         name: "Newerdrug",
+        generic_name: null,
         rxcui: null,
         source: "FDA Label",
         term_type: null,
@@ -137,6 +143,7 @@ describe("MedicationPicker keyboard", () => {
       {
         id: "old-drug",
         name: "Olderdrug",
+        generic_name: null,
         rxcui: null,
         source: "FDA Label",
         term_type: null,
