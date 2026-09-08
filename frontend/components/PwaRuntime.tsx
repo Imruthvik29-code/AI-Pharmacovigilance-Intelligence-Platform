@@ -49,7 +49,7 @@ export function PwaRuntime() {
   return (
     <aside
       aria-label="Install PV Intelligence"
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-xl items-center gap-4 rounded-2xl border border-line bg-card p-4 shadow-[0_18px_50px_rgba(20,32,41,0.14)] sm:inset-x-auto sm:right-6 sm:left-auto"
+      className="fixed inset-x-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-xl items-center gap-4 rounded-2xl border border-line bg-card p-4 shadow-[0_18px_50px_rgba(20,32,41,0.14)] sm:inset-x-auto sm:right-6 sm:left-auto"
     >
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-ink">Keep PV Intelligence close</p>
@@ -58,7 +58,7 @@ export function PwaRuntime() {
       <button
         type="button"
         onClick={install}
-        className="shrink-0 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-accent-ink"
+        className="min-h-10 shrink-0 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-accent-ink"
       >
         Install
       </button>
@@ -68,7 +68,7 @@ export function PwaRuntime() {
           setDismissed(true);
           window.__pvInstallPrompt = undefined;
         }}
-        className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-paper hover:text-ink"
+        className="min-h-10 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-muted hover:bg-paper hover:text-ink"
         aria-label="Dismiss install prompt"
       >
         Not now
