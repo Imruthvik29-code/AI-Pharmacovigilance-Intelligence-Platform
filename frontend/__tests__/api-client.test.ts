@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, apiFetchRaw } from "@/lib/api/client";
 import { loadSession, saveSession } from "@/lib/auth/session";
 
 describe("api client", () => {
@@ -51,6 +51,29 @@ describe("api client", () => {
       status: 401,
       detail: "Token expired.",
     });
+    expect(loadSession()).toBeNull();
+  });
+
+  it("clears the session after a raw authenticated request receives 401", async () => {
+    saveSession({
+      accessToken: "expired-token",
+      tokenType: "bearer",
+      expiresIn: 3600,
+      user: { id: "user-1", email: "analyst@example.com" },
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: async () => JSON.stringify({ detail: "Token expired." }),
+      }),
+    );
+
+    const response = await apiFetchRaw("/some/raw-endpoint", { method: "GET" });
+
+    expect(response.status).toBe(401);
     expect(loadSession()).toBeNull();
   });
 });
