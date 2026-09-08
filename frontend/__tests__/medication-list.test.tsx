@@ -37,6 +37,7 @@ describe("MedicationList", () => {
     rememberDrug({
       id: medication.drug_id,
       name: "Examplecin",
+      generic_name: null,
       rxcui: null,
       source: null,
       term_type: null,
