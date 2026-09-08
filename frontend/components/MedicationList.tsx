@@ -1,6 +1,7 @@
 "use client";
 
 import { displayDrugName } from "@/lib/drugs/nameCache";
+import { termTypeLabel } from "@/lib/drugs/termType";
 import type { MedicationResponse } from "@/lib/api/types";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 
@@ -49,7 +50,11 @@ export function MedicationList({
             {medications.map((medication) => {
               const cached = displayDrugName(medication.drug_id);
               const name = medication.drug_name ?? cached.name;
-              const termType = medication.drug_term_type ?? cached.termType;
+              const termType = medication.drug_term_type
+                ? termTypeLabel(medication.drug_term_type)
+                : cached.termType
+                  ? termTypeLabel(cached.termType)
+                  : null;
               const genericContext = medication.drug_generic_name && medication.drug_generic_name !== name
                 ? medication.drug_generic_name
                 : null;
