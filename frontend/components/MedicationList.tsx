@@ -47,16 +47,29 @@ export function MedicationList({
         {!loading && medications.length > 0 ? (
           <ul className="mt-2 divide-y divide-line">
             {medications.map((medication) => {
-              const displayed = displayDrugName(medication.drug_id);
+              const cached = displayDrugName(medication.drug_id);
+              const name = medication.drug_name ?? cached.name;
+              const termType = medication.drug_term_type ?? cached.termType;
+              const genericContext = medication.drug_generic_name && medication.drug_generic_name !== name
+                ? medication.drug_generic_name
+                : null;
+              const identityVerified = Boolean(medication.drug_name);
               return (
                 <li key={medication.id} className="py-4 first:pt-3 last:pb-0">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className={`truncate font-medium ${displayed.cached ? "text-ink" : "text-muted"}`}>
-                        {displayed.name}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className={`truncate font-medium ${identityVerified || cached.cached ? "text-ink" : "text-muted"}`}>
+                          {name}
+                        </p>
+                        {identityVerified ? (
+                          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                            Verified
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="mt-1 text-xs text-muted">
-                        {[displayed.termType, medication.dose]
+                        {[termType, genericContext, medication.dose]
                           .filter(Boolean)
                           .join(" · ") || "Medication details not recorded"}
                       </p>
