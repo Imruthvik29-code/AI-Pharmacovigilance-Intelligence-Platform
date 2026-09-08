@@ -144,7 +144,7 @@ describe("PatientPage", () => {
     vi.mocked(listMedications).mockResolvedValue([medication]);
     vi.mocked(listSymptoms).mockResolvedValue([]);
     vi.mocked(listTimeline).mockResolvedValue([]);
-    vi.mocked(listAnalysisRuns).mockResolvedValue([]);
+    vi.mocked(listAnalysisRuns).mockResolvedValueOnce([]).mockResolvedValue([analysis]);
     vi.mocked(runAnalysis).mockResolvedValue(analysis);
   });
 
