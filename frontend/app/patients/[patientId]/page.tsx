@@ -187,9 +187,9 @@ export default function PatientPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 border-t border-line bg-paper/35 px-5 py-3 sm:px-7">
-                <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{medications.length} medications</span>
+                <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{medications.length} {medications.length === 1 ? "medication" : "medications"}</span>
                 <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{activeCount} active</span>
-                <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{symptoms.length} symptoms</span>
+                <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{symptoms.length} {symptoms.length === 1 ? "symptom" : "symptoms"}</span>
                 {patient.renal_flag ? <span className="rounded-full bg-[#fdf6ec] px-2.5 py-1 text-[11px] font-medium text-moderate">Renal flag</span> : null}
                 {patient.hepatic_flag ? <span className="rounded-full bg-[#fdf6ec] px-2.5 py-1 text-[11px] font-medium text-moderate">Hepatic flag</span> : null}
               </div>
