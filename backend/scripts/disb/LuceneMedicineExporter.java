@@ -79,8 +79,7 @@ public final class LuceneMedicineExporter {
 
     private static String escape(String value) {
         if (value == null) return "";
-        return value.replace("\\", "\\\\")
-                    .replace("\t", " ")
+        return value.replace("\t", " ")
                     .replace("\r", " ")
                     .replace("\n", " ");
     }
