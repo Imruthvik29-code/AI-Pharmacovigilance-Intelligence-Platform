@@ -72,5 +72,10 @@ export async function apiFetchRaw(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  return { status: response.status, body: await readBody(response) };
+  const responseBody = await readBody(response);
+  if (response.status === 401 && auth) {
+    clearSession();
+  }
+
+  return { status: response.status, body: responseBody };
 }
