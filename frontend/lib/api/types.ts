@@ -27,4 +27,25 @@ export type DoseStatus = "taken" | "missed" | "skipped";
 export type MedicationDoseResponse = { id: string; medication_id: string; schedule_id: string | null; scheduled_time: string; status: DoseStatus | null; actual_time: string | null; created_at: string; updated_at: string };
 export type UpcomingDoseResponse = { id: string; medication_id: string; scheduled_time: string; drug_name: string; dose: string | null };
 export type MedicationDoseMarkRequest = { status: DoseStatus; actual_time?: string | null };
+export type SymptomSeverity = "mild" | "moderate" | "severe";
+export type SymptomResponse = {
+  id: string;
+  patient_id: string;
+  condition_id: string | null;
+  medication_id: string | null;
+  description: string;
+  severity: SymptomSeverity;
+  onset_date: string;
+  resolved_date: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type SymptomCreate = {
+  description: string;
+  severity?: SymptomSeverity;
+  condition_id?: string | null;
+  medication_id?: string | null;
+  onset_date?: string | null;
+  resolved_date?: string | null;
+};
 export const REFERENCE_DRUG_MIN_QUERY_LENGTH = 2;
