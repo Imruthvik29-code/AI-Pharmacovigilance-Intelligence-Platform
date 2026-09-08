@@ -11,27 +11,32 @@ import { MedicationList } from "@/components/MedicationList";
 import { MedicationPicker } from "@/components/MedicationPicker";
 import { SchedulePanel } from "@/components/SchedulePanel";
 import { StatusBanner } from "@/components/StatusBanner";
+import { SymptomPanel } from "@/components/SymptomPanel";
 import { TimelineList } from "@/components/TimelineList";
 import { listAnalysisRuns, runAnalysis } from "@/lib/api/analysis";
 import { ApiError } from "@/lib/api/errors";
 import { listMedications } from "@/lib/api/medications";
 import { getPatient } from "@/lib/api/patients";
+import { listSymptoms } from "@/lib/api/symptoms";
 import { listTimeline } from "@/lib/api/timeline";
 import { usePageTitle } from "@/lib/hooks/usePageTitle";
 import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui/classes";
-import type { AnalysisRunResponse, MedicationResponse, PatientResponse, TimelineEventResponse } from "@/lib/api/types";
+import type { AnalysisRunResponse, MedicationResponse, PatientResponse, SymptomResponse, TimelineEventResponse } from "@/lib/api/types";
 
 export default function PatientPage() {
   const params = useParams<{ patientId: string }>();
   const patientId = params.patientId;
   const [patient, setPatient] = useState<PatientResponse | null>(null);
   const [medications, setMedications] = useState<MedicationResponse[]>([]);
+  const [symptoms, setSymptoms] = useState<SymptomResponse[]>([]);
   const [timeline, setTimeline] = useState<TimelineEventResponse[]>([]);
   const [analysis, setAnalysis] = useState<AnalysisRunResponse | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
   const [medError, setMedError] = useState<string | null>(null);
+  const [symptomsLoading, setSymptomsLoading] = useState(true);
+  const [symptomsError, setSymptomsError] = useState<string | null>(null);
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisHistoryError, setAnalysisHistoryError] = useState<string | null>(null);
@@ -67,7 +72,9 @@ export default function PatientPage() {
     let cancelled = false;
     async function load() {
       setLoading(true);
+      setSymptomsLoading(true);
       setPageError(null);
+      setSymptomsError(null);
       try {
         const nextPatient = await getPatient(patientId);
         if (cancelled) return;
@@ -81,6 +88,17 @@ export default function PatientPage() {
         } catch (err) {
           if (!cancelled) setMedError(err instanceof ApiError ? err.detail : "Could not load medications.");
         }
+        try {
+          const nextSymptoms = await listSymptoms(patientId);
+          if (!cancelled) {
+            setSymptoms(nextSymptoms);
+            setSymptomsError(null);
+          }
+        } catch (err) {
+          if (!cancelled) setSymptomsError(err instanceof ApiError ? err.detail : "Could not load symptoms.");
+        } finally {
+          if (!cancelled) setSymptomsLoading(false);
+        }
         await refreshSecondary(() => !cancelled);
       } catch (err) {
         if (!cancelled) {
@@ -91,7 +109,10 @@ export default function PatientPage() {
           setPageError(err instanceof ApiError ? err.detail : "Could not load patient.");
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setSymptomsLoading(false);
+        }
       }
     }
     void load();
@@ -168,6 +189,7 @@ export default function PatientPage() {
               <div className="flex flex-wrap gap-2 border-t border-line bg-paper/35 px-5 py-3 sm:px-7">
                 <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{medications.length} medications</span>
                 <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{activeCount} active</span>
+                <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{symptoms.length} symptoms</span>
                 {patient.renal_flag ? <span className="rounded-full bg-[#fdf6ec] px-2.5 py-1 text-[11px] font-medium text-moderate">Renal flag</span> : null}
                 {patient.hepatic_flag ? <span className="rounded-full bg-[#fdf6ec] px-2.5 py-1 text-[11px] font-medium text-moderate">Hepatic flag</span> : null}
               </div>
@@ -183,6 +205,20 @@ export default function PatientPage() {
 
             <div className="mt-8">
               <SchedulePanel patientId={patientId} medications={medications} onTimelineRefresh={() => void refreshSecondary()} />
+            </div>
+
+            <div className="mt-8">
+              <SymptomPanel
+                patientId={patientId}
+                medications={medications}
+                symptoms={symptoms}
+                loading={symptomsLoading}
+                error={symptomsError}
+                onCreated={(symptom) => {
+                  setSymptoms((current) => [...current, symptom]);
+                  void refreshSecondary();
+                }}
+              />
             </div>
 
             <div className="mt-8 grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
