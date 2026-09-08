@@ -73,7 +73,7 @@ describe("MedicationPicker keyboard", () => {
     const user = userEvent.setup();
     render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
 
-    const input = screen.getByRole("combobox", { name: "Medication" });
+    const input = screen.getByRole("combobox", { name: "Medicine name" });
     await user.type(input, "ex");
 
     const first = await screen.findByRole("option", { name: /Examplecin/i });
@@ -95,7 +95,7 @@ describe("MedicationPicker keyboard", () => {
     const user = userEvent.setup();
     render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
 
-    const input = screen.getByRole("combobox", { name: "Medication" });
+    const input = screen.getByRole("combobox", { name: "Medicine name" });
     await user.type(input, "ex");
     expect(await screen.findByRole("listbox")).toBeInTheDocument();
 
@@ -113,7 +113,7 @@ describe("MedicationPicker keyboard", () => {
 
     const user = userEvent.setup();
     render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
-    const input = screen.getByRole("combobox", { name: "Medication" });
+    const input = screen.getByRole("combobox", { name: "Medicine name" });
 
     await user.type(input, "ex");
     await act(async () => {
@@ -149,9 +149,8 @@ describe("MedicationPicker keyboard", () => {
         term_type: null,
       },
     ]);
-
     await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      await Promise.resolve();
     });
     expect(screen.queryByRole("option", { name: /Olderdrug/i })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Newerdrug/i })).toBeInTheDocument();
