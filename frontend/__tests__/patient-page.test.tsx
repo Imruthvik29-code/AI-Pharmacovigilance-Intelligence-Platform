@@ -156,7 +156,7 @@ describe("PatientPage", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
 
     expect(screen.getByText("Age 42 · female · 64 kg · Hepatic flag")).toBeInTheDocument();
-    expect(screen.getByText("1 medications")).toBeInTheDocument();
+    expect(screen.getByText("1 medication")).toBeInTheDocument();
     expect(screen.getByText("1 active")).toBeInTheDocument();
     expect(screen.queryByText("patient-123")).not.toBeInTheDocument();
     expect(screen.getByText("No analysis yet")).toBeInTheDocument();
