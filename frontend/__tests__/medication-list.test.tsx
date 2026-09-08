@@ -19,6 +19,10 @@ const medication: MedicationResponse = {
   end_date: null,
   created_at: "2026-08-19T12:00:00Z",
   updated_at: "2026-08-19T12:00:00Z",
+  drug_name: null,
+  drug_generic_name: null,
+  drug_term_type: null,
+  drug_source: null,
 };
 
 describe("MedicationList", () => {
@@ -45,5 +49,33 @@ describe("MedicationList", () => {
     render(<MedicationList medications={[medication]} />);
     expect(screen.getByText("Examplecin")).toBeInTheDocument();
     expect(screen.queryByText("no TTY")).not.toBeInTheDocument();
+  });
+
+  it("prefers the server catalog identity over the browser cache", () => {
+    rememberDrug({
+      id: medication.drug_id,
+      name: "Stale browser name",
+      generic_name: null,
+      rxcui: null,
+      source: "RxNorm",
+      term_type: "IN",
+    });
+    render(
+      <MedicationList
+        medications={[
+          {
+            ...medication,
+            drug_name: "Verified Tablet",
+            drug_generic_name: "Example ingredient",
+            drug_term_type: "SBD",
+            drug_source: "CDCI",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Verified Tablet")).toBeInTheDocument();
+    expect(screen.getByText(/Branded medication · Example ingredient · 5 mg/)).toBeInTheDocument();
+    expect(screen.getByText("Verified")).toBeInTheDocument();
+    expect(screen.queryByText("Stale browser name")).not.toBeInTheDocument();
   });
 });
