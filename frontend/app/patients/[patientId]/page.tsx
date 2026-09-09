@@ -23,6 +23,13 @@ import { usePageTitle } from "@/lib/hooks/usePageTitle";
 import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui/classes";
 import type { AnalysisRunResponse, MedicationResponse, PatientResponse, SymptomResponse, TimelineEventResponse } from "@/lib/api/types";
 
+const workspaceSections = [
+  { id: "safety", label: "Safety analysis", description: "Deterministic risk and AI explanation" },
+  { id: "medications", label: "Medications", description: "Verified medicines and schedules" },
+  { id: "symptoms", label: "Symptoms", description: "Reported symptoms and context" },
+  { id: "timeline", label: "Timeline", description: "Recent patient activity" },
+];
+
 export default function PatientPage() {
   const params = useParams<{ patientId: string }>();
   const patientId = params.patientId;
@@ -217,19 +224,82 @@ export default function PatientPage() {
               </div>
             </header>
 
+            <nav aria-label="Patient workspace sections" className="mt-5 overflow-x-auto pb-1">
+              <div className="flex min-w-max gap-2">
+                {workspaceSections.map((section) => (
+                  <a
+                    key={section.id}
+                    href={`#${section.id}`}
+                    className="rounded-full border border-line bg-card px-3.5 py-2 text-xs font-medium text-muted transition-colors hover:border-accent/40 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                    title={section.description}
+                  >
+                    {section.label}
+                  </a>
+                ))}
+              </div>
+            </nav>
+
             {analysisError ? (
               <div className="mt-4"><StatusBanner tone="error" role="alert">{analysisError}</StatusBanner></div>
             ) : null}
 
-            <div className="mt-8">
+            <section id="safety" aria-labelledby="safety-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">01 · Safety</p>
+                  <h2 id="safety-heading" className="mt-1 text-xl font-semibold tracking-tight">Safety analysis</h2>
+                </div>
+                <p className="text-xs text-muted">Deterministic findings with evidence-backed explanation</p>
+              </div>
               <AnalysisHero run={analysis} historyError={analysisHistoryError} historyLoaded={analysisHistoryLoaded} running={running} />
-            </div>
+            </section>
 
-            <div className="mt-8">
+            <section id="medications" aria-labelledby="medications-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">02 · Treatment</p>
+                  <h2 id="medications-heading" className="mt-1 text-xl font-semibold tracking-tight">Medications</h2>
+                </div>
+                <p className="text-xs text-muted">{activeCount} active of {medications.length} recorded</p>
+              </div>
+              <div className="space-y-6">
+                <MedicationList medications={medications} error={medError} />
+                <div className="border-t border-line pt-5">
+                  <button type="button" onClick={() => setShowPicker((open) => !open)} className={`${secondaryButtonClass} w-full justify-center sm:w-auto`}>
+                    {showPicker ? "Hide medication form" : "Add medication"}
+                  </button>
+                  {showPicker ? (
+                    <div className="mt-4">
+                      <MedicationPicker patientId={patientId} onCreated={(medication) => {
+                        setMedications((current) => [...current, medication]);
+                        setShowPicker(false);
+                        void refreshSecondary();
+                      }} />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+
+            <section aria-labelledby="schedule-heading" className="mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">03 · Adherence</p>
+                  <h2 id="schedule-heading" className="mt-1 text-xl font-semibold tracking-tight">Dose schedule</h2>
+                </div>
+                <p className="text-xs text-muted">Scheduled doses and adherence activity</p>
+              </div>
               <SchedulePanel patientId={patientId} medications={medications} onTimelineRefresh={() => void refreshSecondary()} />
-            </div>
+            </section>
 
-            <div className="mt-8">
+            <section id="symptoms" aria-labelledby="symptoms-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">04 · Clinical signals</p>
+                  <h2 id="symptoms-heading" className="mt-1 text-xl font-semibold tracking-tight">Symptoms</h2>
+                </div>
+                <p className="text-xs text-muted">Reported symptoms linked to the patient record</p>
+              </div>
               <SymptomPanel
                 patientId={patientId}
                 medications={medications}
@@ -241,24 +311,18 @@ export default function PatientPage() {
                   void refreshSecondary();
                 }}
               />
-            </div>
+            </section>
 
-            <div className="mt-8 grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
-              <div className="space-y-3">
-                <MedicationList medications={medications} error={medError} />
-                <button type="button" onClick={() => setShowPicker((open) => !open)} className={`${secondaryButtonClass} w-full justify-center sm:w-auto`}>
-                  {showPicker ? "Hide medication form" : "Add medication"}
-                </button>
-                {showPicker ? (
-                  <MedicationPicker patientId={patientId} onCreated={(medication) => {
-                    setMedications((current) => [...current, medication]);
-                    setShowPicker(false);
-                    void refreshSecondary();
-                  }} />
-                ) : null}
+            <section id="timeline" aria-labelledby="timeline-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">05 · History</p>
+                  <h2 id="timeline-heading" className="mt-1 text-xl font-semibold tracking-tight">Patient timeline</h2>
+                </div>
+                <p className="text-xs text-muted">A unified view of recorded activity</p>
               </div>
               <TimelineList events={timeline} error={timelineError} />
-            </div>
+            </section>
           </>
         ) : null}
       </AppShell>
