@@ -192,6 +192,19 @@ describe("PatientPage", () => {
     expect(screen.queryByText("Latest analysis: analysis-old")).not.toBeInTheDocument();
   });
 
+  it("allows retry after an initial patient load failure", async () => {
+    vi.mocked(getPatient).mockRejectedValueOnce(new ApiError(503, "Service unavailable")).mockResolvedValue(patient);
+
+    render(<PatientPage />);
+
+    await waitFor(() => expect(screen.getByText("Service unavailable")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
+    expect(getPatient).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Service unavailable")).not.toBeInTheDocument();
+  });
+
   it("redirects to login when patient loading returns 401", async () => {
     const location = window.location;
     const assignableLocation = { href: location.href };
