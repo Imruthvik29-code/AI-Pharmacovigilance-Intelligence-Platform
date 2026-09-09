@@ -33,6 +33,7 @@ export default function PatientPage() {
   const [analysis, setAnalysis] = useState<AnalysisRunResponse | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [pageError, setPageError] = useState<string | null>(null);
   const [medError, setMedError] = useState<string | null>(null);
   const [symptomsLoading, setSymptomsLoading] = useState(true);
@@ -74,9 +75,19 @@ export default function PatientPage() {
     let cancelled = false;
     async function load() {
       setLoading(true);
+      setPatient(null);
+      setMedications([]);
+      setSymptoms([]);
+      setTimeline([]);
+      setAnalysis(null);
+      setAnalysisHistoryLoaded(false);
+      setAnalysisHistoryError(null);
       setSymptomsLoading(true);
       setPageError(null);
+      setMedError(null);
       setSymptomsError(null);
+      setTimelineError(null);
+      setAnalysisError(null);
       try {
         const nextPatient = await getPatient(patientId);
         if (cancelled) return;
@@ -119,7 +130,7 @@ export default function PatientPage() {
     }
     void load();
     return () => { cancelled = true; };
-  }, [patientId, refreshSecondary]);
+  }, [patientId, loadAttempt, refreshSecondary]);
 
   async function handleRunAnalysis() {
     if (running) return;
@@ -160,7 +171,16 @@ export default function PatientPage() {
           <div className="mt-6 max-w-md"><LoadingSkeleton label="Loading patient" lines={4} /></div>
         ) : null}
         {pageError ? (
-          <div className="mt-6"><StatusBanner tone="error" role="alert">{pageError}</StatusBanner></div>
+          <div className="mt-6 space-y-3">
+            <StatusBanner tone="error" role="alert">{pageError}</StatusBanner>
+            <button
+              type="button"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+              className={secondaryButtonClass}
+            >
+              Try again
+            </button>
+          </div>
         ) : null}
 
         {patient ? (
