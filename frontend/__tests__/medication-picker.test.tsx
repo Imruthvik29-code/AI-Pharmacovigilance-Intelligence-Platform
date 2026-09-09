@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MedicationPicker } from "@/components/MedicationPicker";
 import { searchReferenceDrugs } from "@/lib/api/referenceDrugs";
+import { createMedication } from "@/lib/api/medications";
 import { ApiError } from "@/lib/api/errors";
 
 vi.mock("@/lib/api/referenceDrugs", () => ({
@@ -68,6 +69,7 @@ describe("MedicationPicker keyboard", () => {
         term_type: "IN",
       },
     ]);
+    vi.mocked(createMedication).mockReset();
   });
 
   it("moves the highlighted option and selects with Enter", async () => {
@@ -182,5 +184,40 @@ describe("MedicationPicker keyboard", () => {
     await user.type(input, "a");
     expect(await screen.findByRole("option", { name: /Recoveredcin/i })).toBeInTheDocument();
     expect(screen.queryByText("Catalog temporarily unavailable")).not.toBeInTheDocument();
+  });
+
+  it("shows an honest no-match state without offering a guessed identity", async () => {
+    vi.mocked(searchReferenceDrugs).mockResolvedValueOnce([]);
+
+    const user = userEvent.setup();
+    render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
+    const input = screen.getByRole("combobox", { name: "Medicine name" });
+
+    await user.type(input, "unknownmed");
+
+    expect(await screen.findByText("We couldn’t find a verified catalog match.")).toBeInTheDocument();
+    expect(screen.getByText(/We won’t guess a medication identity/i)).toBeInTheDocument();
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add medication" })).toBeDisabled();
+  });
+
+  it("keeps the verified selection when medication creation fails so the user can retry", async () => {
+    vi.mocked(createMedication).mockRejectedValueOnce(new ApiError(503, "Medication service unavailable"));
+
+    const user = userEvent.setup();
+    render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
+    const input = screen.getByRole("combobox", { name: "Medicine name" });
+
+    await user.type(input, "ex");
+    await user.keyboard("{Enter}");
+
+    const addButton = screen.getByRole("button", { name: "Add medication" });
+    await user.click(addButton);
+
+    expect(await screen.findByText("Medication service unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Medication selected")).toBeInTheDocument();
+    expect(screen.getByText(/Examplecin/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add medication" })).toBeEnabled();
+    expect(createMedication).toHaveBeenCalledWith("patient-1", expect.objectContaining({ drug_id: "drug-1" }));
   });
 });
