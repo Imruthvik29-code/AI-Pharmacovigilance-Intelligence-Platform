@@ -66,3 +66,51 @@ textarea {
 .font-mono {
   font-family: var(--font-mono);
 }
+
+/* Mobile patient workspace: the section launcher behaves like a horizontal deck. */
+@media (max-width: 639px) {
+  nav[aria-label="Patient workspace sections"] {
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  nav[aria-label="Patient workspace sections"]::-webkit-scrollbar {
+    display: none;
+  }
+
+  nav[aria-label="Patient workspace sections"] > div {
+    gap: 0.75rem;
+  }
+
+  nav[aria-label="Patient workspace sections"] a {
+    display: flex;
+    min-height: 6.75rem;
+    width: min(76vw, 17rem);
+    flex: 0 0 min(76vw, 17rem);
+    flex-direction: column;
+    justify-content: space-between;
+    border-radius: 1.5rem;
+    padding: 1rem;
+    scroll-snap-align: start;
+    background: var(--card);
+    box-shadow: 0 1px 2px rgb(20 32 41 / 0.04);
+    font-size: 0.9rem;
+    line-height: 1.25rem;
+  }
+
+  nav[aria-label="Patient workspace sections"] a::after {
+    content: "Open details  →";
+    margin-top: 0.75rem;
+    color: var(--accent);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  nav[aria-label="Patient workspace sections"] a:first-child {
+    border-color: rgb(13 107 99 / 0.3);
+  }
+}
