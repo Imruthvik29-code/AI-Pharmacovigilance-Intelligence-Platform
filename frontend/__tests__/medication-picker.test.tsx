@@ -8,34 +8,16 @@ import { ApiError } from "@/lib/api/errors";
 
 vi.mock("@/lib/api/referenceDrugs", () => ({
   searchReferenceDrugs: vi.fn(async () => [
-    {
-      id: "drug-1",
-      name: "Examplecin",
-      generic_name: null,
-      rxcui: null,
-      source: "FDA Label",
-      term_type: null,
-    },
-    {
-      id: "drug-2",
-      name: "Exampleolol",
-      generic_name: "Exampleolol",
-      rxcui: null,
-      source: "FDA Label",
-      term_type: "IN",
-    },
+    { id: "drug-1", name: "Examplecin", generic_name: null, rxcui: null, source: "FDA Label", term_type: null },
+    { id: "drug-2", name: "Exampleolol", generic_name: "Exampleolol", rxcui: null, source: "FDA Label", term_type: "IN" },
   ]),
 }));
 
-vi.mock("@/lib/api/medications", () => ({
-  createMedication: vi.fn(),
-}));
+vi.mock("@/lib/api/medications", () => ({ createMedication: vi.fn() }));
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
+  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; });
   return { promise, resolve };
 }
 
@@ -52,22 +34,8 @@ describe("MedicationPicker keyboard", () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.mocked(searchReferenceDrugs).mockImplementation(async () => [
-      {
-        id: "drug-1",
-        name: "Examplecin",
-        generic_name: null,
-        rxcui: null,
-        source: "FDA Label",
-        term_type: null,
-      },
-      {
-        id: "drug-2",
-        name: "Exampleolol",
-        generic_name: "Exampleolol",
-        rxcui: null,
-        source: "FDA Label",
-        term_type: "IN",
-      },
+      { id: "drug-1", name: "Examplecin", generic_name: null, rxcui: null, source: "FDA Label", term_type: null },
+      { id: "drug-2", name: "Exampleolol", generic_name: "Exampleolol", rxcui: null, source: "FDA Label", term_type: "IN" },
     ]);
     vi.mocked(createMedication).mockReset();
   });
@@ -75,20 +43,13 @@ describe("MedicationPicker keyboard", () => {
   it("moves the highlighted option and selects with Enter", async () => {
     const user = userEvent.setup();
     render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
-
     const input = screen.getByRole("combobox", { name: "Medicine name" });
     await user.type(input, "ex");
-
     const first = await screen.findByRole("option", { name: /Examplecin/i });
     expect(first).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText("no TTY")).not.toBeInTheDocument();
-
     await user.keyboard("{ArrowDown}");
-    expect(screen.getByRole("option", { name: /Exampleolol/i })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-
+    expect(screen.getByRole("option", { name: /Exampleolol/i })).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{Enter}");
     expect(screen.getByText("Medication selected")).toBeInTheDocument();
     expect(screen.getByText(/Exampleolol/)).toBeInTheDocument();
@@ -98,11 +59,9 @@ describe("MedicationPicker keyboard", () => {
   it("closes the listbox on Escape without selecting", async () => {
     const user = userEvent.setup();
     render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
-
     const input = screen.getByRole("combobox", { name: "Medicine name" });
     await user.type(input, "ex");
     expect(await screen.findByRole("listbox")).toBeInTheDocument();
-
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.queryByText(/Selected/)).not.toBeInTheDocument();
@@ -111,51 +70,20 @@ describe("MedicationPicker keyboard", () => {
   it("ignores an older catalog response after the query changes", async () => {
     const first = deferred<CatalogDrug[]>();
     const second = deferred<CatalogDrug[]>();
-    vi.mocked(searchReferenceDrugs).mockImplementation((query) =>
-      query === "ex" ? first.promise : second.promise,
-    );
-
+    vi.mocked(searchReferenceDrugs).mockImplementation((query) => query === "ex" ? first.promise : second.promise);
     const user = userEvent.setup();
     render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
     const input = screen.getByRole("combobox", { name: "Medicine name" });
-
     await user.type(input, "ex");
-    await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 350));
-    });
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 350)); });
     expect(searchReferenceDrugs).toHaveBeenCalledWith("ex");
-
     await user.type(input, "a");
-    await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 350));
-    });
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 350)); });
     expect(searchReferenceDrugs).toHaveBeenCalledWith("exa");
-
-    second.resolve([
-      {
-        id: "new-drug",
-        name: "Newerdrug",
-        generic_name: null,
-        rxcui: null,
-        source: "FDA Label",
-        term_type: null,
-      },
-    ]);
+    second.resolve([{ id: "new-drug", name: "Newerdrug", generic_name: null, rxcui: null, source: "FDA Label", term_type: null }]);
     expect(await screen.findByRole("option", { name: /Newerdrug/i })).toBeInTheDocument();
-
-    first.resolve([
-      {
-        id: "old-drug",
-        name: "Olderdrug",
-        generic_name: null,
-        rxcui: null,
-        source: "FDA Label",
-        term_type: null,
-      },
-    ]);
-    await act(async () => {
-      await Promise.resolve();
-    });
+    first.resolve([{ id: "old-drug", name: "Olderdrug", generic_name: null, rxcui: null, source: "FDA Label", term_type: null }]);
+    await act(async () => { await Promise.resolve(); });
     expect(screen.queryByRole("option", { name: /Olderdrug/i })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Newerdrug/i })).toBeInTheDocument();
   });
@@ -163,24 +91,12 @@ describe("MedicationPicker keyboard", () => {
   it("recovers from a catalog search error when the query changes", async () => {
     vi.mocked(searchReferenceDrugs)
       .mockRejectedValueOnce(new ApiError(503, "Catalog temporarily unavailable"))
-      .mockResolvedValueOnce([
-        {
-          id: "recovered-drug",
-          name: "Recoveredcin",
-          generic_name: null,
-          rxcui: null,
-          source: "DISB",
-          term_type: null,
-        },
-      ]);
-
+      .mockResolvedValueOnce([{ id: "recovered-drug", name: "Recoveredcin", generic_name: null, rxcui: null, source: "DISB", term_type: null }]);
     const user = userEvent.setup();
     render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
     const input = screen.getByRole("combobox", { name: "Medicine name" });
-
     await user.type(input, "ex");
     expect(await screen.findByText("Catalog temporarily unavailable")).toBeInTheDocument();
-
     await user.type(input, "a");
     expect(await screen.findByRole("option", { name: /Recoveredcin/i })).toBeInTheDocument();
     expect(screen.queryByText("Catalog temporarily unavailable")).not.toBeInTheDocument();
@@ -188,13 +104,10 @@ describe("MedicationPicker keyboard", () => {
 
   it("shows an honest no-match state without offering a guessed identity", async () => {
     vi.mocked(searchReferenceDrugs).mockResolvedValueOnce([]);
-
     const user = userEvent.setup();
     render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
     const input = screen.getByRole("combobox", { name: "Medicine name" });
-
     await user.type(input, "unknownmed");
-
     expect(await screen.findByText("We couldn’t find a verified catalog match.")).toBeInTheDocument();
     expect(screen.getByText(/We won’t guess a medication identity/i)).toBeInTheDocument();
     expect(screen.queryByRole("option")).not.toBeInTheDocument();
@@ -203,21 +116,20 @@ describe("MedicationPicker keyboard", () => {
 
   it("keeps the verified selection when medication creation fails so the user can retry", async () => {
     vi.mocked(createMedication).mockRejectedValueOnce(new ApiError(503, "Medication service unavailable"));
-
     const user = userEvent.setup();
-    render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
+    const onCreated = vi.fn();
+    render(<MedicationPicker patientId="patient-1" onCreated={onCreated} />);
     const input = screen.getByRole("combobox", { name: "Medicine name" });
-
     await user.type(input, "ex");
-    await user.keyboard("{Enter}");
-
-    const addButton = screen.getByRole("button", { name: "Add medication" });
-    await user.click(addButton);
-
+    const first = await screen.findByRole("option", { name: /Examplecin/i });
+    await user.click(first);
+    expect(screen.getByText("Medication selected")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add medication" }));
     expect(await screen.findByText("Medication service unavailable")).toBeInTheDocument();
     expect(screen.getByText("Medication selected")).toBeInTheDocument();
     expect(screen.getByText(/Examplecin/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add medication" })).toBeEnabled();
+    expect(onCreated).not.toHaveBeenCalled();
     expect(createMedication).toHaveBeenCalledWith("patient-1", expect.objectContaining({ drug_id: "drug-1" }));
   });
 });
