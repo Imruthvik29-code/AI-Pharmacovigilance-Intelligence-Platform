@@ -45,7 +45,7 @@ export default function PatientPage() {
 
   usePageTitle(patient?.name ?? "Patient");
 
-  const refreshSecondary = useCallback(async (isCurrent: () => boolean = () => true) => {
+  const refreshSecondary = useCallback(async (isCurrent: () => boolean = () => true, updateAnalysis = true) => {
     try {
       const nextTimeline = await listTimeline(patientId);
       if (!isCurrent()) return;
@@ -58,7 +58,7 @@ export default function PatientPage() {
     try {
       const runs = await listAnalysisRuns(patientId);
       if (!isCurrent()) return;
-      if (runs.length > 0) {
+      if (updateAnalysis && runs.length > 0) {
         setAnalysis(runs[0]);
       }
       setAnalysisHistoryError(null);
@@ -130,7 +130,7 @@ export default function PatientPage() {
       setAnalysis(nextRun);
       setAnalysisHistoryError(null);
       setAnalysisHistoryLoaded(true);
-      await refreshSecondary();
+      await refreshSecondary(() => true, false);
     } catch (err) {
       setAnalysisError(err instanceof ApiError ? err.detail : "Analysis request failed.");
     } finally {
