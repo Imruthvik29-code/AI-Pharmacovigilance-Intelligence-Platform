@@ -34,6 +34,7 @@ describe("PatientWorkspaceCards", () => {
     const workspace = screen.getByRole("region", { name: "Patient workspace" });
     fireEvent.pointerDown(workspace, { clientX: 300 });
     fireEvent.pointerUp(workspace, { clientX: 180 });
+    expect(screen.getByText("2 / 4")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
   });
 });
