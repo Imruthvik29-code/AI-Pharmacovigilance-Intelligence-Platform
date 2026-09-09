@@ -4,8 +4,8 @@ import { PatientWorkspaceCards } from "@/components/PatientWorkspaceCards";
 
 const analysis = {
   id: "analysis-1", patient_id: "patient-1", analysis_version: "1.0",
-  deterministic_result: { safety_score: 82, risk_level: "moderate", starting_score: 100, total_points_deducted: 18, interaction_findings: [{ interaction_rule_id: "i1" }], adr_findings: [], adherence_findings: [], penalties: [] },
-  safety_score: 82, risk_level: "moderate", llm_summary: null, llm_reasoning: null, llm_recommendations: null, confidence_score: null, confidence_level: null, created_at: "2026-09-09T10:00:00Z",
+  deterministic_result: { safety_score: 82, risk_level: "moderate" as const, starting_score: 100, total_points_deducted: 18, interaction_findings: [{ interaction_rule_id: "i1" }], adr_findings: [], adherence_findings: [], penalties: [] },
+  safety_score: 82, risk_level: "moderate" as const, llm_summary: null, llm_reasoning: null, llm_recommendations: null, confidence_score: null, confidence_level: null, created_at: "2026-09-09T10:00:00Z",
 };
 
 describe("PatientWorkspaceCards", () => {
