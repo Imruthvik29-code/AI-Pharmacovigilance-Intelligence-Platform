@@ -172,6 +172,25 @@ describe("PatientPage", () => {
     await waitFor(() => expect(screen.getByText("Latest analysis available")).toBeInTheDocument());
   });
 
+  it("keeps the fresh analysis when history refresh is temporarily stale", async () => {
+    const staleHistory: AnalysisRunResponse = {
+      ...analysis,
+      id: "analysis-old",
+      created_at: "2026-09-07T10:00:00Z",
+    };
+    vi.mocked(listAnalysisRuns).mockReset();
+    vi.mocked(listAnalysisRuns).mockResolvedValueOnce([]).mockResolvedValue([staleHistory]);
+    vi.mocked(runAnalysis).mockResolvedValue(analysis);
+
+    render(<PatientPage />);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Run analysis" }));
+
+    await waitFor(() => expect(runAnalysis).toHaveBeenCalledWith("patient-123"));
+    await waitFor(() => expect(screen.getByText("Latest analysis available")).toBeInTheDocument());
+    await waitFor(() => expect(listAnalysisRuns).toHaveBeenCalledTimes(2));
+  });
+
   it("redirects to login when patient loading returns 401", async () => {
     const location = window.location;
     const assignableLocation = { href: location.href };
