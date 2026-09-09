@@ -162,6 +162,23 @@ describe("PatientPage", () => {
     expect(screen.getByText("No analysis yet")).toBeInTheDocument();
   });
 
+  it("provides direct navigation to each patient workspace card", async () => {
+    render(<PatientPage />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
+
+    expect(screen.getByRole("navigation", { name: "Patient workspace sections" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Safety analysis" })).toHaveAttribute("href", "#safety");
+    expect(screen.getByRole("link", { name: "Medications" })).toHaveAttribute("href", "#medications");
+    expect(screen.getByRole("link", { name: "Symptoms" })).toHaveAttribute("href", "#symptoms");
+    expect(screen.getByRole("link", { name: "Timeline" })).toHaveAttribute("href", "#timeline");
+    expect(screen.getByRole("heading", { name: "Safety analysis" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Dose schedule" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Symptoms" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Patient timeline" })).toBeInTheDocument();
+  });
+
   it("runs analysis and refreshes the displayed result", async () => {
     render(<PatientPage />);
 
