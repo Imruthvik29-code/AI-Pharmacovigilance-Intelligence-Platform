@@ -35,7 +35,7 @@ vi.mock("@/components/StatusBanner", () => ({
 }));
 
 vi.mock("@/components/AnalysisHero", () => ({
-  AnalysisHero: ({ run }: { run: unknown }) => <section>{run ? "Latest analysis available" : "No analysis yet"}</section>,
+  AnalysisHero: ({ run }: { run: AnalysisRunResponse | null }) => <section>{run ? `Latest analysis: ${run.id}` : "No analysis yet"}</section>,
 }));
 
 vi.mock("@/components/SchedulePanel", () => ({
@@ -169,10 +169,10 @@ describe("PatientPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run analysis" }));
 
     await waitFor(() => expect(runAnalysis).toHaveBeenCalledWith("patient-123"));
-    await waitFor(() => expect(screen.getByText("Latest analysis available")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Latest analysis: analysis-123")).toBeInTheDocument());
   });
 
-  it("keeps the fresh analysis when history refresh is temporarily stale", async () => {
+  it("keeps the fresh analysis when history refresh returns an older run", async () => {
     const staleHistory: AnalysisRunResponse = {
       ...analysis,
       id: "analysis-old",
@@ -187,8 +187,9 @@ describe("PatientPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run analysis" }));
 
     await waitFor(() => expect(runAnalysis).toHaveBeenCalledWith("patient-123"));
-    await waitFor(() => expect(screen.getByText("Latest analysis available")).toBeInTheDocument());
     await waitFor(() => expect(listAnalysisRuns).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Latest analysis: analysis-123")).toBeInTheDocument();
+    expect(screen.queryByText("Latest analysis: analysis-old")).not.toBeInTheDocument();
   });
 
   it("redirects to login when patient loading returns 401", async () => {
