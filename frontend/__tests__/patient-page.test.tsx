@@ -10,132 +10,27 @@ import { listTimeline } from "@/lib/api/timeline";
 import { listAnalysisRuns, runAnalysis } from "@/lib/api/analysis";
 import type { AnalysisRunResponse, MedicationResponse } from "@/lib/api/types";
 
-vi.mock("next/navigation", () => ({
-  useParams: () => ({ patientId: "patient-123" }),
-}));
+vi.mock("next/navigation", () => ({ useParams: () => ({ patientId: "patient-123" }) }));
+vi.mock("@/lib/hooks/usePageTitle", () => ({ usePageTitle: vi.fn() }));
+vi.mock("@/components/AuthGate", () => ({ AuthGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock("@/components/AppShell", () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
+vi.mock("@/components/LoadingSkeleton", () => ({ LoadingSkeleton: ({ label }: { label: string }) => <div>{label}</div> }));
+vi.mock("@/components/StatusBanner", () => ({ StatusBanner: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
+vi.mock("@/components/AnalysisHero", () => ({ AnalysisHero: ({ run }: { run: AnalysisRunResponse | null }) => <section>{run ? `Latest analysis: ${run.id}` : "No analysis yet"}</section> }));
+vi.mock("@/components/SchedulePanel", () => ({ SchedulePanel: () => <section>Schedule</section> }));
+vi.mock("@/components/SymptomPanel", () => ({ SymptomPanel: () => <section>Symptoms</section> }));
+vi.mock("@/components/MedicationList", () => ({ MedicationList: () => <section>Medications</section> }));
+vi.mock("@/components/MedicationPicker", () => ({ MedicationPicker: () => <section>Medication form</section> }));
+vi.mock("@/components/TimelineList", () => ({ TimelineList: () => <section>Timeline</section> }));
+vi.mock("@/lib/api/patients", () => ({ getPatient: vi.fn() }));
+vi.mock("@/lib/api/medications", () => ({ listMedications: vi.fn() }));
+vi.mock("@/lib/api/symptoms", () => ({ listSymptoms: vi.fn() }));
+vi.mock("@/lib/api/timeline", () => ({ listTimeline: vi.fn() }));
+vi.mock("@/lib/api/analysis", () => ({ listAnalysisRuns: vi.fn(), runAnalysis: vi.fn() }));
 
-vi.mock("@/lib/hooks/usePageTitle", () => ({
-  usePageTitle: vi.fn(),
-}));
-
-vi.mock("@/components/AuthGate", () => ({
-  AuthGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
-vi.mock("@/components/AppShell", () => ({
-  AppShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
-}));
-
-vi.mock("@/components/LoadingSkeleton", () => ({
-  LoadingSkeleton: ({ label }: { label: string }) => <div>{label}</div>,
-}));
-
-vi.mock("@/components/StatusBanner", () => ({
-  StatusBanner: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock("@/components/AnalysisHero", () => ({
-  AnalysisHero: ({ run }: { run: AnalysisRunResponse | null }) => <section>{run ? `Latest analysis: ${run.id}` : "No analysis yet"}</section>,
-}));
-
-vi.mock("@/components/SchedulePanel", () => ({
-  SchedulePanel: () => <section>Schedule</section>,
-}));
-
-vi.mock("@/components/SymptomPanel", () => ({
-  SymptomPanel: () => <section>Symptoms</section>,
-}));
-
-vi.mock("@/components/MedicationList", () => ({
-  MedicationList: () => <section>Medications</section>,
-}));
-
-vi.mock("@/components/MedicationPicker", () => ({
-  MedicationPicker: () => <section>Medication form</section>,
-}));
-
-vi.mock("@/components/TimelineList", () => ({
-  TimelineList: () => <section>Timeline</section>,
-}));
-
-vi.mock("@/lib/api/patients", () => ({
-  getPatient: vi.fn(),
-}));
-
-vi.mock("@/lib/api/medications", () => ({
-  listMedications: vi.fn(),
-}));
-
-vi.mock("@/lib/api/symptoms", () => ({
-  listSymptoms: vi.fn(),
-}));
-
-vi.mock("@/lib/api/timeline", () => ({
-  listTimeline: vi.fn(),
-}));
-
-vi.mock("@/lib/api/analysis", () => ({
-  listAnalysisRuns: vi.fn(),
-  runAnalysis: vi.fn(),
-}));
-
-const patient = {
-  id: "patient-123",
-  user_id: "user-123",
-  name: "Asha Rao",
-  age: 42,
-  sex: "female",
-  weight_kg: 64,
-  renal_flag: false,
-  hepatic_flag: true,
-  created_at: "2026-09-08T10:00:00Z",
-  updated_at: "2026-09-08T10:00:00Z",
-};
-
-const medication = {
-  id: "med-123",
-  patient_id: "patient-123",
-  drug_id: "drug-123",
-  drug_name: "Aspirin",
-  drug_generic_name: "aspirin",
-  drug_term_type: "IN",
-  drug_source: "RxNorm",
-  condition_id: null,
-  purpose_text: null,
-  dose: "100 mg",
-  times_per_day: 1,
-  interval_hours: null,
-  duration_days: 30,
-  start_date: "2026-09-01",
-  end_date: null,
-  status: "active",
-  created_at: "2026-09-01T10:00:00Z",
-  updated_at: "2026-09-01T10:00:00Z",
-} satisfies MedicationResponse;
-
-const analysis = {
-  id: "analysis-123",
-  patient_id: "patient-123",
-  analysis_version: "1.0",
-  deterministic_result: {
-    safety_score: 82,
-    risk_level: "moderate",
-    starting_score: 100,
-    total_points_deducted: 18,
-    interaction_findings: [],
-    adr_findings: [],
-    adherence_findings: [],
-    penalties: [],
-  },
-  safety_score: 82,
-  risk_level: "moderate",
-  llm_summary: null,
-  llm_reasoning: null,
-  llm_recommendations: null,
-  confidence_score: null,
-  confidence_level: null,
-  created_at: "2026-09-08T10:00:00Z",
-} satisfies AnalysisRunResponse;
+const patient = { id: "patient-123", user_id: "user-123", name: "Asha Rao", age: 42, sex: "female", weight_kg: 64, renal_flag: false, hepatic_flag: true, created_at: "2026-09-08T10:00:00Z", updated_at: "2026-09-08T10:00:00Z" };
+const medication = { id: "med-123", patient_id: "patient-123", drug_id: "drug-123", drug_name: "Aspirin", drug_generic_name: "aspirin", drug_term_type: "IN", drug_source: "RxNorm", condition_id: null, purpose_text: null, dose: "100 mg", times_per_day: 1, interval_hours: null, duration_days: 30, start_date: "2026-09-01", end_date: null, status: "active", created_at: "2026-09-01T10:00:00Z", updated_at: "2026-09-01T10:00:00Z" } satisfies MedicationResponse;
+const analysis = { id: "analysis-123", patient_id: "patient-123", analysis_version: "1.0", deterministic_result: { safety_score: 82, risk_level: "moderate", starting_score: 100, total_points_deducted: 18, interaction_findings: [], adr_findings: [], adherence_findings: [], penalties: [] }, safety_score: 82, risk_level: "moderate", llm_summary: null, llm_reasoning: null, llm_recommendations: null, confidence_score: null, confidence_level: null, created_at: "2026-09-08T10:00:00Z" } satisfies AnalysisRunResponse;
 
 describe("PatientPage", () => {
   beforeEach(() => {
@@ -150,11 +45,8 @@ describe("PatientPage", () => {
 
   it("loads the patient workspace without exposing internal IDs", async () => {
     render(<PatientPage />);
-
     expect(screen.getByText("Loading patient")).toBeInTheDocument();
-
     await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
-
     expect(screen.getByText("Age 42 · female · 64 kg · Hepatic flag")).toBeInTheDocument();
     expect(screen.getByText("1 medication")).toBeInTheDocument();
     expect(screen.getByText("1 active")).toBeInTheDocument();
@@ -162,47 +54,33 @@ describe("PatientPage", () => {
     expect(screen.getByText("No analysis yet")).toBeInTheDocument();
   });
 
-  it("provides direct navigation to each patient workspace card", async () => {
+  it("shows the interactive workspace card stack", async () => {
     render(<PatientPage />);
-
     await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
-
-    expect(screen.getByRole("navigation", { name: "Patient workspace sections" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Safety analysis" })).toHaveAttribute("href", "#safety");
-    expect(screen.getByRole("link", { name: "Medications" })).toHaveAttribute("href", "#medications");
-    expect(screen.getByRole("link", { name: "Symptoms" })).toHaveAttribute("href", "#symptoms");
-    expect(screen.getByRole("link", { name: "Timeline" })).toHaveAttribute("href", "#timeline");
-    expect(screen.getByRole("heading", { name: "Safety analysis" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Patient workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Medications" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Symptoms" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Timeline" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open Medications" }));
     expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Dose schedule" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Symptoms" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Patient timeline" })).toBeInTheDocument();
   });
 
   it("runs analysis and refreshes the displayed result", async () => {
     render(<PatientPage />);
-
     await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Run analysis" }));
-
     await waitFor(() => expect(runAnalysis).toHaveBeenCalledWith("patient-123"));
     await waitFor(() => expect(screen.getByText("Latest analysis: analysis-123")).toBeInTheDocument());
   });
 
   it("keeps the fresh analysis when history refresh returns an older run", async () => {
-    const staleHistory: AnalysisRunResponse = {
-      ...analysis,
-      id: "analysis-old",
-      created_at: "2026-09-07T10:00:00Z",
-    };
+    const staleHistory: AnalysisRunResponse = { ...analysis, id: "analysis-old", created_at: "2026-09-07T10:00:00Z" };
     vi.mocked(listAnalysisRuns).mockReset();
     vi.mocked(listAnalysisRuns).mockResolvedValueOnce([]).mockResolvedValue([staleHistory]);
     vi.mocked(runAnalysis).mockResolvedValue(analysis);
-
     render(<PatientPage />);
     await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Run analysis" }));
-
     await waitFor(() => expect(runAnalysis).toHaveBeenCalledWith("patient-123"));
     await waitFor(() => expect(listAnalysisRuns).toHaveBeenCalledTimes(2));
     expect(screen.getByText("Latest analysis: analysis-123")).toBeInTheDocument();
@@ -211,12 +89,9 @@ describe("PatientPage", () => {
 
   it("allows retry after an initial patient load failure", async () => {
     vi.mocked(getPatient).mockRejectedValueOnce(new ApiError(503, "Service unavailable")).mockResolvedValue(patient);
-
     render(<PatientPage />);
-
     await waitFor(() => expect(screen.getByText("Service unavailable")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-
     await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
     expect(getPatient).toHaveBeenCalledTimes(2);
     expect(screen.queryByText("Service unavailable")).not.toBeInTheDocument();
@@ -227,11 +102,8 @@ describe("PatientPage", () => {
     const assignableLocation = { href: location.href };
     Object.defineProperty(window, "location", { configurable: true, value: assignableLocation });
     vi.mocked(getPatient).mockRejectedValue(new ApiError(401, "Unauthorized"));
-
     render(<PatientPage />);
-
     await waitFor(() => expect(window.location.href).toBe("/login"));
-
     Object.defineProperty(window, "location", { configurable: true, value: location });
   });
 });

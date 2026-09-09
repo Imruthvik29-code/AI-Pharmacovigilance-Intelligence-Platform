@@ -4,6 +4,7 @@ const SESSION_KEY = "pv.session";
 
 export type Session = {
   accessToken: string;
+  refreshToken?: string | null;
   tokenType: string;
   expiresIn: number | null;
   user: AuthUser;
@@ -12,6 +13,7 @@ export type Session = {
 export function sessionFromAuthResponse(response: AuthResponse): Session {
   return {
     accessToken: response.access_token,
+    refreshToken: response.refresh_token,
     tokenType: response.token_type || "bearer",
     expiresIn: response.expires_in,
     user: response.user,
@@ -29,9 +31,7 @@ export function loadSession(): Session | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Session;
-    if (!parsed?.accessToken || !parsed.user?.id) {
-      return null;
-    }
+    if (!parsed?.accessToken || !parsed.user?.id) return null;
     return parsed;
   } catch {
     return null;
