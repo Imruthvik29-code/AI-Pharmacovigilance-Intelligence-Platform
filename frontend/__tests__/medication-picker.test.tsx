@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MedicationPicker } from "@/components/MedicationPicker";
 import { searchReferenceDrugs } from "@/lib/api/referenceDrugs";
+import { ApiError } from "@/lib/api/errors";
 
 vi.mock("@/lib/api/referenceDrugs", () => ({
   searchReferenceDrugs: vi.fn(async () => [
@@ -155,5 +156,31 @@ describe("MedicationPicker keyboard", () => {
     });
     expect(screen.queryByRole("option", { name: /Olderdrug/i })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Newerdrug/i })).toBeInTheDocument();
+  });
+
+  it("recovers from a catalog search error when the query changes", async () => {
+    vi.mocked(searchReferenceDrugs)
+      .mockRejectedValueOnce(new ApiError(503, "Catalog temporarily unavailable"))
+      .mockResolvedValueOnce([
+        {
+          id: "recovered-drug",
+          name: "Recoveredcin",
+          generic_name: null,
+          rxcui: null,
+          source: "DISB",
+          term_type: null,
+        },
+      ]);
+
+    const user = userEvent.setup();
+    render(<MedicationPicker patientId="patient-1" onCreated={() => undefined} />);
+    const input = screen.getByRole("combobox", { name: "Medicine name" });
+
+    await user.type(input, "ex");
+    expect(await screen.findByText("Catalog temporarily unavailable")).toBeInTheDocument();
+
+    await user.type(input, "a");
+    expect(await screen.findByRole("option", { name: /Recoveredcin/i })).toBeInTheDocument();
+    expect(screen.queryByText("Catalog temporarily unavailable")).not.toBeInTheDocument();
   });
 });
