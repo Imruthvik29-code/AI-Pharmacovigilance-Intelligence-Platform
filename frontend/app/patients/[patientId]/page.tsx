@@ -58,7 +58,9 @@ export default function PatientPage() {
     try {
       const runs = await listAnalysisRuns(patientId);
       if (!isCurrent()) return;
-      setAnalysis(runs[0] ?? null);
+      if (runs.length > 0) {
+        setAnalysis(runs[0]);
+      }
       setAnalysisHistoryError(null);
     } catch (err) {
       if (!isCurrent()) return;
