@@ -67,19 +67,29 @@ textarea {
   font-family: var(--font-mono);
 }
 
-/* Patient workspace card stack: one detailed card with compact vertical section tabs. */
+/* Patient workspace: the active card slides out in the swipe direction while the next card enters. */
 .workspace-card-stack {
   display: flex;
   align-items: stretch;
   gap: 0.45rem;
   min-width: 0;
-  touch-action: pan-y;
   user-select: none;
 }
 
-.workspace-card-active {
+.workspace-card-stage {
+  position: relative;
   min-width: 0;
   flex: 1 1 auto;
+  min-height: 22rem;
+  overflow: hidden;
+  border-radius: 1.75rem;
+  touch-action: pan-y;
+}
+
+.workspace-card-active {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
   min-height: 22rem;
   display: flex;
   flex-direction: column;
@@ -90,6 +100,51 @@ textarea {
   background: var(--card);
   padding: 1.25rem;
   box-shadow: 0 14px 35px rgb(20 32 41 / 0.08);
+  will-change: transform, opacity;
+}
+
+.workspace-card-current {
+  transform: translateX(0);
+}
+
+.workspace-card-exit-left {
+  z-index: 2;
+  animation: workspace-card-exit-left 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.workspace-card-exit-right {
+  z-index: 2;
+  animation: workspace-card-exit-right 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.workspace-card-enter-left {
+  z-index: 1;
+  animation: workspace-card-enter-left 220ms cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+.workspace-card-enter-right {
+  z-index: 1;
+  animation: workspace-card-enter-right 220ms cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes workspace-card-exit-left {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-18%); opacity: 0; }
+}
+
+@keyframes workspace-card-exit-right {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(18%); opacity: 0; }
+}
+
+@keyframes workspace-card-enter-left {
+  from { transform: translateX(18%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes workspace-card-enter-right {
+  from { transform: translateX(-18%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 .workspace-card-tabs {
@@ -115,10 +170,15 @@ textarea {
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
-.workspace-card-tab:hover {
+.workspace-card-tab:hover:not(:disabled) {
   transform: translateY(-3px);
   border-color: rgb(13 107 99 / 0.35);
   box-shadow: 0 10px 22px rgb(20 32 41 / 0.08);
+}
+
+.workspace-card-tab:disabled {
+  cursor: default;
+  opacity: 0.65;
 }
 
 .workspace-card-tab:focus-visible {
@@ -138,6 +198,7 @@ textarea {
 
 @media (max-width: 639px) {
   .workspace-card-stack { gap: 0.35rem; }
+  .workspace-card-stage { min-height: 20rem; border-radius: 1.5rem; }
   .workspace-card-active { min-height: 20rem; border-radius: 1.5rem; padding: 1rem; }
   .workspace-card-tabs { gap: 0.3rem; }
   .workspace-card-tab { width: 2.7rem; min-height: 18rem; border-radius: 1.1rem; padding-inline: 0.25rem; }
@@ -145,4 +206,10 @@ textarea {
 
 @media (prefers-reduced-motion: reduce) {
   .workspace-card-tab { transition: none; }
+  .workspace-card-exit-left,
+  .workspace-card-exit-right,
+  .workspace-card-enter-left,
+  .workspace-card-enter-right {
+    animation: none;
+  }
 }
