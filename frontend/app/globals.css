@@ -67,18 +67,78 @@ textarea {
   font-family: var(--font-mono);
 }
 
+/*
+ * Patient experience proportions. These values deliberately step at the three
+ * supported layouts instead of interpolating with viewport units, keeping the
+ * overview, detail sheet, and patient index visually related at every size.
+ */
+.patient-experience {
+  --patient-page-gutter: 1rem;
+  --patient-hero-height: 13.5rem;
+  --patient-sheet-overlap: .75rem;
+  --patient-active-card-width: 100%;
+  --patient-companion-card-width: calc((100% - .75rem) / 2);
+  --patient-heading-size: 2.35rem;
+  --patient-body-size: .9375rem;
+  --patient-metadata-size: .75rem;
+  --patient-card-radius: 1.5rem;
+  --patient-surface-shadow: 0 10px 26px rgb(20 32 41 / .08);
+
+  font-size: var(--patient-body-size);
+}
+
+@media (min-width: 640px) {
+  .patient-experience {
+    --patient-page-gutter: 1.5rem;
+    --patient-hero-height: 16rem;
+    --patient-sheet-overlap: 1.25rem;
+    --patient-active-card-width: 44rem;
+    --patient-companion-card-width: 10.25rem;
+    --patient-heading-size: 3.25rem;
+    --patient-body-size: 1rem;
+    --patient-metadata-size: .8125rem;
+    --patient-card-radius: 1.75rem;
+    --patient-surface-shadow: 0 16px 38px rgb(20 32 41 / .09);
+  }
+}
+
+@media (min-width: 1024px) {
+  .patient-experience {
+    --patient-page-gutter: 2rem;
+    --patient-hero-height: 18rem;
+    --patient-sheet-overlap: 2rem;
+    --patient-active-card-width: 58rem;
+    --patient-companion-card-width: 13.9375rem;
+    --patient-heading-size: 4.4rem;
+    --patient-body-size: 1rem;
+    --patient-metadata-size: .8125rem;
+    --patient-card-radius: 2rem;
+    --patient-surface-shadow: 0 20px 45px rgb(20 32 41 / .10);
+  }
+}
+
+.patient-detail,
+.patient-list { padding-inline: var(--patient-page-gutter); }
+.patient-metadata { font-size: var(--patient-metadata-size); }
+.patient-list-header h1 { font-size: var(--patient-heading-size); line-height: .95; }
+.patient-list-name { font-size: calc(var(--patient-heading-size) * .4); }
+.patient-list-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--patient-companion-card-width)), 1fr)); }
+.patient-list-card { border-radius: var(--patient-card-radius); box-shadow: var(--patient-surface-shadow); }
+.patient-list-card:hover { box-shadow: var(--patient-surface-shadow); }
+.patient-detail > section { border-radius: var(--patient-card-radius); box-shadow: var(--patient-surface-shadow); }
+
 /* Patient workspace: layered primary card and an integrated section rail. */
-.workspace-deck { margin-top: 2.5rem; max-width: 58rem; }
-.workspace-card-stage { position: relative; height: 28rem; isolation: isolate; touch-action: pan-y; }
-.workspace-primary, .workspace-card-shadow { position: absolute; inset: 0; border-radius: 2rem; }
+.workspace-deck { margin-top: 2.5rem; width: min(100%, var(--patient-active-card-width)); }
+.workspace-card-stage { position: relative; height: calc(var(--patient-hero-height) + 10rem); isolation: isolate; touch-action: pan-y; }
+.workspace-primary, .workspace-card-shadow { position: absolute; inset: 0; border-radius: var(--patient-card-radius); }
 .workspace-card-shadow { border: 1px solid var(--line); background: var(--card); }
-.workspace-card-shadow-one { z-index: -1; transform: translate(1.5rem, 1rem); opacity: .72; }
-.workspace-card-shadow-two { z-index: -2; transform: translate(3rem, 2rem); opacity: .38; }
-.workspace-primary { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 1px solid var(--line); background: var(--card); padding: clamp(1.5rem, 4vw, 2.8rem); box-shadow: 0 20px 45px rgb(20 32 41 / .10); will-change: transform, opacity; }
+.workspace-card-shadow-one { z-index: -1; transform: translate(calc(var(--patient-sheet-overlap) * .5), calc(var(--patient-sheet-overlap) * .35)); opacity: .72; }
+.workspace-card-shadow-two { z-index: -2; transform: translate(var(--patient-sheet-overlap), calc(var(--patient-sheet-overlap) * .7)); opacity: .38; }
+.workspace-primary { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 1px solid var(--line); background: var(--card); padding: var(--patient-page-gutter); box-shadow: var(--patient-surface-shadow); will-change: transform, opacity; }
 .workspace-primary::before { position: absolute; top: 0; right: 0; width: 38%; height: 100%; background: #f5faf8; content: ""; }
 .workspace-primary > * { position: relative; }
 .workspace-primary-top { display: flex; align-items: center; gap: 1rem; }
-.workspace-primary h2 { margin: .15rem 0 0; font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1; letter-spacing: -.06em; }
+.workspace-primary h2 { margin: .15rem 0 0; font-size: calc(var(--patient-heading-size) * .77); line-height: 1; letter-spacing: -.06em; }
 .workspace-eyebrow { margin: 0; color: var(--accent); font-family: var(--font-mono); font-size: .65rem; letter-spacing: .18em; }
 .workspace-section-icon, .workspace-rail-icon { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; }
 .workspace-section-icon { width: 3.65rem; height: 3.65rem; font-size: 1.75rem; }
@@ -87,14 +147,14 @@ textarea {
 .workspace-section-icon-symptoms { color: #7053a2; background: #eee9f9; }
 .workspace-section-icon-timeline { color: #246d98; background: #e6f1f8; }
 .workspace-primary-copy { max-width: 31rem; margin-top: auto; padding: 2.2rem 0; }
-.workspace-primary-copy p { margin: .55rem 0 0; color: var(--muted); font-size: 1rem; line-height: 1.65; }
-.workspace-primary-copy .workspace-metric { color: var(--ink); font-size: clamp(1.65rem, 4vw, 2.65rem); font-weight: 650; letter-spacing: -.05em; line-height: 1; }
-.workspace-primary-copy small { display: block; margin-top: 1rem; color: var(--muted); font-size: .75rem; }
+.workspace-primary-copy p { margin: .55rem 0 0; color: var(--muted); font-size: var(--patient-body-size); line-height: 1.65; }
+.workspace-primary-copy .workspace-metric { color: var(--ink); font-size: calc(var(--patient-heading-size) * .6); font-weight: 650; letter-spacing: -.05em; line-height: 1; }
+.workspace-primary-copy small { display: block; margin-top: 1rem; color: var(--muted); font-size: var(--patient-metadata-size); }
 .workspace-primary-action { display: flex; width: 100%; min-height: 4rem; align-items: center; justify-content: space-between; border-radius: 1.2rem; background: var(--ink); padding: 1rem 1.25rem; color: white; font-size: .94rem; font-weight: 650; transition: transform 180ms ease, background-color 180ms ease; }
 .workspace-primary-action:hover:not(:disabled) { transform: translateY(-2px); background: #22323a; }
 .workspace-primary-action:disabled { cursor: wait; opacity: .65; }
 .workspace-primary-action:focus-visible, .workspace-section-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.workspace-section-rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin-top: 2.5rem; }
+.workspace-section-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--patient-companion-card-width)), 1fr)); gap: .75rem; margin-top: 2.5rem; }
 .workspace-section-button { display: flex; min-height: 7.5rem; flex-direction: column; justify-content: space-between; border: 1px solid var(--line); border-radius: 1.45rem; background: var(--card); padding: .9rem; color: var(--ink); text-align: left; box-shadow: 0 6px 18px rgb(20 32 41 / .04); transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease; }
 .workspace-section-button:not(.is-active):hover:not(:disabled) { transform: translateY(-3px); border-color: #9dcac2; }
 .workspace-section-button.is-active { border-color: var(--accent); background: #f0f8f6; }
@@ -115,15 +175,15 @@ textarea {
 @keyframes workspace-exit-right { to { transform: translateX(105%) scale(.985); opacity: 0; } }
 @keyframes workspace-enter-left { from { transform: translateX(105%) scale(.985); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes workspace-enter-right { from { transform: translateX(-105%) scale(.985); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@media (max-width: 639px) { .workspace-deck { margin-top: 1.75rem; } .workspace-card-stage { height: 26rem; } .workspace-primary, .workspace-card-shadow { border-radius: 1.65rem; } .workspace-card-shadow-one { transform: translate(.65rem, .65rem); } .workspace-card-shadow-two { transform: translate(1.3rem, 1.3rem); } .workspace-primary::before { width: 52%; } .workspace-section-rail { grid-template-columns: repeat(2, 1fr); gap: .6rem; margin-top: 1.8rem; } .workspace-section-button { min-height: 6.2rem; border-radius: 1.2rem; } }
+@media (max-width: 639px) { .workspace-deck { margin-top: 1.75rem; } .workspace-primary::before { width: 52%; } .workspace-section-rail { gap: .6rem; margin-top: 1.8rem; } .workspace-section-button { min-height: 6.2rem; border-radius: 1.2rem; } }
 @media (prefers-reduced-motion: reduce) { .workspace-primary, .workspace-section-button, .workspace-primary-action { transition: none; } .workspace-exit-left, .workspace-exit-right, .workspace-enter-left, .workspace-enter-right { animation: none; } }
 
 .patient-back-link { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .55rem; border-radius: 999px; color: var(--muted); font-size: .82rem; font-weight: 600; transition: background-color 180ms ease, color 180ms ease; }
 .patient-back-link:hover { color: var(--ink); }
-.patient-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(12rem, 18rem); align-items: end; gap: 1.25rem; max-width: 58rem; margin-top: 2rem; padding: 1.2rem 0 1.7rem; border-bottom: 1px solid var(--line); }
-.patient-hero-copy h1 { margin: .25rem 0 0; font-size: clamp(2.2rem, 6vw, 4.4rem); font-weight: 650; letter-spacing: -.075em; line-height: .9; }
-.patient-hero-copy p { margin: .7rem 0 0; color: var(--muted); font-size: .95rem; }
-.patient-hero-copy span, .patient-hero-kicker { display: block; margin-top: .35rem; color: var(--muted); font-size: .78rem; }
+.patient-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(12rem, 18rem); align-items: end; gap: 1.25rem; width: min(100%, var(--patient-active-card-width)); min-height: var(--patient-hero-height); margin-top: 2rem; padding: 1.2rem 0 1.7rem; border-bottom: 1px solid var(--line); }
+.patient-hero-copy h1 { margin: .25rem 0 0; font-size: var(--patient-heading-size); font-weight: 650; letter-spacing: -.075em; line-height: .9; }
+.patient-hero-copy p { margin: .7rem 0 0; color: var(--muted); font-size: var(--patient-body-size); }
+.patient-hero-copy span, .patient-hero-kicker { display: block; margin-top: .35rem; color: var(--muted); font-size: var(--patient-metadata-size); }
 .patient-hero-kicker { color: var(--accent); font-family: var(--font-mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; }
 .patient-hero-note { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.55; text-align: right; }
 @media (max-width: 639px) { .patient-hero { grid-template-columns: auto minmax(0, 1fr); gap: 1rem; margin-top: 1rem; padding-bottom: 1.35rem; } .patient-hero-note { display: none; } .patient-hero-copy h1 { font-size: 2.35rem; } }
