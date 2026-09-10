@@ -40,8 +40,10 @@ describe("PatientWorkspaceCards", () => {
     try {
       render(<PatientWorkspaceCards analysis={null} medications={[]} symptoms={[]} timeline={[]} />);
       const workspace = screen.getByRole("region", { name: "Patient workspace" });
-      fireEvent.pointerDown(workspace, { clientX: 300, pointerId: 1 });
-      fireEvent.pointerUp(workspace, { clientX: 180, pointerId: 1 });
+      const stage = workspace.querySelector(".workspace-card-stage");
+      expect(stage).not.toBeNull();
+      fireEvent.pointerDown(stage!, { clientX: 300, pointerId: 1 });
+      fireEvent.pointerUp(stage!, { clientX: 180, pointerId: 1 });
       expect(screen.getByText("1 / 4")).toBeInTheDocument();
       act(() => vi.advanceTimersByTime(220));
       expect(screen.getByText("2 / 4")).toBeInTheDocument();
@@ -60,8 +62,10 @@ describe("PatientWorkspaceCards", () => {
       act(() => vi.advanceTimersByTime(220));
       expect(screen.getByRole("heading", { name: "Symptoms" })).toBeInTheDocument();
 
-      fireEvent.pointerDown(workspace, { clientX: 180, pointerId: 2 });
-      fireEvent.pointerUp(workspace, { clientX: 300, pointerId: 2 });
+      const stage = workspace.querySelector(".workspace-card-stage");
+      expect(stage).not.toBeNull();
+      fireEvent.pointerDown(stage!, { clientX: 180, pointerId: 2 });
+      fireEvent.pointerUp(stage!, { clientX: 300, pointerId: 2 });
       act(() => vi.advanceTimersByTime(220));
       expect(screen.getByText("2 / 4")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
