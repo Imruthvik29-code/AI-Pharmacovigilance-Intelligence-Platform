@@ -53,14 +53,14 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
     const target = event.target;
     if (target instanceof HTMLElement && target.closest("button, a")) return;
     pointerStart.current = event.clientX;
-    if ("setPointerCapture" in event.currentTarget) event.currentTarget.setPointerCapture(event.pointerId);
+    if (typeof event.currentTarget.setPointerCapture === "function") event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function handlePointerUp(event: PointerEvent<HTMLElement>) {
     if (pointerStart.current == null) return;
     const delta = event.clientX - pointerStart.current;
     pointerStart.current = null;
-    if ("hasPointerCapture" in event.currentTarget && event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (typeof event.currentTarget.hasPointerCapture === "function" && event.currentTarget.hasPointerCapture(event.pointerId) && typeof event.currentTarget.releasePointerCapture === "function") event.currentTarget.releasePointerCapture(event.pointerId);
     if (Math.abs(delta) < 48 || transitioning) return;
 
     if (delta < 0 && activeIndex < sections.length - 1) select(activeIndex + 1);
