@@ -161,6 +161,7 @@ export default function PatientPage() {
   return (
     <AuthGate>
       <AppShell>
+        <div className="patient-experience patient-detail">
         <Link href="/dashboard" className="patient-back-link">
           <span aria-hidden="true">←</span> Patients
         </Link>
@@ -238,6 +239,7 @@ export default function PatientPage() {
             </section> : null}
           </>
         ) : null}
+        </div>
       </AppShell>
     </AuthGate>
   );
