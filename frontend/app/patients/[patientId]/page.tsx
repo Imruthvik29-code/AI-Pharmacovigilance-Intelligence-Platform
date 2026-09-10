@@ -176,12 +176,14 @@ export default function PatientPage() {
         {patient ? (
           <>
             <header className="patient-hero">
-              <PatientAvatar patient={patient} size="lg" />
-              <div className="patient-hero-copy">
-                <p className="patient-hero-kicker">Patient record</p>
-                <h1>{patient.name}</h1>
-                <p>{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
-                {patient.relation ? <span>{patient.relation === "Self" ? "My profile" : patient.relation}</span> : null}
+              <div className="patient-hero-identity">
+                <PatientAvatar patient={patient} size="lg" />
+                <div className="patient-hero-copy">
+                  <p className="patient-hero-kicker">Patient record</p>
+                  <h1>{patient.name}</h1>
+                  <p>{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
+                  {patient.relation ? <span>{patient.relation === "Self" ? "My profile" : patient.relation}</span> : null}
+                </div>
               </div>
               {!detailSection ? <p className="patient-hero-note">A focused record for treatment, symptoms, and safety.</p> : null}
             </header>

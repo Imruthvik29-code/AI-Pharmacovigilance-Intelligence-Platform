@@ -68,7 +68,7 @@ textarea {
 }
 
 /* Patient workspace: layered primary card and an integrated section rail. */
-.workspace-deck { margin-top: 2.5rem; max-width: 58rem; }
+.workspace-deck { max-width: 58rem; margin-top: -2.5rem; position: relative; z-index: 2; }
 .workspace-card-stage { position: relative; height: 28rem; isolation: isolate; touch-action: pan-y; }
 .workspace-primary, .workspace-card-shadow { position: absolute; inset: 0; border-radius: 2rem; }
 .workspace-card-shadow { border: 1px solid var(--line); background: var(--card); }
@@ -115,15 +115,18 @@ textarea {
 @keyframes workspace-exit-right { to { transform: translateX(105%) scale(.985); opacity: 0; } }
 @keyframes workspace-enter-left { from { transform: translateX(105%) scale(.985); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes workspace-enter-right { from { transform: translateX(-105%) scale(.985); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@media (max-width: 639px) { .workspace-deck { margin-top: 1.75rem; } .workspace-card-stage { height: 26rem; } .workspace-primary, .workspace-card-shadow { border-radius: 1.65rem; } .workspace-card-shadow-one { transform: translate(.65rem, .65rem); } .workspace-card-shadow-two { transform: translate(1.3rem, 1.3rem); } .workspace-primary::before { width: 52%; } .workspace-section-rail { grid-template-columns: repeat(2, 1fr); gap: .6rem; margin-top: 1.8rem; } .workspace-section-button { min-height: 6.2rem; border-radius: 1.2rem; } }
+@media (max-width: 639px) { .workspace-deck { margin-top: -1.5rem; } .workspace-card-stage { height: 26rem; } .workspace-primary, .workspace-card-shadow { border-radius: 1.65rem; } .workspace-card-shadow-one { transform: translate(.65rem, .65rem); } .workspace-card-shadow-two { transform: translate(1.3rem, 1.3rem); } .workspace-primary::before { width: 52%; } .workspace-section-rail { grid-template-columns: repeat(2, 1fr); gap: .6rem; margin-top: 1.8rem; } .workspace-section-button { min-height: 6.2rem; border-radius: 1.2rem; } }
 @media (prefers-reduced-motion: reduce) { .workspace-primary, .workspace-section-button, .workspace-primary-action { transition: none; } .workspace-exit-left, .workspace-exit-right, .workspace-enter-left, .workspace-enter-right { animation: none; } }
 
 .patient-back-link { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .55rem; border-radius: 999px; color: var(--muted); font-size: .82rem; font-weight: 600; transition: background-color 180ms ease, color 180ms ease; }
 .patient-back-link:hover { color: var(--ink); }
-.patient-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(12rem, 18rem); align-items: end; gap: 1.25rem; max-width: 58rem; margin-top: 2rem; padding: 1.2rem 0 1.7rem; border-bottom: 1px solid var(--line); }
-.patient-hero-copy h1 { margin: .25rem 0 0; font-size: clamp(2.2rem, 6vw, 4.4rem); font-weight: 650; letter-spacing: -.075em; line-height: .9; }
-.patient-hero-copy p { margin: .7rem 0 0; color: var(--muted); font-size: .95rem; }
-.patient-hero-copy span, .patient-hero-kicker { display: block; margin-top: .35rem; color: var(--muted); font-size: .78rem; }
-.patient-hero-kicker { color: var(--accent); font-family: var(--font-mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; }
-.patient-hero-note { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.55; text-align: right; }
-@media (max-width: 639px) { .patient-hero { grid-template-columns: auto minmax(0, 1fr); gap: 1rem; margin-top: 1rem; padding-bottom: 1.35rem; } .patient-hero-note { display: none; } .patient-hero-copy h1 { font-size: 2.35rem; } }
+.patient-hero { position: relative; isolation: isolate; display: flex; min-height: 15.5rem; max-width: 58rem; align-items: flex-end; margin-top: 1.25rem; overflow: hidden; border: 1px solid #c8ddd8; border-radius: 2rem; background: #dcebe7; box-shadow: inset 0 1px rgb(255 255 255 / .5); }
+.patient-hero::before { position: absolute; z-index: -2; inset: 0; background: linear-gradient(120deg, #edf5f2 0%, #d5e9e3 56%, #b8d9d1 100%); content: ""; }
+.patient-hero::after { position: absolute; z-index: -1; top: -7.5rem; right: -1.5rem; width: 22rem; height: 22rem; border: 1px solid rgb(255 255 255 / .56); border-radius: 50%; background: repeating-radial-gradient(circle at center, transparent 0 2.7rem, rgb(255 255 255 / .22) 2.75rem 2.8rem); box-shadow: 0 0 0 3.7rem rgb(255 255 255 / .12), 0 0 0 7.4rem rgb(255 255 255 / .1); content: ""; }
+.patient-hero-identity { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 1rem; max-width: min(100%, 35rem); margin: 0 1.35rem 1.35rem; padding: .9rem 1rem; border: 1px solid rgb(255 255 255 / .65); border-radius: 1.5rem; background: rgb(255 253 248 / .82); box-shadow: 0 10px 28px rgb(29 65 59 / .12); backdrop-filter: blur(10px); }
+.patient-hero-copy h1 { margin: .2rem 0 0; font-size: clamp(2rem, 5vw, 3.6rem); font-weight: 650; letter-spacing: -.07em; line-height: .92; }
+.patient-hero-copy p { margin: .55rem 0 0; color: var(--muted); font-size: .9rem; }
+.patient-hero-copy span, .patient-hero-kicker { display: block; margin-top: .3rem; color: var(--muted); font-size: .76rem; }
+.patient-hero-kicker { color: var(--accent); font-family: var(--font-mono); font-size: .61rem; letter-spacing: .16em; text-transform: uppercase; }
+.patient-hero-note { position: absolute; z-index: 1; top: 1.5rem; right: 1.5rem; max-width: 12rem; margin: 0; color: #335c57; font-size: .78rem; line-height: 1.55; text-align: right; }
+@media (max-width: 639px) { .patient-hero { min-height: 13.5rem; margin-top: .75rem; border-radius: 1.6rem; } .patient-hero::after { top: -9rem; right: -8rem; } .patient-hero-identity { width: calc(100% - 1.5rem); gap: .75rem; margin: 0 .75rem .75rem; padding: .7rem; border-radius: 1.2rem; } .patient-hero-identity > span { width: 4.5rem; height: 4.5rem; border-radius: 1.1rem; font-size: 1.5rem; } .patient-hero-note { display: none; } .patient-hero-copy h1 { font-size: 2.1rem; } }
