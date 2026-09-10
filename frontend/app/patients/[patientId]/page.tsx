@@ -25,6 +25,16 @@ import { usePageTitle } from "@/lib/hooks/usePageTitle";
 import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui/classes";
 import type { AnalysisRunResponse, MedicationResponse, PatientResponse, SymptomResponse, TimelineEventResponse } from "@/lib/api/types";
 
+function PatientExperience({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="patient-experience">
+      <div className="patient-experience__viewport">
+        <div className="patient-experience__surface">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function PatientPage() {
   const params = useParams<{ patientId: string }>();
   const patientId = params.patientId;
@@ -161,20 +171,21 @@ export default function PatientPage() {
   return (
     <AuthGate>
       <AppShell>
-        <Link href="/dashboard" className="patient-back-link">
-          <span aria-hidden="true">←</span> Patients
-        </Link>
+        <PatientExperience>
+          <Link href="/dashboard" className="patient-back-link">
+            <span aria-hidden="true">←</span> Patients
+          </Link>
 
-        {loading ? <div className="mt-6 max-w-md"><LoadingSkeleton label="Loading patient" lines={4} /></div> : null}
-        {pageError ? (
-          <div className="mt-6 space-y-3">
-            <StatusBanner tone="error" role="alert">{pageError}</StatusBanner>
-            <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} className={secondaryButtonClass}>Try again</button>
-          </div>
-        ) : null}
+          {loading ? <div className="mt-6 max-w-md"><LoadingSkeleton label="Loading patient" lines={4} /></div> : null}
+          {pageError ? (
+            <div className="mt-6 space-y-3">
+              <StatusBanner tone="error" role="alert">{pageError}</StatusBanner>
+              <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} className={secondaryButtonClass}>Try again</button>
+            </div>
+          ) : null}
 
-        {patient ? (
-          <>
+          {patient ? (
+            <>
             <header className="patient-hero">
               <PatientAvatar patient={patient} size="lg" />
               <div className="patient-hero-copy">
@@ -236,8 +247,9 @@ export default function PatientPage() {
               </div>
               <TimelineList events={timeline} error={timelineError} />
             </section> : null}
-          </>
-        ) : null}
+            </>
+          ) : null}
+        </PatientExperience>
       </AppShell>
     </AuthGate>
   );
