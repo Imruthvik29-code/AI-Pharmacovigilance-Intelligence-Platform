@@ -9,8 +9,9 @@ import { AuthGate } from "@/components/AuthGate";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { MedicationList } from "@/components/MedicationList";
 import { MedicationPicker } from "@/components/MedicationPicker";
-import { PatientWorkspaceCards, type WorkspaceCardId } from "@/components/PatientWorkspaceCards";
+import { type WorkspaceCardId } from "@/components/PatientWorkspaceCards";
 import { PatientAvatar } from "@/components/PatientAvatar";
+import { PatientOverviewSheet } from "@/components/PatientOverviewSheet";
 import { SchedulePanel } from "@/components/SchedulePanel";
 import { StatusBanner } from "@/components/StatusBanner";
 import { SymptomPanel } from "@/components/SymptomPanel";
@@ -185,7 +186,7 @@ export default function PatientPage() {
               </div>
               {!detailSection ? <p className="patient-hero-note">A focused record for treatment, symptoms, and safety.</p> : null}
             </header>
-            {!detailSection ? <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} onRunAnalysis={() => void handleRunAnalysis()} analysisRunning={running} /> : null}
+            {!detailSection ? <PatientOverviewSheet analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} onRunAnalysis={() => void handleRunAnalysis()} analysisRunning={running} /> : null}
             {detailSection ? <div className="mt-7 flex items-center justify-between"><button type="button" onClick={() => setDetailSection(null)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 text-sm font-medium">← Overview</button><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Details</p></div> : null}
 
             {analysisError ? <div className="mt-4"><StatusBanner tone="error" role="alert">{analysisError}</StatusBanner></div> : null}
