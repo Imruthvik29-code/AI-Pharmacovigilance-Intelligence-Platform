@@ -49,7 +49,7 @@ export default function DashboardPage() {
 
   return (
     <AuthGate>
-      <AppShell>
+      <AppShell patientExperience>
         <section className="mx-auto max-w-5xl">
           <header className="flex items-center justify-between gap-4 px-1 pt-2">
             <div><p className="text-sm text-muted">Your clinical records</p><h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Patients</h1></div>
