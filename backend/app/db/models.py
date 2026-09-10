@@ -76,6 +76,8 @@ class Patient(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    relation: Mapped[str | None] = mapped_column(String)
+    photo_url: Mapped[str | None] = mapped_column(Text)
     age: Mapped[int | None] = mapped_column(Integer)
     sex: Mapped[str | None] = mapped_column(String)
     weight_kg: Mapped[float | None] = mapped_column(Numeric)

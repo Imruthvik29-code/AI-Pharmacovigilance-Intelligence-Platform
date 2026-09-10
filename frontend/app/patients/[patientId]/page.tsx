@@ -44,6 +44,7 @@ export default function PatientPage() {
   const [analysisHistoryError, setAnalysisHistoryError] = useState<string | null>(null);
   const [analysisHistoryLoaded, setAnalysisHistoryLoaded] = useState(false);
   const [running, setRunning] = useState(false);
+  const [detailSection, setDetailSection] = useState<WorkspaceCardId | null>(null);
 
   usePageTitle(patient?.name ?? "Patient");
 
@@ -149,18 +150,10 @@ export default function PatientPage() {
   }
 
   function handleViewDetails(section: WorkspaceCardId) {
-    document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setDetailSection(section);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const demographics = patient
-    ? [
-        patient.age != null ? `Age ${patient.age}` : null,
-        patient.sex,
-        patient.weight_kg != null ? `${formatWeightKg(patient.weight_kg)} kg` : null,
-        patient.renal_flag ? "Renal flag" : null,
-        patient.hepatic_flag ? "Hepatic flag" : null,
-      ].filter(Boolean)
-    : [];
   const activeCount = medications.filter((medication) => medication.status === "active").length;
   const unresolvedSymptoms = symptoms.filter((symptom) => !symptom.resolved_date).length;
 
@@ -181,46 +174,30 @@ export default function PatientPage() {
 
         {patient ? (
           <>
-            <header className="mt-5 overflow-hidden rounded-3xl border border-line bg-card shadow-[0_1px_2px_rgba(20,32,41,0.04)]">
-              <div className="flex flex-col gap-6 px-5 py-6 sm:px-7 sm:py-7 lg:flex-row lg:items-end lg:justify-between">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
-                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">Patient record</p>
-                  </div>
-                  <h1 className="mt-2 truncate text-3xl font-semibold tracking-tight sm:text-4xl">{patient.name}</h1>
-                  <p className="mt-2 text-sm text-muted">{demographics.length > 0 ? demographics.join(" · ") : "No demographics recorded"}</p>
-                </div>
-                <div className="w-full lg:w-auto lg:min-w-[190px]">
-                  <button type="button" onClick={() => void handleRunAnalysis()} disabled={running} className={`${primaryButtonClass} w-full bg-ink sm:w-auto lg:min-w-[190px]`}>
-                    {running ? "Running analysis…" : "Run analysis"}
-                  </button>
-                  {activeCount < 2 ? <p className="mt-2 text-center text-[11px] leading-4 text-muted lg:text-right">Two active medications are needed for interaction analysis.</p> : null}
-                </div>
+            <header className="mt-5 text-center">
+              <div aria-label={`${patient.name} initials`} className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-[2rem] border border-[#b8d7d2] bg-[#e7f2ef] text-3xl font-semibold text-accent shadow-[0_12px_26px_rgba(20,32,41,0.08)]">
+                {patient.photo_url ? <img src={patient.photo_url} alt={`${patient.name} profile`} className="h-full w-full object-cover" /> : patient.name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
               </div>
-              <div className="flex flex-wrap gap-2 border-t border-line bg-paper/35 px-5 py-3 sm:px-7">
-                <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{medications.length} {medications.length === 1 ? "medication" : "medications"}</span>
-                <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{activeCount} active</span>
-                <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{symptoms.length} {symptoms.length === 1 ? "symptom" : "symptoms"}</span>
-                {unresolvedSymptoms > 0 ? <span className="rounded-full bg-paper px-2.5 py-1 text-[11px] font-medium text-moderate">{unresolvedSymptoms} unresolved</span> : null}
-                {patient.renal_flag ? <span className="rounded-full bg-[#fdf6ec] px-2.5 py-1 text-[11px] font-medium text-moderate">Renal flag</span> : null}
-                {patient.hepatic_flag ? <span className="rounded-full bg-[#fdf6ec] px-2.5 py-1 text-[11px] font-medium text-moderate">Hepatic flag</span> : null}
-              </div>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{patient.name}</h1>
+              <p className="mt-1 text-sm text-muted">{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
+              {patient.relation ? <p className="mt-1 text-sm text-muted">{patient.relation === "Self" ? "My profile" : patient.relation}</p> : null}
+              {!detailSection ? <><button type="button" onClick={() => void handleRunAnalysis()} disabled={running} className="mt-5 inline-flex min-h-10 items-center rounded-full bg-ink px-4 text-sm font-medium text-white">{running ? "Running analysis…" : "Run analysis"}</button><p className="mt-5 font-mono text-[10px] uppercase tracking-[0.2em] text-accent">Patient overview</p></> : null}
             </header>
-
-            <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} />
+            {!detailSection ? <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} /> : null}
+            {detailSection ? <div className="mt-7 flex items-center justify-between"><button type="button" onClick={() => setDetailSection(null)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 text-sm font-medium">← Overview</button><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Details</p></div> : null}
 
             {analysisError ? <div className="mt-4"><StatusBanner tone="error" role="alert">{analysisError}</StatusBanner></div> : null}
 
-            <section id="safety" aria-labelledby="safety-heading" className="mt-8 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "safety" ? <section id="safety" aria-labelledby="safety-heading" className="mt-8 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">01 · Safety</p><h2 id="safety-heading" className="mt-1 text-xl font-semibold tracking-tight">Safety analysis</h2></div>
                 <p className="text-xs text-muted">Deterministic findings with evidence-backed explanation</p>
               </div>
+              <div className="mb-5 flex justify-end"><button type="button" onClick={() => void handleRunAnalysis()} disabled={running} className={primaryButtonClass}>{running ? "Running analysis…" : "Run analysis"}</button></div>
               <AnalysisHero run={analysis} historyError={analysisHistoryError} historyLoaded={analysisHistoryLoaded} running={running} />
-            </section>
+            </section> : null}
 
-            <section id="medications" aria-labelledby="medications-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "medications" ? <section id="medications" aria-labelledby="medications-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">02 · Treatment</p><h2 id="medications-heading" className="mt-1 text-xl font-semibold tracking-tight">Medications</h2></div>
                 <p className="text-xs text-muted">{activeCount} active of {medications.length} recorded</p>
@@ -232,31 +209,31 @@ export default function PatientPage() {
                   {showPicker ? <div className="mt-4"><MedicationPicker patientId={patientId} onCreated={(medication) => { setMedications((current) => [...current, medication]); setShowPicker(false); void refreshSecondary(); }} /></div> : null}
                 </div>
               </div>
-            </section>
+            </section> : null}
 
-            <section aria-labelledby="schedule-heading" className="mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "medications" ? <section aria-labelledby="schedule-heading" className="mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">03 · Adherence</p><h2 id="schedule-heading" className="mt-1 text-xl font-semibold tracking-tight">Dose schedule</h2></div>
                 <p className="text-xs text-muted">Scheduled doses and adherence activity</p>
               </div>
               <SchedulePanel patientId={patientId} medications={medications} onTimelineRefresh={() => void refreshSecondary()} />
-            </section>
+            </section> : null}
 
-            <section id="symptoms" aria-labelledby="symptoms-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "symptoms" ? <section id="symptoms" aria-labelledby="symptoms-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">04 · Clinical signals</p><h2 id="symptoms-heading" className="mt-1 text-xl font-semibold tracking-tight">Symptoms</h2></div>
                 <p className="text-xs text-muted">{unresolvedSymptoms} unresolved of {symptoms.length} recorded</p>
               </div>
               <SymptomPanel patientId={patientId} medications={medications} symptoms={symptoms} loading={symptomsLoading} error={symptomsError} onCreated={(symptom) => { setSymptoms((current) => [...current, symptom]); void refreshSecondary(); }} />
-            </section>
+            </section> : null}
 
-            <section id="timeline" aria-labelledby="timeline-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "timeline" ? <section id="timeline" aria-labelledby="timeline-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">05 · Activity</p><h2 id="timeline-heading" className="mt-1 text-xl font-semibold tracking-tight">Patient timeline</h2></div>
                 <p className="text-xs text-muted">Recent patient activity</p>
               </div>
               <TimelineList events={timeline} error={timelineError} />
-            </section>
+            </section> : null}
           </>
         ) : null}
       </AppShell>

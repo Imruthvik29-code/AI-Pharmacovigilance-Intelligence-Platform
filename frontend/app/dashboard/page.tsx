@@ -10,7 +10,7 @@ import { StatusBanner } from "@/components/StatusBanner";
 import { listPatients } from "@/lib/api/patients";
 import { ApiError } from "@/lib/api/errors";
 import { usePageTitle } from "@/lib/hooks/usePageTitle";
-import { primaryButtonClass } from "@/lib/ui/classes";
+import { PatientAvatar } from "@/components/PatientAvatar";
 import type { PatientResponse } from "@/lib/api/types";
 
 export default function DashboardPage() {
@@ -50,78 +50,18 @@ export default function DashboardPage() {
   return (
     <AuthGate>
       <AppShell>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-accent">
-              Workspace
-            </p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">Patients</h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
-              Create a patient, add catalog medications, then run a deterministic safety analysis.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowForm((open) => !open)}
-            className={primaryButtonClass}
-          >
-            {showForm ? "Close" : "Add patient"}
-          </button>
-        </div>
-
-        {showForm ? (
-          <div className="mt-6 max-w-lg rounded-2xl border border-line bg-card p-5">
-            <h2 className="text-sm font-semibold">New patient</h2>
-            <div className="mt-4">
-              <PatientForm
-                onCreated={(patient) => {
-                  router.push(`/patients/${patient.id}`);
-                }}
-              />
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-8">
-          {loading ? (
-            <div className="max-w-md">
-              <LoadingSkeleton label="Loading patients" lines={4} />
-            </div>
-          ) : null}
-          {error ? (
-            <StatusBanner tone="error" role="alert">
-              {error}
-            </StatusBanner>
-          ) : null}
-          {!loading && !error && patients.length === 0 ? (
-            <section className="rounded-2xl border border-dashed border-line bg-card px-5 py-8">
-              <h2 className="text-sm font-semibold">No patients yet</h2>
-              <p className="mt-2 max-w-lg text-sm leading-6 text-muted">
-                Add a patient to start a medication record and run safety analysis.
-              </p>
-            </section>
-          ) : null}
-          {!loading && patients.length > 0 ? (
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {patients.map((patient) => (
-                <li key={patient.id}>
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/patients/${patient.id}`)}
-                    className="min-h-20 w-full rounded-2xl border border-line bg-card px-4 py-4 text-left hover:border-accent"
-                  >
-                    <p className="font-medium">{patient.name}</p>
-                    <p className="mt-1 text-sm text-muted">
-                      {[patient.age != null ? `Age ${patient.age}` : null, patient.sex]
-                        .filter(Boolean)
-                        .join(" · ") || "No demographics recorded"}
-                    </p>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
+        <section className="mx-auto max-w-5xl">
+          <header className="flex items-center justify-between gap-4 px-1 pt-2">
+            <div><p className="text-sm text-muted">Your clinical records</p><h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Patients</h1></div>
+            <button type="button" aria-label={showForm ? "Close patient form" : "Add patient"} onClick={() => setShowForm((open) => !open)} className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-ink text-2xl text-white shadow-[0_10px_24px_rgba(20,32,41,0.16)] transition-transform hover:-translate-y-0.5">{showForm ? "×" : "+"}</button>
+          </header>
+          {showForm ? <div className="mt-6 max-w-xl rounded-[2rem] border border-line bg-card p-5 shadow-[0_14px_35px_rgba(20,32,41,0.06)] sm:p-7"><h2 className="text-xl font-semibold">New patient</h2><p className="mt-1 text-sm text-muted">Create a record to start tracking treatment and safety.</p><div className="mt-5"><PatientForm onCreated={(patient) => router.push(`/patients/${patient.id}`)} /></div></div> : null}
+          <div className="mt-8"><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">Recent</h2><span className="text-sm text-muted">{patients.length} records</span></div>
+          {loading ? <div className="max-w-md"><LoadingSkeleton label="Loading patients" lines={4} /></div> : null}
+          {error ? <StatusBanner tone="error" role="alert">{error}</StatusBanner> : null}
+          {!loading && !error && patients.length === 0 ? <section className="rounded-[2rem] border border-dashed border-line bg-card px-6 py-12 text-center"><h2 className="text-lg font-semibold">No patients yet</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted">Add a patient to start a medication record and run safety analysis.</p></section> : null}
+          {!loading && patients.length > 0 ? <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{patients.map((patient) => <li key={patient.id}><button type="button" onClick={() => router.push(`/patients/${patient.id}`)} className="group min-h-64 w-full rounded-[2rem] border border-line bg-card p-5 text-left shadow-[0_8px_22px_rgba(20,32,41,0.04)] transition hover:-translate-y-1 hover:border-[#9dcac2] hover:shadow-[0_16px_32px_rgba(20,32,41,0.09)]"><PatientAvatar patient={patient} /><div className="mt-8"><p className="text-xl font-semibold tracking-tight">{patient.name}</p><p className="mt-1 text-sm text-muted">{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>{patient.relation && patient.relation !== "Self" ? <p className="mt-1 text-sm text-muted">{patient.relation}</p> : patient.relation === "Self" ? <p className="mt-1 text-sm text-muted">My profile</p> : null}</div><div className="mt-8 flex items-center justify-between border-t border-line pt-4 text-sm font-medium"><span>Open patient</span><span aria-hidden="true" className="text-lg transition-transform group-hover:translate-x-1">→</span></div></button></li>)}</ul> : null}</div>
+        </section>
       </AppShell>
     </AuthGate>
   );

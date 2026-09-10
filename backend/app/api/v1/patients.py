@@ -73,6 +73,8 @@ async def create_patient(
         id=uuid.uuid4(),
         user_id=current_user.id,
         name=payload.name,
+        relation=payload.relation,
+        photo_url=payload.photo_url,
         age=payload.age,
         sex=payload.sex,
         weight_kg=payload.weight_kg,

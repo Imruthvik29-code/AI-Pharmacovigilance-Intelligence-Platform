@@ -25,7 +25,7 @@ describe("PatientWorkspaceCards", () => {
       const onViewDetails = vi.fn();
       render(<PatientWorkspaceCards analysis={analysis} medications={[]} symptoms={[]} timeline={[]} onViewDetails={onViewDetails} />);
       fireEvent.click(screen.getByRole("button", { name: "Open Medications" }));
-      act(() => vi.advanceTimersByTime(220));
+      act(() => vi.advanceTimersByTime(300));
       expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
       expect(screen.getByText("0 active")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: /View details/ }));
@@ -42,10 +42,10 @@ describe("PatientWorkspaceCards", () => {
       const workspace = screen.getByRole("region", { name: "Patient workspace" });
       const stage = workspace.querySelector(".workspace-card-stage");
       expect(stage).not.toBeNull();
-      fireEvent.pointerDown(stage!, { clientX: 300, pointerId: 1 });
-      fireEvent.pointerUp(stage!, { clientX: 180, pointerId: 1 });
+      fireEvent(stage!, new MouseEvent("pointerdown", { bubbles: true, clientX: 300 }));
+      fireEvent(stage!, new MouseEvent("pointerup", { bubbles: true, clientX: 180 }));
       expect(screen.getByText("1 / 4")).toBeInTheDocument();
-      act(() => vi.advanceTimersByTime(220));
+      act(() => vi.advanceTimersByTime(300));
       expect(screen.getByText("2 / 4")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
     } finally {
@@ -59,14 +59,14 @@ describe("PatientWorkspaceCards", () => {
       render(<PatientWorkspaceCards analysis={null} medications={[]} symptoms={[]} timeline={[]} />);
       const workspace = screen.getByRole("region", { name: "Patient workspace" });
       fireEvent.click(screen.getByRole("button", { name: "Open Symptoms" }));
-      act(() => vi.advanceTimersByTime(220));
+      act(() => vi.advanceTimersByTime(300));
       expect(screen.getByRole("heading", { name: "Symptoms" })).toBeInTheDocument();
 
       const stage = workspace.querySelector(".workspace-card-stage");
       expect(stage).not.toBeNull();
-      fireEvent.pointerDown(stage!, { clientX: 180, pointerId: 2 });
-      fireEvent.pointerUp(stage!, { clientX: 300, pointerId: 2 });
-      act(() => vi.advanceTimersByTime(220));
+      fireEvent(stage!, new MouseEvent("pointerdown", { bubbles: true, clientX: 180 }));
+      fireEvent(stage!, new MouseEvent("pointerup", { bubbles: true, clientX: 300 }));
+      act(() => vi.advanceTimersByTime(300));
       expect(screen.getByText("2 / 4")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
     } finally {
