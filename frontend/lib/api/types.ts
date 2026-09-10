@@ -7,8 +7,9 @@ export type AuthUser = { id: string; email: string | null };
 export type AuthResponse = { access_token: string; refresh_token: string | null; token_type: string; expires_in: number | null; user: AuthUser };
 export type SignupRequest = { email: string; password: string };
 export type LoginRequest = { email: string; password: string };
-export type PatientResponse = { id: string; user_id: string; name: string; relation?: string | null; photo_url?: string | null; age: number | null; sex: string | null; weight_kg: number | null; renal_flag: boolean; hepatic_flag: boolean; created_at: string; updated_at: string };
-export type PatientCreate = { name: string; relation?: string | null; photo_url?: string | null; age?: number | null; sex?: string | null; weight_kg?: number | null; renal_flag?: boolean; hepatic_flag?: boolean };
+export type PatientRelation = "Self" | "Parent" | "Spouse" | "Child" | "Sibling" | "Grandparent" | "Other" | "Caregiver / dependent";
+export type PatientResponse = { id: string; user_id: string; name: string; relation?: PatientRelation | null; age: number | null; sex: string | null; weight_kg: number | null; renal_flag: boolean; hepatic_flag: boolean; created_at: string; updated_at: string };
+export type PatientCreate = { name: string; relation?: PatientRelation | null; age?: number | null; sex?: string | null; weight_kg?: number | null; renal_flag?: boolean; hepatic_flag?: boolean };
 export type MedicationStatus = "active" | "completed" | "completed_early" | "paused" | "discontinued";
 export type MedicationResponse = {
   id: string;

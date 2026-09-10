@@ -10,6 +10,7 @@ import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { MedicationList } from "@/components/MedicationList";
 import { MedicationPicker } from "@/components/MedicationPicker";
 import { PatientWorkspaceCards, type WorkspaceCardId } from "@/components/PatientWorkspaceCards";
+import { PatientAvatar } from "@/components/PatientAvatar";
 import { SchedulePanel } from "@/components/SchedulePanel";
 import { StatusBanner } from "@/components/StatusBanner";
 import { SymptomPanel } from "@/components/SymptomPanel";
@@ -175,9 +176,7 @@ export default function PatientPage() {
         {patient ? (
           <>
             <header className="mt-5 text-center">
-              <div aria-label={`${patient.name} initials`} className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-[2rem] border border-[#b8d7d2] bg-[#e7f2ef] text-3xl font-semibold text-accent shadow-[0_12px_26px_rgba(20,32,41,0.08)]">
-                {patient.photo_url ? <img src={patient.photo_url} alt={`${patient.name} profile`} className="h-full w-full object-cover" /> : patient.name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
-              </div>
+              <div className="flex justify-center"><PatientAvatar patient={patient} size="lg" /></div>
               <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{patient.name}</h1>
               <p className="mt-1 text-sm text-muted">{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
               {patient.relation ? <p className="mt-1 text-sm text-muted">{patient.relation === "Self" ? "My profile" : patient.relation}</p> : null}
@@ -239,10 +238,4 @@ export default function PatientPage() {
       </AppShell>
     </AuthGate>
   );
-}
-
-function formatWeightKg(value: number): string {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return String(value);
-  return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1);
 }

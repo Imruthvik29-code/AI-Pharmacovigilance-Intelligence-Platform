@@ -9,13 +9,17 @@ someone else's account.
 import uuid
 from datetime import datetime
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
+
+
+PatientRelation = Literal["Self", "Parent", "Spouse", "Child", "Sibling", "Grandparent", "Other", "Caregiver / dependent"]
 
 
 class PatientBase(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    relation: str | None = Field(default=None, max_length=50)
-    photo_url: str | None = Field(default=None, max_length=2_000_000)
+    relation: PatientRelation | None = None
     age: int | None = Field(default=None, ge=0, le=130)
     sex: str | None = Field(default=None, max_length=50)
     weight_kg: float | None = Field(default=None, gt=0)
@@ -31,8 +35,7 @@ class PatientUpdate(BaseModel):
     """All fields optional -- only provided fields are applied (partial update)."""
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    relation: str | None = Field(default=None, max_length=50)
-    photo_url: str | None = Field(default=None, max_length=2_000_000)
+    relation: PatientRelation | None = None
     age: int | None = Field(default=None, ge=0, le=130)
     sex: str | None = Field(default=None, max_length=50)
     weight_kg: float | None = Field(default=None, gt=0)
