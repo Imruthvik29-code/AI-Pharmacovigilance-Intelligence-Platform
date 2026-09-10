@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PatientWorkspaceCards } from "@/components/PatientWorkspaceCards";
 
@@ -20,21 +20,53 @@ describe("PatientWorkspaceCards", () => {
   });
 
   it("selects a tab and exposes its details action", () => {
-    const onViewDetails = vi.fn();
-    render(<PatientWorkspaceCards analysis={analysis} medications={[]} symptoms={[]} timeline={[]} onViewDetails={onViewDetails} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open Medications" }));
-    expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
-    expect(screen.getByText("0 active")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /View details/ }));
-    expect(onViewDetails).toHaveBeenCalledWith("medications");
+    vi.useFakeTimers();
+    try {
+      const onViewDetails = vi.fn();
+      render(<PatientWorkspaceCards analysis={analysis} medications={[]} symptoms={[]} timeline={[]} onViewDetails={onViewDetails} />);
+      fireEvent.click(screen.getByRole("button", { name: "Open Medications" }));
+      act(() => vi.advanceTimersByTime(220));
+      expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
+      expect(screen.getByText("0 active")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /View details/ }));
+      expect(onViewDetails).toHaveBeenCalledWith("medications");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("advances with a horizontal swipe", () => {
-    render(<PatientWorkspaceCards analysis={null} medications={[]} symptoms={[]} timeline={[]} />);
-    const workspace = screen.getByRole("region", { name: "Patient workspace" });
-    fireEvent.pointerDown(workspace, { clientX: 300 });
-    fireEvent.pointerUp(workspace, { clientX: 180 });
-    expect(screen.getByText("2 / 4")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
+  it("advances with a horizontal swipe and commits the next card after its exit animation", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PatientWorkspaceCards analysis={null} medications={[]} symptoms={[]} timeline={[]} />);
+      const workspace = screen.getByRole("region", { name: "Patient workspace" });
+      fireEvent.pointerDown(workspace, { clientX: 300, pointerId: 1 });
+      fireEvent.pointerUp(workspace, { clientX: 180, pointerId: 1 });
+      expect(screen.getByText("1 / 4")).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(220));
+      expect(screen.getByText("2 / 4")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("moves backward when swiping right", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PatientWorkspaceCards analysis={null} medications={[]} symptoms={[]} timeline={[]} />);
+      const workspace = screen.getByRole("region", { name: "Patient workspace" });
+      fireEvent.click(screen.getByRole("button", { name: "Open Symptoms" }));
+      act(() => vi.advanceTimersByTime(220));
+      expect(screen.getByRole("heading", { name: "Symptoms" })).toBeInTheDocument();
+
+      fireEvent.pointerDown(workspace, { clientX: 180, pointerId: 2 });
+      fireEvent.pointerUp(workspace, { clientX: 300, pointerId: 2 });
+      act(() => vi.advanceTimersByTime(220));
+      expect(screen.getByText("2 / 4")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
