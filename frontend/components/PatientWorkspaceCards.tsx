@@ -6,6 +6,7 @@ import type { AnalysisRunResponse, MedicationResponse, SymptomResponse, Timeline
 
 export type WorkspaceCardId = "safety" | "medications" | "symptoms" | "timeline";
 type Direction = "left" | "right";
+type StatusItem = { label: string; value: string };
 
 type Props = {
   analysis: AnalysisRunResponse | null;
@@ -59,25 +60,15 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
 
   function renderPrimary(index: number, className: string, hidden = false) {
     const section = sections[index];
+    const statusItems = statusFor(section.id, analysis, medications, symptoms, timeline);
+    const hasAnalysis = section.id !== "safety" || Boolean(analysis);
     return (
       <article className={`workspace-primary ${className}`} aria-labelledby={`workspace-${section.id}`} aria-hidden={hidden || undefined}>
-        <div className="workspace-primary-top">
-          <span className={`workspace-section-icon workspace-section-icon-${section.id}`} aria-hidden="true">{section.icon}</span>
-          <div>
-            <p className="workspace-eyebrow">{section.number} / {sections.length}</p>
-            <h2 id={`workspace-${section.id}`}>{section.label}</h2>
-          </div>
-        </div>
-        <div className="workspace-primary-copy">{briefFor(section.id, analysis, medications, symptoms, timeline)}</div>
-        {hidden ? null : section.id === "safety" && !analysis ? (
-          <button type="button" className="workspace-primary-action" onClick={() => onRunAnalysis?.()} disabled={!onRunAnalysis || analysisRunning}>
-            {analysisRunning ? "Running analysis…" : "Run analysis"}<span aria-hidden="true">→</span>
-          </button>
-        ) : (
-          <button type="button" className="workspace-primary-action" onClick={() => onViewDetails?.(section.id)}>
-            View {section.label.toLowerCase()} details <span aria-hidden="true">→</span>
-          </button>
-        )}
+        <WorkspaceCardIcon section={section} />
+        <WorkspaceCardHeading section={section} />
+        <WorkspaceCardSummary sectionId={section.id} hasAnalysis={hasAnalysis} />
+        <WorkspaceCardStatusList items={statusItems} />
+        {hidden ? null : <WorkspaceCardAction section={section} hasAnalysis={hasAnalysis} onViewDetails={onViewDetails} onRunAnalysis={onRunAnalysis} analysisRunning={analysisRunning} />}
       </article>
     );
   }
@@ -103,32 +94,64 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
   );
 }
 
-function briefFor(id: WorkspaceCardId, analysis: AnalysisRunResponse | null, medications: MedicationResponse[], symptoms: SymptomResponse[], timeline: TimelineEventResponse[]) {
-  if (id === "safety") return <SafetyBrief analysis={analysis} />;
-  if (id === "medications") return <MedicationBrief medications={medications} />;
-  if (id === "symptoms") return <SymptomBrief symptoms={symptoms} />;
-  return <TimelineBrief timeline={timeline} />;
+function WorkspaceCardIcon({ section }: { section: typeof sections[number] }) {
+  return <span className={`workspace-section-icon workspace-section-icon-${section.id}`} aria-hidden="true">{section.icon}</span>;
 }
 
-function SafetyBrief({ analysis }: { analysis: AnalysisRunResponse | null }) {
-  if (!analysis) return <><p className="workspace-metric">Not analyzed</p><p>No safety analysis has been run yet. Your medication record is ready for deterministic interaction, ADR, and adherence analysis.</p></>;
+function WorkspaceCardHeading({ section }: { section: typeof sections[number] }) {
+  return <div className="workspace-card-heading">
+    <p className="workspace-eyebrow">{section.number} / {sections.length}</p>
+    <h2 id={`workspace-${section.id}`}>{section.label}</h2>
+  </div>;
+}
+
+function WorkspaceCardSummary({ sectionId, hasAnalysis }: { sectionId: WorkspaceCardId; hasAnalysis: boolean }) {
+  const summary = sectionId === "safety"
+    ? hasAnalysis ? "Deterministic safety analysis is available for review." : "No safety analysis has been run yet. Your medication record is ready for deterministic interaction, ADR, and adherence analysis."
+    : `Review the recorded ${sectionId} data for this patient.`;
+  return <p className="workspace-card-summary">{summary}</p>;
+}
+
+function WorkspaceCardStatusList({ items }: { items: StatusItem[] }) {
+  return <ul className="workspace-card-status-list" aria-label="Section status">
+    {items.map((item) => <li key={item.label}><span aria-hidden="true">•</span><span>{item.label}</span><strong>{item.value}</strong></li>)}
+  </ul>;
+}
+
+function WorkspaceCardAction({ section, hasAnalysis, onViewDetails, onRunAnalysis, analysisRunning }: {
+  section: typeof sections[number]; hasAnalysis: boolean; onViewDetails?: (id: WorkspaceCardId) => void; onRunAnalysis?: () => void; analysisRunning: boolean;
+}) {
+  const runAnalysis = section.id === "safety" && !hasAnalysis;
+  return <button type="button" className="workspace-primary-action" onClick={() => runAnalysis ? onRunAnalysis?.() : onViewDetails?.(section.id)} disabled={runAnalysis && (!onRunAnalysis || analysisRunning)}>
+    <span>{runAnalysis ? (analysisRunning ? "Running analysis…" : "Run analysis") : `View ${section.label.toLowerCase()} details`}</span><span className="workspace-primary-action-arrow" aria-hidden="true">→</span>
+  </button>;
+}
+
+function statusFor(id: WorkspaceCardId, analysis: AnalysisRunResponse | null, medications: MedicationResponse[], symptoms: SymptomResponse[], timeline: TimelineEventResponse[]): StatusItem[] {
+  if (id === "safety") return safetyStatus(analysis);
+  if (id === "medications") return medicationStatus(medications);
+  if (id === "symptoms") return symptomStatus(symptoms);
+  return [{ label: "Timeline events", value: String(timeline.length) }];
+}
+
+function safetyStatus(analysis: AnalysisRunResponse | null): StatusItem[] {
+  if (!analysis) return [{ label: "Analysis status", value: "Not analyzed" }];
   const findings = getFindingCount(analysis);
   const risk = analysis.risk_level ? `${analysis.risk_level[0].toUpperCase()}${analysis.risk_level.slice(1)} risk` : "Recorded";
-  return <><p className="workspace-metric">{risk}</p><p>{findings === 0 ? "Analysis completed — no interaction or ADR findings recorded." : `${findings} safety ${findings === 1 ? "finding" : "findings"} recorded.`}</p><small>Last analysis {new Date(analysis.created_at).toLocaleString()}</small></>;
+  return [
+    { label: "Safety findings", value: String(findings) },
+    { label: "Risk level", value: risk },
+    ...(analysis.created_at ? [{ label: "Last analysis", value: new Date(analysis.created_at).toLocaleString() }] : []),
+  ];
 }
-function MedicationBrief({ medications }: { medications: MedicationResponse[] }) {
+function medicationStatus(medications: MedicationResponse[]): StatusItem[] {
   const active = medications.filter((medication) => medication.status === "active").length;
   const verified = medications.filter((medication) => Boolean(medication.drug_name)).length;
-  return <><p className="workspace-metric">{active} active</p><p>{medications.length} medications recorded · {verified} verified identities</p></>;
+  return [{ label: "Active medications", value: String(active) }, { label: "Medications recorded", value: String(medications.length) }, { label: "Verified identities", value: String(verified) }];
 }
-function SymptomBrief({ symptoms }: { symptoms: SymptomResponse[] }) {
+function symptomStatus(symptoms: SymptomResponse[]): StatusItem[] {
   const unresolved = symptoms.filter((symptom) => !symptom.resolved_date).length;
-  const latest = [...symptoms].sort((a, b) => b.onset_date.localeCompare(a.onset_date))[0];
-  return <><p className="workspace-metric">{unresolved} unresolved</p><p>{symptoms.length} symptoms recorded{latest ? ` · latest: ${latest.description}` : ""}</p></>;
-}
-function TimelineBrief({ timeline }: { timeline: TimelineEventResponse[] }) {
-  const latest = [...timeline].sort((a, b) => b.event_time.localeCompare(a.event_time))[0];
-  return <><p className="workspace-metric">{timeline.length} events</p><p>{latest ? `Latest: ${latest.event_title}` : "No timeline activity has been recorded yet."}</p></>;
+  return [{ label: "Unresolved symptoms", value: String(unresolved) }, { label: "Symptoms recorded", value: String(symptoms.length) }];
 }
 function getFindingCount(analysis: AnalysisRunResponse): number {
   const result = analysis.deterministic_result;
