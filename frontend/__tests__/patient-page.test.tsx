@@ -62,7 +62,7 @@ describe("PatientPage", () => {
     expect(screen.getByRole("button", { name: "Open Symptoms" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Timeline" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open Medications" }));
-    expect(screen.getAllByRole("heading", { name: "Medications" })).toHaveLength(2);
+    await waitFor(() => expect(screen.getAllByRole("heading", { name: "Medications" })).toHaveLength(2));
   });
 
   it("runs analysis and refreshes the displayed result", async () => {
