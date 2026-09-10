@@ -72,9 +72,9 @@ textarea {
 .workspace-card-stage { position: relative; height: 28rem; isolation: isolate; touch-action: pan-y; }
 .workspace-primary, .workspace-card-shadow { position: absolute; inset: 0; border-radius: 2rem; }
 .workspace-card-shadow { border: 1px solid var(--line); background: var(--card); }
-.workspace-card-shadow-one { z-index: -1; transform: translate(1.5rem, 1rem); opacity: .72; }
-.workspace-card-shadow-two { z-index: -2; transform: translate(3rem, 2rem); opacity: .38; }
-.workspace-primary { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 1px solid var(--line); background: var(--card); padding: clamp(1.5rem, 4vw, 2.8rem); box-shadow: 0 20px 45px rgb(20 32 41 / .10); will-change: transform, opacity; }
+.workspace-card-shadow-one { z-index: 0; transform: translate(1.5rem, 1rem); opacity: .72; }
+.workspace-card-shadow-two { z-index: -1; transform: translate(3rem, 2rem); opacity: .38; }
+.workspace-primary { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 1px solid var(--line); background: var(--card); padding: clamp(1.5rem, 4vw, 2.8rem); box-shadow: 0 20px 45px rgb(20 32 41 / .10); will-change: transform; }
 .workspace-primary::before { position: absolute; top: 0; right: 0; width: 38%; height: 100%; background: #f5faf8; content: ""; }
 .workspace-primary > * { position: relative; }
 .workspace-primary-top { display: flex; align-items: center; gap: 1rem; }
@@ -106,15 +106,21 @@ textarea {
 .workspace-section-button > span:last-child { align-self: flex-end; color: var(--accent); font-size: .7rem; }
 .workspace-selected { font-family: var(--font-mono); letter-spacing: .05em; }
 .workspace-gesture-hint { margin: 1rem 0 0; color: var(--muted); font-size: .72rem; text-align: center; }
-.workspace-current { transform: translateX(0); }
-.workspace-exit-left { z-index: 2; animation: workspace-exit-left 260ms cubic-bezier(.4,0,1,1) forwards; }
-.workspace-exit-right { z-index: 2; animation: workspace-exit-right 260ms cubic-bezier(.4,0,1,1) forwards; }
-.workspace-enter-left { z-index: 1; animation: workspace-enter-left 260ms cubic-bezier(0,0,.2,1) forwards; }
-.workspace-enter-right { z-index: 1; animation: workspace-enter-right 260ms cubic-bezier(0,0,.2,1) forwards; }
-@keyframes workspace-exit-left { to { transform: translateX(-105%) scale(.985); opacity: 0; } }
-@keyframes workspace-exit-right { to { transform: translateX(105%) scale(.985); opacity: 0; } }
-@keyframes workspace-enter-left { from { transform: translateX(105%) scale(.985); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes workspace-enter-right { from { transform: translateX(-105%) scale(.985); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.workspace-current { z-index: 4; transform: translateX(0); }
+.workspace-stack-card { pointer-events: none; }
+.workspace-stack-depth-1 { z-index: 3; transform: translate(1.1rem, .75rem) scale(.99); }
+.workspace-stack-depth-2 { z-index: 2; transform: translate(2.2rem, 1.5rem) scale(.98); }
+.workspace-stack-depth-3 { z-index: 1; transform: translate(3.3rem, 2.25rem) scale(.97); }
+.workspace-outgoing { z-index: 5; }
+.workspace-incoming { z-index: 4; }
+.workspace-exit-left { animation: workspace-exit-left 260ms cubic-bezier(.4,0,1,1) forwards; }
+.workspace-exit-right { animation: workspace-exit-right 260ms cubic-bezier(.4,0,1,1) forwards; }
+.workspace-enter-left { animation: workspace-enter-left 260ms cubic-bezier(0,0,.2,1) forwards; }
+.workspace-enter-right { animation: workspace-enter-right 260ms cubic-bezier(0,0,.2,1) forwards; }
+@keyframes workspace-exit-left { to { transform: translateX(-105%) scale(.985); } }
+@keyframes workspace-exit-right { to { transform: translateX(105%) scale(.985); } }
+@keyframes workspace-enter-left { from { transform: translateX(105%) scale(.985); } to { transform: translateX(0); } }
+@keyframes workspace-enter-right { from { transform: translateX(-105%) scale(.985); } to { transform: translateX(0); } }
 @media (max-width: 639px) { .workspace-deck { margin-top: 1.75rem; } .workspace-card-stage { height: 26rem; } .workspace-primary, .workspace-card-shadow { border-radius: 1.65rem; } .workspace-card-shadow-one { transform: translate(.65rem, .65rem); } .workspace-card-shadow-two { transform: translate(1.3rem, 1.3rem); } .workspace-primary::before { width: 52%; } .workspace-section-rail { grid-template-columns: repeat(2, 1fr); gap: .6rem; margin-top: 1.8rem; } .workspace-section-button { min-height: 6.2rem; border-radius: 1.2rem; } }
 @media (prefers-reduced-motion: reduce) { .workspace-primary, .workspace-section-button, .workspace-primary-action { transition: none; } .workspace-exit-left, .workspace-exit-right, .workspace-enter-left, .workspace-enter-right { animation: none; } }
 
