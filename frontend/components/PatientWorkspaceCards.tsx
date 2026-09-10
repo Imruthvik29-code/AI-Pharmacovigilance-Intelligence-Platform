@@ -53,14 +53,14 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
     const target = event.target;
     if (target instanceof HTMLElement && target.closest("button, a")) return;
     pointerStart.current = event.clientX;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if ("setPointerCapture" in event.currentTarget) event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function handlePointerUp(event: PointerEvent<HTMLElement>) {
     if (pointerStart.current == null) return;
     const delta = event.clientX - pointerStart.current;
     pointerStart.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if ("hasPointerCapture" in event.currentTarget && event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     if (Math.abs(delta) < 48 || transitioning) return;
 
     if (delta < 0 && activeIndex < sections.length - 1) select(activeIndex + 1);
@@ -120,7 +120,7 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
           {transitioning ? (
             <>
               {renderCard(activeIndex, `workspace-card-exit-${transitionDirection}`, true)}
-              {renderCard(transitionIndex, `workspace-card-enter-${transitionDirection}`, true)}
+              {renderCard(transitionIndex as number, `workspace-card-enter-${transitionDirection}`, true)}
             </>
           ) : (
             renderCard(activeIndex, "workspace-card-current")
