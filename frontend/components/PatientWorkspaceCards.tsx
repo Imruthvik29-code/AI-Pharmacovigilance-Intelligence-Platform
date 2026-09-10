@@ -13,6 +13,8 @@ type Props = {
   symptoms: SymptomResponse[];
   timeline: TimelineEventResponse[];
   onViewDetails?: (id: WorkspaceCardId) => void;
+  onRunAnalysis?: () => void;
+  analysisRunning?: boolean;
 };
 
 const sections: Array<{ id: WorkspaceCardId; number: string; label: string; shortLabel: string }> = [
@@ -24,7 +26,7 @@ const sections: Array<{ id: WorkspaceCardId; number: string; label: string; shor
 
 const TRANSITION_MS = 260;
 
-export function PatientWorkspaceCards({ analysis, medications, symptoms, timeline, onViewDetails }: Props) {
+export function PatientWorkspaceCards({ analysis, medications, symptoms, timeline, onViewDetails, onRunAnalysis, analysisRunning = false }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [transitionIndex, setTransitionIndex] = useState<number | null>(null);
   const [transitionDirection, setTransitionDirection] = useState<Direction | null>(null);
@@ -81,9 +83,10 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
         aria-hidden={isTransitionCard ? true : undefined}
       >
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">{section.number} · {section.label}</p>
-            <h2 id={`workspace-${section.id}`} className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{section.label}</h2>
+          <div className="flex items-center gap-3">
+            <span className={`workspace-card-icon workspace-card-icon-${section.id}`} aria-hidden="true">{section.id === "safety" ? "⌁" : section.id === "medications" ? "＋" : section.id === "symptoms" ? "◌" : "◷"}</span>
+            <div><p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">{section.number} · {section.label}</p>
+            <h2 id={`workspace-${section.id}`} className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{section.label}</h2></div>
           </div>
           <span className="rounded-full border border-line px-2.5 py-1 text-[10px] font-mono text-muted">{index + 1} / {sections.length}</span>
         </div>
@@ -96,13 +99,15 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
         </div>
 
         {!isTransitionCard ? (
-          <button
-            type="button"
-            className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-            onClick={() => onViewDetails?.(section.id)}
-          >
-            View details <span className="ml-2" aria-hidden="true">→</span>
-          </button>
+          section.id === "safety" && !analysis ? (
+            <button type="button" onClick={onRunAnalysis} disabled={!onRunAnalysis || analysisRunning} className="workspace-card-cta">
+              {analysisRunning ? "Running analysis…" : "Run analysis"} <span aria-hidden="true">→</span>
+            </button>
+          ) : (
+            <button type="button" className="workspace-card-cta" onClick={() => onViewDetails?.(section.id)}>
+              View details <span aria-hidden="true">→</span>
+            </button>
+          )
         ) : null}
       </article>
     );
