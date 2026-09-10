@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import type { PointerEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { KeyboardEvent, PointerEvent } from "react";
 import type { AnalysisRunResponse, MedicationResponse, SymptomResponse, TimelineEventResponse } from "@/lib/api/types";
 
 export type WorkspaceCardId = "safety" | "medications" | "symptoms" | "timeline";
@@ -26,20 +26,35 @@ const sections: Array<{ id: WorkspaceCardId; number: string; label: string; icon
 const TRANSITION_MS = 260;
 
 export function PatientWorkspaceCards({ analysis, medications, symptoms, timeline, onViewDetails, onRunAnalysis, analysisRunning = false }: Props) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [transitionIndex, setTransitionIndex] = useState<number | null>(null);
-  const [transitionDirection, setTransitionDirection] = useState<Direction | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [outgoingIndex, setOutgoingIndex] = useState<number | null>(null);
+  const [incomingIndex, setIncomingIndex] = useState<number | null>(null);
+  const [direction, setDirection] = useState<Direction>("left");
   const pointerStart = useRef<number | null>(null);
-  const transitioning = transitionIndex !== null;
+  const transitionTimer = useRef<number | null>(null);
+  const transitioning = outgoingIndex !== null && incomingIndex !== null;
+
+  useEffect(() => () => {
+    if (transitionTimer.current !== null) window.clearTimeout(transitionTimer.current);
+  }, []);
 
   function select(index: number) {
-    if (index < 0 || index >= sections.length || index === activeIndex || transitioning) return;
-    setTransitionIndex(index);
-    setTransitionDirection(index > activeIndex ? "left" : "right");
-    window.setTimeout(() => {
-      setActiveIndex(index);
-      setTransitionIndex(null);
-      setTransitionDirection(null);
+    if (index < 0 || index >= sections.length || index === currentIndex || transitioning) return;
+    const nextDirection = index > currentIndex ? "left" : "right";
+    setDirection(nextDirection);
+
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setCurrentIndex(index);
+      return;
+    }
+
+    setOutgoingIndex(currentIndex);
+    setIncomingIndex(index);
+    transitionTimer.current = window.setTimeout(() => {
+      setCurrentIndex(index);
+      setOutgoingIndex(null);
+      setIncomingIndex(null);
+      transitionTimer.current = null;
     }, TRANSITION_MS);
   }
 
@@ -53,19 +68,35 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
     const delta = event.clientX - pointerStart.current;
     pointerStart.current = null;
     if (Math.abs(delta) < 48 || transitioning) return;
-    if (delta < 0) select(activeIndex + 1);
-    if (delta > 0) select(activeIndex - 1);
+    if (delta < 0) select(currentIndex + 1);
+    if (delta > 0) select(currentIndex - 1);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      select(currentIndex + 1);
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      select(currentIndex - 1);
+    }
+  }
+
+  function stackIndexes(active: number) {
+    const step = direction === "left" ? 1 : -1;
+    return Array.from({ length: sections.length }, (_, offset) => (active + (offset * step) + sections.length) % sections.length);
   }
 
   function renderPrimary(index: number, className: string, hidden = false) {
     const section = sections[index];
     return (
-      <article className={`workspace-primary ${className}`} aria-labelledby={`workspace-${section.id}`} aria-hidden={hidden || undefined}>
+      <article key={`${section.id}-${className}`} className={`workspace-primary ${className}`} aria-label={hidden ? section.label : undefined} aria-labelledby={hidden ? undefined : `workspace-${section.id}`} aria-hidden={hidden || undefined}>
         <div className="workspace-primary-top">
           <span className={`workspace-section-icon workspace-section-icon-${section.id}`} aria-hidden="true">{section.icon}</span>
           <div>
             <p className="workspace-eyebrow">{section.number} / {sections.length}</p>
-            <h2 id={`workspace-${section.id}`}>{section.label}</h2>
+            <h2 id={hidden ? undefined : `workspace-${section.id}`}>{section.label}</h2>
           </div>
         </div>
         <div className="workspace-primary-copy">{briefFor(section.id, analysis, medications, symptoms, timeline)}</div>
@@ -84,17 +115,24 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
 
   return (
     <section className="workspace-deck" aria-label="Patient workspace">
-      <div className="workspace-card-stage" onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerCancel={() => { pointerStart.current = null; }}>
+      <div className="workspace-card-stage" tabIndex={0} onKeyDown={handleKeyDown} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerCancel={() => { pointerStart.current = null; }}>
         <div className="workspace-card-shadow workspace-card-shadow-one" aria-hidden="true" />
         <div className="workspace-card-shadow workspace-card-shadow-two" aria-hidden="true" />
-        {transitioning ? <>{renderPrimary(activeIndex, `workspace-exit-${transitionDirection}`, true)}{renderPrimary(transitionIndex!, `workspace-enter-${transitionDirection}`, true)}</> : renderPrimary(activeIndex, "workspace-current")}
+        {transitioning ? <>
+          {stackIndexes(incomingIndex!).slice(1).filter((index) => index !== outgoingIndex).reverse().map((index, position) => renderPrimary(index, `workspace-stack-card workspace-stack-depth-${sections.length - position - 1}`, true))}
+          {renderPrimary(outgoingIndex!, `workspace-outgoing workspace-exit-${direction}`, true)}
+          {renderPrimary(incomingIndex!, `workspace-incoming workspace-enter-${direction}`, true)}
+        </> : <>
+          {stackIndexes(currentIndex).slice(1).reverse().map((index, position) => renderPrimary(index, `workspace-stack-card workspace-stack-depth-${sections.length - position - 1}`, true))}
+          {renderPrimary(currentIndex, "workspace-current")}
+        </>}
       </div>
       <div className="workspace-section-rail" aria-label="Select patient workspace section">
         {sections.map((section, index) => (
-          <button key={section.id} type="button" className={`workspace-section-button ${index === activeIndex ? "is-active" : ""}`} onClick={() => select(index)} disabled={transitioning} aria-label={`Open ${section.label}`} aria-current={index === activeIndex ? "true" : undefined}>
+          <button key={section.id} type="button" className={`workspace-section-button ${index === currentIndex ? "is-active" : ""}`} onClick={() => select(index)} disabled={transitioning} aria-label={`Open ${section.label}`} aria-current={index === currentIndex ? "true" : undefined}>
             <span className={`workspace-rail-icon workspace-section-icon-${section.id}`} aria-hidden="true">{section.icon}</span>
             <span><small>{section.number}</small><strong>{section.label}</strong></span>
-            {index === activeIndex ? <span className="workspace-selected" aria-hidden="true">Selected</span> : <span aria-hidden="true">→</span>}
+            {index === currentIndex ? <span className="workspace-selected" aria-hidden="true">Selected</span> : <span aria-hidden="true">→</span>}
           </button>
         ))}
       </div>
