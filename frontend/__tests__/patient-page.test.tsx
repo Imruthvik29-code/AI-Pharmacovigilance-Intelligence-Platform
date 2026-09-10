@@ -35,6 +35,7 @@ const analysis = { id: "analysis-123", patient_id: "patient-123", analysis_versi
 describe("PatientPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
     vi.mocked(getPatient).mockResolvedValue(patient);
     vi.mocked(listMedications).mockResolvedValue([medication]);
     vi.mocked(listSymptoms).mockResolvedValue([]);
@@ -70,6 +71,22 @@ describe("PatientPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run analysis" }));
     await waitFor(() => expect(runAnalysis).toHaveBeenCalledWith("patient-123"));
     await waitFor(() => expect(screen.getByText("Moderate risk")).toBeInTheDocument());
+  });
+
+  it("replaces the patient overview with a dedicated safety detail screen", async () => {
+    vi.mocked(listAnalysisRuns).mockReset();
+    vi.mocked(listAnalysisRuns).mockResolvedValue([analysis]);
+    render(<PatientPage />);
+    await waitFor(() => expect(screen.getByText("Moderate risk")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "View safety details" }));
+
+    expect(screen.getByRole("heading", { name: "Safety analysis" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to patient overview" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Safety summary")).toHaveTextContent("Safety score82");
+    expect(screen.getByLabelText("Safety findings")).toHaveTextContent("Drug interactions");
+    expect(screen.queryByRole("heading", { name: "Asha Rao" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Patient workspace" })).not.toBeInTheDocument();
   });
 
   it("keeps the fresh analysis when history refresh returns an older run", async () => {
