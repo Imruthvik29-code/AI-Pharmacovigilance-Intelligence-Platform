@@ -31,6 +31,7 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
   const [transitionDirection, setTransitionDirection] = useState<Direction | null>(null);
   const pointerStart = useRef<number | null>(null);
   const transitioning = transitionIndex !== null;
+  const companionSections = sections.slice(1).map((_, offset) => sections[(activeIndex + offset + 1) % sections.length]);
 
   function select(index: number) {
     if (index < 0 || index >= sections.length || index === activeIndex || transitioning) return;
@@ -84,21 +85,29 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
 
   return (
     <section className="workspace-deck" aria-label="Patient workspace">
-      <div className="workspace-card-stage" onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerCancel={() => { pointerStart.current = null; }}>
+      <div className="workspace-card-stage" data-active-section={sections[activeIndex].id} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerCancel={() => { pointerStart.current = null; }}>
         <div className="workspace-card-shadow workspace-card-shadow-one" aria-hidden="true" />
         <div className="workspace-card-shadow workspace-card-shadow-two" aria-hidden="true" />
+        <div className="workspace-card-stack" aria-label="Select patient workspace section">
+          {companionSections.map((section, companionIndex) => (
+            <button
+              key={section.id}
+              type="button"
+              className={`workspace-companion-card workspace-companion-card-${section.id}`}
+              data-stack-position={companionIndex + 1}
+              data-section={section.id}
+              onClick={() => select(sections.findIndex(({ id }) => id === section.id))}
+              disabled={transitioning}
+              aria-label={`Open ${section.label}`}
+            >
+              <span className={`workspace-companion-icon workspace-section-icon-${section.id}`} aria-hidden="true">{section.icon}</span>
+              <span className="workspace-companion-label"><small>{section.number}</small>{section.label}</span>
+            </button>
+          ))}
+        </div>
         {transitioning ? <>{renderPrimary(activeIndex, `workspace-exit-${transitionDirection}`, true)}{renderPrimary(transitionIndex!, `workspace-enter-${transitionDirection}`, true)}</> : renderPrimary(activeIndex, "workspace-current")}
       </div>
-      <div className="workspace-section-rail" aria-label="Select patient workspace section">
-        {sections.map((section, index) => (
-          <button key={section.id} type="button" className={`workspace-section-button ${index === activeIndex ? "is-active" : ""}`} onClick={() => select(index)} disabled={transitioning} aria-label={`Open ${section.label}`} aria-current={index === activeIndex ? "true" : undefined}>
-            <span className={`workspace-rail-icon workspace-section-icon-${section.id}`} aria-hidden="true">{section.icon}</span>
-            <span><small>{section.number}</small><strong>{section.label}</strong></span>
-            {index === activeIndex ? <span className="workspace-selected" aria-hidden="true">Selected</span> : <span aria-hidden="true">→</span>}
-          </button>
-        ))}
-      </div>
-      <p className="workspace-gesture-hint">Swipe the primary card, or choose a section below.</p>
+      <p className="workspace-gesture-hint">Swipe the primary card, or choose a companion card.</p>
     </section>
   );
 }
