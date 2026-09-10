@@ -175,25 +175,31 @@ export default function PatientPage() {
 
         {patient ? (
           <>
-            <div className={`patient-composition ${detailSection ? "is-detail" : ""}`}>
-              <header className="patient-hero">
-                <div className="patient-hero-identity">
+            {!detailSection ? (
+              <section className="patient-overview" aria-label={`${patient.name} overview`}>
+                <header className="patient-identity">
+                  <div className="patient-identity-mark" aria-hidden="true" />
                   <PatientAvatar patient={patient} size="lg" />
-                  <div className="patient-hero-copy">
-                    <p className="patient-hero-kicker">Patient record</p>
+                  <div className="patient-identity-copy">
+                    <p>Patient record</p>
                     <h1>{patient.name}</h1>
-                    <p>{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
-                    {patient.relation ? <span>{patient.relation === "Self" ? "My profile" : patient.relation}</span> : null}
+                    <span>{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</span>
+                    {patient.relation ? <small>{patient.relation === "Self" ? "My profile" : patient.relation}</small> : null}
                   </div>
-                </div>
+                </header>
+                <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} onRunAnalysis={() => void handleRunAnalysis()} analysisRunning={running} />
+              </section>
+            ) : (
+              <header className="patient-detail-header">
+                <button type="button" onClick={() => setDetailSection(null)} aria-label="Return to patient overview">←</button>
+                <PatientAvatar patient={patient} size="sm" />
+                <div><p>{patient.name}</p><span>{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ")}</span></div>
               </header>
-              {!detailSection ? <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} onRunAnalysis={() => void handleRunAnalysis()} analysisRunning={running} /> : null}
-            </div>
-            {detailSection ? <div className="mt-7 flex items-center justify-between"><button type="button" onClick={() => setDetailSection(null)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 text-sm font-medium">← Overview</button><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Details</p></div> : null}
+            )}
 
             {analysisError ? <div className="mt-4"><StatusBanner tone="error" role="alert">{analysisError}</StatusBanner></div> : null}
 
-            {detailSection === "safety" ? <section id="safety" aria-labelledby="safety-heading" className="mt-8 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "safety" ? <section id="safety" aria-labelledby="safety-heading" className="patient-detail-panel mt-8 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">01 · Safety</p><h2 id="safety-heading" className="mt-1 text-xl font-semibold tracking-tight">Safety analysis</h2></div>
                 <p className="text-xs text-muted">Deterministic findings with evidence-backed explanation</p>
@@ -202,7 +208,7 @@ export default function PatientPage() {
               <AnalysisHero run={analysis} historyError={analysisHistoryError} historyLoaded={analysisHistoryLoaded} running={running} />
             </section> : null}
 
-            {detailSection === "medications" ? <section id="medications" aria-labelledby="medications-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "medications" ? <section id="medications" aria-labelledby="medications-heading" className="patient-detail-panel mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">02 · Treatment</p><h2 id="medications-heading" className="mt-1 text-xl font-semibold tracking-tight">Medications</h2></div>
                 <p className="text-xs text-muted">{activeCount} active of {medications.length} recorded</p>
@@ -216,7 +222,7 @@ export default function PatientPage() {
               </div>
             </section> : null}
 
-            {detailSection === "medications" ? <section aria-labelledby="schedule-heading" className="mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "medications" ? <section aria-labelledby="schedule-heading" className="patient-detail-panel mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">03 · Adherence</p><h2 id="schedule-heading" className="mt-1 text-xl font-semibold tracking-tight">Dose schedule</h2></div>
                 <p className="text-xs text-muted">Scheduled doses and adherence activity</p>
@@ -224,7 +230,7 @@ export default function PatientPage() {
               <SchedulePanel patientId={patientId} medications={medications} onTimelineRefresh={() => void refreshSecondary()} />
             </section> : null}
 
-            {detailSection === "symptoms" ? <section id="symptoms" aria-labelledby="symptoms-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "symptoms" ? <section id="symptoms" aria-labelledby="symptoms-heading" className="patient-detail-panel mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">04 · Clinical signals</p><h2 id="symptoms-heading" className="mt-1 text-xl font-semibold tracking-tight">Symptoms</h2></div>
                 <p className="text-xs text-muted">{unresolvedSymptoms} unresolved of {symptoms.length} recorded</p>
@@ -232,7 +238,7 @@ export default function PatientPage() {
               <SymptomPanel patientId={patientId} medications={medications} symptoms={symptoms} loading={symptomsLoading} error={symptomsError} onCreated={(symptom) => { setSymptoms((current) => [...current, symptom]); void refreshSecondary(); }} />
             </section> : null}
 
-            {detailSection === "timeline" ? <section id="timeline" aria-labelledby="timeline-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
+            {detailSection === "timeline" ? <section id="timeline" aria-labelledby="timeline-heading" className="patient-detail-panel mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">05 · Activity</p><h2 id="timeline-heading" className="mt-1 text-xl font-semibold tracking-tight">Patient timeline</h2></div>
                 <p className="text-xs text-muted">Recent patient activity</p>
