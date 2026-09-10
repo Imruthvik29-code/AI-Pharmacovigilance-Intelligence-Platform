@@ -22,7 +22,7 @@ const sections: Array<{ id: WorkspaceCardId; number: string; label: string; shor
   { id: "timeline", number: "04", label: "Timeline", shortLabel: "TIMELINE" },
 ];
 
-const TRANSITION_MS = 220;
+const TRANSITION_MS = 260;
 
 export function PatientWorkspaceCards({ analysis, medications, symptoms, timeline, onViewDetails }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
