@@ -1,139 +1,73 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { PointerEvent } from "react";
+import type { KeyboardEvent, PointerEvent } from "react";
 import type { AnalysisRunResponse, MedicationResponse, SymptomResponse, TimelineEventResponse } from "@/lib/api/types";
 
 export type WorkspaceCardId = "safety" | "medications" | "symptoms" | "timeline";
-type Direction = "left" | "right";
+type Props = { analysis: AnalysisRunResponse | null; medications: MedicationResponse[]; symptoms: SymptomResponse[]; timeline: TimelineEventResponse[]; onViewDetails?: (id: WorkspaceCardId) => void; onRunAnalysis?: () => void; analysisRunning?: boolean };
 
-type Props = {
-  analysis: AnalysisRunResponse | null;
-  medications: MedicationResponse[];
-  symptoms: SymptomResponse[];
-  timeline: TimelineEventResponse[];
-  onViewDetails?: (id: WorkspaceCardId) => void;
-  onRunAnalysis?: () => void;
-  analysisRunning?: boolean;
-};
-
-const sections: Array<{ id: WorkspaceCardId; number: string; label: string; icon: string }> = [
-  { id: "safety", number: "01", label: "Safety", icon: "⌁" },
-  { id: "medications", number: "02", label: "Medications", icon: "＋" },
-  { id: "symptoms", number: "03", label: "Symptoms", icon: "◌" },
-  { id: "timeline", number: "04", label: "Timeline", icon: "◷" },
+const sections: Array<{ id: WorkspaceCardId; label: string; icon: string }> = [
+  { id: "safety", label: "Safety", icon: "⌁" },
+  { id: "medications", label: "Medications", icon: "＋" },
+  { id: "symptoms", label: "Symptoms", icon: "◌" },
+  { id: "timeline", label: "Timeline", icon: "◷" },
 ];
-const TRANSITION_MS = 260;
+const TRANSITION_MS = 240;
 
 export function PatientWorkspaceCards({ analysis, medications, symptoms, timeline, onViewDetails, onRunAnalysis, analysisRunning = false }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [transitionIndex, setTransitionIndex] = useState<number | null>(null);
-  const [transitionDirection, setTransitionDirection] = useState<Direction | null>(null);
+  const [moving, setMoving] = useState(false);
+  const [direction, setDirection] = useState<"next" | "previous">("next");
   const pointerStart = useRef<number | null>(null);
-  const transitioning = transitionIndex !== null;
 
   function select(index: number) {
-    if (index < 0 || index >= sections.length || index === activeIndex || transitioning) return;
-    setTransitionIndex(index);
-    setTransitionDirection(index > activeIndex ? "left" : "right");
-    window.setTimeout(() => {
-      setActiveIndex(index);
-      setTransitionIndex(null);
-      setTransitionDirection(null);
-    }, TRANSITION_MS);
+    if (index < 0 || index >= sections.length || index === activeIndex || moving) return;
+    setDirection(index > activeIndex ? "next" : "previous");
+    setMoving(true);
+    window.setTimeout(() => { setActiveIndex(index); setMoving(false); }, TRANSITION_MS);
   }
-
-  function handlePointerDown(event: PointerEvent<HTMLElement>) {
-    if (event.target instanceof HTMLElement && event.target.closest("button, a")) return;
-    pointerStart.current = event.clientX;
-  }
-
-  function handlePointerUp(event: PointerEvent<HTMLElement>) {
+  function onPointerDown(event: PointerEvent<HTMLElement>) { if (!(event.target instanceof HTMLElement && event.target.closest("button, a"))) pointerStart.current = event.clientX; }
+  function onPointerUp(event: PointerEvent<HTMLElement>) {
     if (pointerStart.current === null) return;
-    const delta = event.clientX - pointerStart.current;
-    pointerStart.current = null;
-    if (Math.abs(delta) < 48 || transitioning) return;
-    if (delta < 0) select(activeIndex + 1);
-    if (delta > 0) select(activeIndex - 1);
+    const delta = event.clientX - pointerStart.current; pointerStart.current = null;
+    if (Math.abs(delta) < 42) return;
+    select(activeIndex + (delta < 0 ? 1 : -1));
   }
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "ArrowRight") { event.preventDefault(); select(activeIndex + 1); }
+    if (event.key === "ArrowLeft") { event.preventDefault(); select(activeIndex - 1); }
+  }
+  const active = sections[activeIndex];
 
-  function renderPrimary(index: number, className: string, hidden = false) {
-    const section = sections[index];
-    return (
-      <article className={`workspace-primary ${className}`} aria-labelledby={`workspace-${section.id}`} aria-hidden={hidden || undefined}>
-        <div className="workspace-primary-top">
-          <span className={`workspace-section-icon workspace-section-icon-${section.id}`} aria-hidden="true">{section.icon}</span>
-          <div>
-            <p className="workspace-eyebrow">{section.number} / {sections.length}</p>
-            <h2 id={`workspace-${section.id}`}>{section.label}</h2>
-          </div>
+  return <section className="workspace-deck" aria-label="Patient workspace">
+    <div className="workspace-card-stage" role="group" aria-roledescription="carousel" aria-label={`${active.label} workspace card`} tabIndex={0} onKeyDown={onKeyDown} onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => { pointerStart.current = null; }}>
+      <article className={`workspace-primary workspace-current ${moving ? `workspace-slide-${direction}` : ""}`} aria-labelledby={`workspace-${active.id}`}>
+        <span className={`workspace-section-icon workspace-section-icon-${active.id}`} aria-hidden="true">{active.icon}</span>
+        <div className="workspace-primary-copy">
+          <h2 id={`workspace-${active.id}`}>{active.label}</h2>
+          <p className="workspace-description">{descriptionFor(active.id)}</p>
+          <div className="workspace-facts">{briefFor(active.id, analysis, medications, symptoms, timeline)}</div>
         </div>
-        <div className="workspace-primary-copy">{briefFor(section.id, analysis, medications, symptoms, timeline)}</div>
-        {hidden ? null : section.id === "safety" && !analysis ? (
-          <button type="button" className="workspace-primary-action" onClick={() => onRunAnalysis?.()} disabled={!onRunAnalysis || analysisRunning}>
-            {analysisRunning ? "Running analysis…" : "Run analysis"}<span aria-hidden="true">→</span>
-          </button>
-        ) : (
-          <button type="button" className="workspace-primary-action" onClick={() => onViewDetails?.(section.id)}>
-            View {section.label.toLowerCase()} details <span aria-hidden="true">→</span>
-          </button>
-        )}
+        {active.id === "safety" && !analysis ? <button type="button" className="workspace-primary-action" onClick={() => onRunAnalysis?.()} disabled={!onRunAnalysis || analysisRunning}>{analysisRunning ? "Running analysis…" : "Run analysis"}<span aria-hidden="true">→</span></button> : <button type="button" className="workspace-primary-action" onClick={() => onViewDetails?.(active.id)}>View {active.label.toLowerCase()} details<span aria-hidden="true">→</span></button>}
       </article>
-    );
-  }
-
-  return (
-    <section className="workspace-deck" aria-label="Patient workspace">
-      <div className="workspace-card-stage" onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerCancel={() => { pointerStart.current = null; }}>
-        <div className="workspace-card-shadow workspace-card-shadow-one" aria-hidden="true" />
-        <div className="workspace-card-shadow workspace-card-shadow-two" aria-hidden="true" />
-        {transitioning ? <>{renderPrimary(activeIndex, `workspace-exit-${transitionDirection}`, true)}{renderPrimary(transitionIndex!, `workspace-enter-${transitionDirection}`, true)}</> : renderPrimary(activeIndex, "workspace-current")}
-      </div>
-      <div className="workspace-section-rail" aria-label="Select patient workspace section">
-        {sections.map((section, index) => (
-          <button key={section.id} type="button" className={`workspace-section-button ${index === activeIndex ? "is-active" : ""}`} onClick={() => select(index)} disabled={transitioning} aria-label={`Open ${section.label}`} aria-current={index === activeIndex ? "true" : undefined}>
-            <span className={`workspace-rail-icon workspace-section-icon-${section.id}`} aria-hidden="true">{section.icon}</span>
-            <span><small>{section.number}</small><strong>{section.label}</strong></span>
-            {index === activeIndex ? <span className="workspace-selected" aria-hidden="true">Selected</span> : <span aria-hidden="true">→</span>}
-          </button>
-        ))}
-      </div>
-      <p className="workspace-gesture-hint">Swipe the primary card, or choose a section below.</p>
-    </section>
-  );
+      <nav className="workspace-section-rail" aria-label="Patient workspace sections">
+        <button type="button" className="sr-only" aria-label={`Open ${active.label}`} aria-current="true" onClick={() => select(activeIndex)}>Current section: {active.label}</button>
+        {sections.filter((_, index) => index !== activeIndex).map((section) => <button key={section.id} type="button" className={`workspace-section-button workspace-section-icon-${section.id}`} onClick={() => select(sections.indexOf(section))} disabled={moving} aria-label={`Open ${section.label}`}>
+          <span className="workspace-rail-icon" aria-hidden="true">{section.icon}</span><span>{section.label}</span>
+        </button>)}
+      </nav>
+    </div>
+    <div className="workspace-pagination" aria-label={`Section ${activeIndex + 1} of ${sections.length}`}><span className="sr-only">Section {activeIndex + 1} of {sections.length}</span>{sections.map((section, index) => <span key={section.id} aria-hidden="true" className={index === activeIndex ? "is-active" : ""} />)}</div>
+    <p className="workspace-gesture-hint">Swipe, use arrow keys, or select a section.</p>
+  </section>;
 }
 
+function descriptionFor(id: WorkspaceCardId) { return ({ safety: "Review potential risks, interactions, and safety considerations.", medications: "Review medicines recorded for this patient.", symptoms: "Review symptoms and their current resolution status.", timeline: "Review the patient’s recorded activity." })[id]; }
 function briefFor(id: WorkspaceCardId, analysis: AnalysisRunResponse | null, medications: MedicationResponse[], symptoms: SymptomResponse[], timeline: TimelineEventResponse[]) {
-  if (id === "safety") return <SafetyBrief analysis={analysis} />;
-  if (id === "medications") return <MedicationBrief medications={medications} />;
-  if (id === "symptoms") return <SymptomBrief symptoms={symptoms} />;
-  return <TimelineBrief timeline={timeline} />;
+  if (id === "safety") { const findings = analysis ? getFindingCount(analysis) : 0; return <>{analysis ? <><p>{findings ? `${findings} safety ${findings === 1 ? "finding" : "findings"}` : "No safety findings"}</p><small>{analysis.risk_level ? `${analysis.risk_level[0].toUpperCase()}${analysis.risk_level.slice(1)} risk` : "Analysis recorded"}</small></> : <><p>Analysis not run</p><small>No safety analysis has been run yet.</small></>}</>; }
+  if (id === "medications") { const active = medications.filter((m) => m.status === "active").length; return <><p>{active} active medication{active === 1 ? "" : "s"}</p><small>{medications.length} recorded</small></>; }
+  if (id === "symptoms") { const open = symptoms.filter((s) => !s.resolved_date).length; return <><p>{open} unresolved symptom{open === 1 ? "" : "s"}</p><small>{symptoms.length} recorded</small></>; }
+  return <><p>{timeline.length} timeline event{timeline.length === 1 ? "" : "s"}</p><small>{timeline.length ? "Review recent activity" : "No activity recorded"}</small></>;
 }
-
-function SafetyBrief({ analysis }: { analysis: AnalysisRunResponse | null }) {
-  if (!analysis) return <><p className="workspace-metric">Not analyzed</p><p>No safety analysis has been run yet. Your medication record is ready for deterministic interaction, ADR, and adherence analysis.</p></>;
-  const findings = getFindingCount(analysis);
-  const risk = analysis.risk_level ? `${analysis.risk_level[0].toUpperCase()}${analysis.risk_level.slice(1)} risk` : "Recorded";
-  return <><p className="workspace-metric">{risk}</p><p>{findings === 0 ? "Analysis completed — no interaction or ADR findings recorded." : `${findings} safety ${findings === 1 ? "finding" : "findings"} recorded.`}</p><small>Last analysis {new Date(analysis.created_at).toLocaleString()}</small></>;
-}
-function MedicationBrief({ medications }: { medications: MedicationResponse[] }) {
-  const active = medications.filter((medication) => medication.status === "active").length;
-  const verified = medications.filter((medication) => Boolean(medication.drug_name)).length;
-  return <><p className="workspace-metric">{active} active</p><p>{medications.length} medications recorded · {verified} verified identities</p></>;
-}
-function SymptomBrief({ symptoms }: { symptoms: SymptomResponse[] }) {
-  const unresolved = symptoms.filter((symptom) => !symptom.resolved_date).length;
-  const latest = [...symptoms].sort((a, b) => b.onset_date.localeCompare(a.onset_date))[0];
-  return <><p className="workspace-metric">{unresolved} unresolved</p><p>{symptoms.length} symptoms recorded{latest ? ` · latest: ${latest.description}` : ""}</p></>;
-}
-function TimelineBrief({ timeline }: { timeline: TimelineEventResponse[] }) {
-  const latest = [...timeline].sort((a, b) => b.event_time.localeCompare(a.event_time))[0];
-  return <><p className="workspace-metric">{timeline.length} events</p><p>{latest ? `Latest: ${latest.event_title}` : "No timeline activity has been recorded yet."}</p></>;
-}
-function getFindingCount(analysis: AnalysisRunResponse): number {
-  const result = analysis.deterministic_result;
-  if (!result || typeof result !== "object") return 0;
-  const interaction = "interaction_findings" in result && Array.isArray(result.interaction_findings) ? result.interaction_findings.length : 0;
-  const adr = "adr_findings" in result && Array.isArray(result.adr_findings) ? result.adr_findings.length : 0;
-  return interaction + adr;
-}
+function getFindingCount(analysis: AnalysisRunResponse) { const result = analysis.deterministic_result; if (!result || typeof result !== "object") return 0; return ("interaction_findings" in result && Array.isArray(result.interaction_findings) ? result.interaction_findings.length : 0) + ("adr_findings" in result && Array.isArray(result.adr_findings) ? result.adr_findings.length : 0); }
