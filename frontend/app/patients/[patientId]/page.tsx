@@ -175,17 +175,20 @@ export default function PatientPage() {
 
         {patient ? (
           <>
-            <header className="patient-hero">
-              <PatientAvatar patient={patient} size="lg" />
-              <div className="patient-hero-copy">
-                <p className="patient-hero-kicker">Patient record</p>
-                <h1>{patient.name}</h1>
-                <p>{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
-                {patient.relation ? <span>{patient.relation === "Self" ? "My profile" : patient.relation}</span> : null}
-              </div>
-              {!detailSection ? <p className="patient-hero-note">A focused record for treatment, symptoms, and safety.</p> : null}
-            </header>
-            {!detailSection ? <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} onRunAnalysis={() => void handleRunAnalysis()} analysisRunning={running} /> : null}
+            <div className={`patient-composition ${detailSection ? "is-detail" : ""}`}>
+              <header className="patient-hero">
+                <div className="patient-hero-identity">
+                  <PatientAvatar patient={patient} size="lg" />
+                  <div className="patient-hero-copy">
+                    <p className="patient-hero-kicker">Patient record</p>
+                    <h1>{patient.name}</h1>
+                    <p>{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
+                    {patient.relation ? <span>{patient.relation === "Self" ? "My profile" : patient.relation}</span> : null}
+                  </div>
+                </div>
+              </header>
+              {!detailSection ? <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} onRunAnalysis={() => void handleRunAnalysis()} analysisRunning={running} /> : null}
+            </div>
             {detailSection ? <div className="mt-7 flex items-center justify-between"><button type="button" onClick={() => setDetailSection(null)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 text-sm font-medium">← Overview</button><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Details</p></div> : null}
 
             {analysisError ? <div className="mt-4"><StatusBanner tone="error" role="alert">{analysisError}</StatusBanner></div> : null}

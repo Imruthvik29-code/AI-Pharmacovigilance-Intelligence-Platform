@@ -67,53 +67,35 @@ textarea {
   font-family: var(--font-mono);
 }
 
-/* Patient workspace: a foreground page with three exposed companion pages. */
-.workspace-deck { width: min(100%, 31rem); margin: 1.5rem auto 0; }
-.workspace-card-stage { position: relative; display: flex; height: 27rem; overflow: visible; touch-action: pan-y; outline: none; }
-.workspace-primary { position: relative; z-index: 2; display: flex; width: 76%; min-width: 0; flex-direction: column; justify-content: space-between; overflow: hidden; border: 1px solid #e7eaed; border-radius: 1.55rem; background: #fff; padding: 1.5rem; box-shadow: 0 .65rem 1.5rem rgb(22 34 42 / .08); }
-.workspace-primary::after { position: absolute; inset: auto -3rem -4rem auto; width: 11rem; height: 11rem; border-radius: 999px; background: #f5faf9; content: ""; }
-.workspace-primary > * { position: relative; z-index: 1; }
-.workspace-section-icon { display: inline-flex; width: 4.25rem; height: 4.25rem; align-items: center; justify-content: center; border-radius: 999px; font-size: 2rem; }
-.workspace-section-icon-safety { color: #be1e1e; background: #fde7e7; }
-.workspace-section-icon-medications { color: #08775c; background: #e3f6ea; }
-.workspace-section-icon-symptoms { color: #5a3ba4; background: #eee8fc; }
-.workspace-section-icon-timeline { color: #0870af; background: #e3f2fb; }
-.workspace-primary-copy { margin-top: auto; padding: 1.25rem 0 1rem; }
-.workspace-primary h2 { margin: 0; font-size: clamp(1.75rem, 7vw, 2.25rem); font-weight: 700; letter-spacing: -.055em; line-height: 1; }
-.workspace-description { max-width: 15rem; margin: .55rem 0 0; color: #71808e; font-size: .91rem; line-height: 1.45; }
-.workspace-facts { margin-top: .85rem; border-radius: 1rem; background: #f7f8f9; padding: .85rem; }
-.workspace-facts p { margin: 0; color: var(--ink); font-size: .86rem; font-weight: 650; }
-.workspace-facts small { display: block; margin-top: .25rem; color: #71808e; font-size: .76rem; }
-.workspace-primary-action { display: flex; min-height: 3.7rem; width: 100%; align-items: center; justify-content: space-between; border-radius: 1rem; background: #20272b; padding: .75rem 1rem .75rem 1.25rem; color: white; font-size: .94rem; font-weight: 650; transition: transform 180ms ease, background-color 180ms ease; }
-.workspace-primary-action span { display: inline-flex; width: 2.45rem; height: 2.45rem; align-items: center; justify-content: center; border-radius: 50%; background: white; color: #20272b; font-size: 1.35rem; }
-.workspace-primary-action:hover:not(:disabled) { transform: translateY(-2px); background: #30393e; }
-.workspace-primary-action:disabled { cursor: wait; opacity: .65; }
-.workspace-section-rail { display: flex; flex: 1; min-width: 0; gap: .32rem; padding: .65rem 0 .65rem .42rem; }
-.workspace-section-button { display: flex; min-width: 0; flex: 1; align-items: center; flex-direction: column; border-radius: 1.1rem; padding: .8rem .15rem; transition: transform 180ms ease, filter 180ms ease; }
-.workspace-section-button:hover:not(:disabled) { transform: translateY(-.2rem); filter: brightness(.97); }
-.workspace-section-button:disabled { cursor: wait; opacity: .65; }
-.workspace-rail-icon { display: inline-flex; align-items: center; justify-content: center; font-size: 1.25rem; }
-.workspace-section-button > span:last-child { margin-top: .85rem; color: currentColor; font-size: .67rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; writing-mode: vertical-rl; }
-.workspace-pagination { display: flex; justify-content: center; gap: .5rem; margin-top: 1.2rem; }
-.workspace-pagination > span:not(.sr-only) { width: .55rem; height: .55rem; border-radius: 50%; background: #d4dce1; transition: transform 180ms ease, background-color 180ms ease; }
-.workspace-pagination > span.is-active { transform: scale(1.1); background: #20272b; }
-.workspace-gesture-hint { margin: .8rem 0 0; color: #7b8791; font-size: .72rem; text-align: center; }
-.workspace-slide-next { animation: workspace-next 240ms cubic-bezier(.2,.8,.2,1); }
-.workspace-slide-previous { animation: workspace-previous 240ms cubic-bezier(.2,.8,.2,1); }
-@keyframes workspace-next { 0% { transform: translateX(0); opacity: 1; } 45% { transform: translateX(-1rem); opacity: .4; } 100% { transform: translateX(0); opacity: 1; } }
-@keyframes workspace-previous { 0% { transform: translateX(0); opacity: 1; } 45% { transform: translateX(1rem); opacity: .4; } 100% { transform: translateX(0); opacity: 1; } }
-@media (max-width: 420px) { .workspace-card-stage { height: 25.5rem; } .workspace-primary { width: 74%; padding: 1.25rem; } .workspace-section-rail { gap: .23rem; padding-left: .3rem; } .workspace-section-button { border-radius: .9rem; } .workspace-section-button > span:last-child { font-size: .57rem; } }
-@media (prefers-reduced-motion: reduce) { .workspace-primary-action, .workspace-section-button, .workspace-pagination > span:not(.sr-only) { transition: none; } .workspace-slide-next, .workspace-slide-previous { animation: none; } }
+/* Patient workspace: panoramic patient canvas, with an overlapping foreground section deck. */
+.patient-composition { position: relative; width: min(100%, 70rem); min-height: 43rem; margin: 0 auto; }
+.patient-composition.is-detail { min-height: auto; }
+.patient-hero { position: relative; min-height: 27rem; overflow: hidden; border: 1px solid #d8e1e2; border-radius: 2rem; background: #1b3b40; }
+.patient-hero::before, .patient-hero::after { position: absolute; border-radius: 50%; content: ""; }
+.patient-hero::before { width: 30rem; height: 30rem; top: -14rem; right: -3rem; background: #32666a; }
+.patient-hero::after { width: 20rem; height: 20rem; right: 18%; bottom: -14rem; border: 1px solid rgb(255 255 255 / .16); background: #285156; }
+.patient-hero-identity { position: absolute; z-index: 1; bottom: 5.9rem; left: clamp(1.5rem, 5vw, 4rem); display: flex; align-items: flex-end; gap: 1.1rem; color: white; }
+.patient-hero-copy h1 { margin: 0; font-size: clamp(2.5rem, 5vw, 4.8rem); font-weight: 700; letter-spacing: -.075em; line-height: .88; }
+.patient-hero-copy p { margin: .65rem 0 0; color: rgb(255 255 255 / .86); font-size: 1rem; }
+.patient-hero-copy span, .patient-hero-kicker { display: block; margin-top: .32rem; color: rgb(255 255 255 / .7); font-size: .78rem; }
+.patient-hero-kicker { font-family: var(--font-mono); font-size: .61rem; letter-spacing: .16em; text-transform: uppercase; }
+.patient-hero .rounded-\[1\.35rem\] { border-color: rgb(255 255 255 / .34); background: rgb(255 255 255 / .12); color: white; box-shadow: none; }
+.patient-back-link { display: inline-flex; min-height: 2.75rem; width: min(100%, 70rem); margin: 0 auto .7rem; align-items: center; gap: .55rem; color: var(--muted); font-size: .82rem; font-weight: 600; }
 
-.patient-back-link { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .55rem; color: var(--muted); font-size: .82rem; font-weight: 600; }
-.patient-hero { position: relative; display: flex; width: min(100%, 31rem); min-height: 10.5rem; align-items: end; gap: 1rem; margin: .2rem auto 0; overflow: hidden; border-radius: 1.55rem; background: #183d42; padding: 1.35rem; color: white; }
-.patient-hero::before { position: absolute; inset: 0; background: radial-gradient(circle at 82% 12%, rgb(149 204 194 / .45), transparent 33%), linear-gradient(135deg, #19464b, #0e272c); content: ""; }
-.patient-hero > * { position: relative; z-index: 1; }
-.patient-hero-copy h1 { margin: 0; font-size: clamp(2rem, 8vw, 2.85rem); font-weight: 700; letter-spacing: -.065em; line-height: .95; }
-.patient-hero-copy p { margin: .42rem 0 0; color: rgb(255 255 255 / .84); font-size: .9rem; }
-.patient-hero-copy span, .patient-hero-kicker { display: block; margin-top: .3rem; color: rgb(255 255 255 / .73); font-size: .75rem; }
-.patient-hero-kicker { font-family: var(--font-mono); font-size: .59rem; letter-spacing: .15em; text-transform: uppercase; }
-.patient-hero-note { display: none; }
-.patient-hero .rounded-\[1\.35rem\] { border-color: rgb(255 255 255 / .28); background: rgb(255 255 255 / .14); color: white; box-shadow: none; }
-@media (min-width: 640px) { .patient-back-link { width: min(100%, 31rem); margin-inline: auto; } }
-@media (max-width: 639px) { .patient-hero { min-height: 9.5rem; margin-top: 0; padding: 1.1rem; } .patient-hero-copy h1 { font-size: 2rem; } .patient-hero .h-24 { width: 4.25rem; height: 4.25rem; font-size: 1.35rem; border-radius: 1.15rem; } }
+.workspace-deck { position: absolute; z-index: 2; right: clamp(1.5rem, 5vw, 4rem); bottom: 0; width: min(74%, 49rem); }
+.workspace-card-stage { position: relative; display: flex; height: 31rem; overflow: visible; touch-action: pan-y; outline: none; }
+.workspace-primary { position: relative; z-index: 2; display: flex; width: 71%; min-width: 0; flex-direction: column; justify-content: space-between; overflow: hidden; border: 1px solid #e6eaec; border-radius: 1.75rem; background: #fff; padding: 2rem; box-shadow: 0 1rem 2.7rem rgb(13 30 35 / .17); }
+.workspace-primary::after { position: absolute; width: 15rem; height: 15rem; right: -6rem; bottom: -8rem; border-radius: 50%; background: #f1f7f7; content: ""; }
+.workspace-primary > * { position: relative; z-index: 1; }
+.workspace-section-icon { display: inline-flex; width: 4.3rem; height: 4.3rem; align-items: center; justify-content: center; border-radius: 50%; font-size: 2rem; }
+.workspace-section-icon-safety { color: #c11818; background: #fee8e8; }.workspace-section-icon-medications { color: #08775c; background: #e3f6ea; }.workspace-section-icon-symptoms { color: #5a3ba4; background: #eee8fc; }.workspace-section-icon-timeline { color: #0870af; background: #e3f2fb; }
+.workspace-primary-copy { margin-top: auto; padding: 1.4rem 0 1rem; }.workspace-primary h2 { margin: 0; font-size: clamp(2rem, 3.2vw, 2.7rem); font-weight: 700; letter-spacing: -.06em; line-height: 1; }.workspace-description { max-width: 21rem; margin: .6rem 0 0; color: #71808e; font-size: 1rem; line-height: 1.42; }.workspace-facts { margin-top: 1rem; border-radius: 1rem; background: #f6f8f9; padding: .9rem 1rem; }.workspace-facts p { margin: 0; color: var(--ink); font-size: .9rem; font-weight: 650; }.workspace-facts small { display: block; margin-top: .24rem; color: #71808e; font-size: .78rem; }
+.workspace-primary-action { display: flex; min-height: 4rem; width: 100%; align-items: center; justify-content: space-between; border-radius: 1.1rem; background: #20272b; padding: .75rem .9rem .75rem 1.4rem; color: white; font-size: .96rem; font-weight: 650; transition: transform 180ms ease, background-color 180ms ease; }.workspace-primary-action span { display: inline-flex; width: 2.6rem; height: 2.6rem; align-items: center; justify-content: center; border-radius: 50%; background: white; color: #20272b; font-size: 1.4rem; }.workspace-primary-action:hover:not(:disabled) { transform: translateY(-2px); background: #30393e; }.workspace-primary-action:disabled { cursor: wait; opacity: .65; }
+.workspace-section-rail { display: flex; flex: 1; min-width: 0; gap: .55rem; padding: .85rem 0 .85rem .65rem; }.workspace-section-button { display: flex; min-width: 0; flex: 1; align-items: center; flex-direction: column; border-radius: 1.35rem; padding: 1rem .35rem; transition: transform 180ms ease, filter 180ms ease; }.workspace-section-button:hover:not(:disabled) { transform: translateY(-.35rem); filter: brightness(.97); }.workspace-section-button:disabled { cursor: wait; opacity: .65; }.workspace-rail-icon { display: inline-flex; align-items: center; justify-content: center; font-size: 1.45rem; }.workspace-section-button > span:last-child { margin-top: 1rem; color: currentColor; font-size: .73rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; writing-mode: vertical-rl; }
+.workspace-pagination { display: flex; justify-content: center; gap: .5rem; margin-top: 1.35rem; }.workspace-pagination > span:not(.sr-only) { width: .56rem; height: .56rem; border-radius: 50%; background: #cfd7da; }.workspace-pagination > span.is-active { background: #20272b; }.workspace-gesture-hint { margin: .8rem 0 0; color: #627078; font-size: .74rem; text-align: center; }
+.workspace-slide-next { animation: workspace-next 240ms cubic-bezier(.2,.8,.2,1); }.workspace-slide-previous { animation: workspace-previous 240ms cubic-bezier(.2,.8,.2,1); }@keyframes workspace-next { 45% { transform: translateX(-1.2rem); opacity: .35; } }@keyframes workspace-previous { 45% { transform: translateX(1.2rem); opacity: .35; } }
+@media (max-width: 639px) { .patient-composition { min-height: 35rem; }.patient-hero { min-height: 15.5rem; border-radius: 1.55rem; }.patient-hero::before { width: 17rem; height: 17rem; top: -9rem; right: -6rem; }.patient-hero::after { width: 12rem; height: 12rem; right: -3rem; bottom: -7rem; }.patient-hero-identity { bottom: 7rem; left: 1.25rem; gap: .85rem; }.patient-hero-copy h1 { font-size: 2.05rem; }.patient-hero-copy p { margin-top: .42rem; font-size: .85rem; }.patient-hero .h-24 { width: 4.25rem; height: 4.25rem; font-size: 1.35rem; border-radius: 1.15rem; }.patient-back-link { margin-bottom: .45rem; }.workspace-deck { right: 1rem; width: calc(100% - 2rem); }.workspace-card-stage { height: 25.5rem; }.workspace-primary { width: 76%; padding: 1.25rem; border-radius: 1.45rem; }.workspace-primary h2 { font-size: 1.85rem; }.workspace-description { font-size: .88rem; }.workspace-section-rail { gap: .26rem; padding: .55rem 0 .55rem .3rem; }.workspace-section-button { border-radius: .95rem; padding: .7rem .1rem; }.workspace-section-button > span:last-child { margin-top: .7rem; font-size: .57rem; }.workspace-rail-icon { font-size: 1.1rem; } }
+@media (prefers-reduced-motion: reduce) { .workspace-primary-action, .workspace-section-button { transition: none; }.workspace-slide-next, .workspace-slide-previous { animation: none; } }
+.patient-composition.is-detail .patient-hero { min-height: 12rem; }
+.patient-composition.is-detail .patient-hero-identity { bottom: 1.5rem; }
+@media (max-width: 639px) { .patient-composition.is-detail { min-height: auto; }.patient-composition.is-detail .patient-hero { min-height: 10rem; }.patient-composition.is-detail .patient-hero-identity { bottom: 1.15rem; } }
