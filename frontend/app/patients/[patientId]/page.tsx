@@ -160,7 +160,7 @@ export default function PatientPage() {
 
   return (
     <AuthGate>
-      <AppShell>
+      <AppShell patientExperience>
         <Link href="/dashboard" className="patient-back-link">
           <span aria-hidden="true">←</span> Patients
         </Link>
