@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { AnalysisHero } from "@/components/AnalysisHero";
+import { SafetyDetail } from "@/components/SafetyDetail";
 import { AppShell } from "@/components/AppShell";
 import { AuthGate } from "@/components/AuthGate";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
@@ -22,7 +22,7 @@ import { getPatient } from "@/lib/api/patients";
 import { listSymptoms } from "@/lib/api/symptoms";
 import { listTimeline } from "@/lib/api/timeline";
 import { usePageTitle } from "@/lib/hooks/usePageTitle";
-import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui/classes";
+import { secondaryButtonClass } from "@/lib/ui/classes";
 import type { AnalysisRunResponse, MedicationResponse, PatientResponse, SymptomResponse, TimelineEventResponse } from "@/lib/api/types";
 
 export default function PatientPage() {
@@ -190,14 +190,7 @@ export default function PatientPage() {
 
             {analysisError ? <div className="mt-4"><StatusBanner tone="error" role="alert">{analysisError}</StatusBanner></div> : null}
 
-            {detailSection === "safety" ? <section id="safety" aria-labelledby="safety-heading" className="mt-8 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
-              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">01 · Safety</p><h2 id="safety-heading" className="mt-1 text-xl font-semibold tracking-tight">Safety analysis</h2></div>
-                <p className="text-xs text-muted">Deterministic findings with evidence-backed explanation</p>
-              </div>
-              <div className="mb-5 flex justify-end"><button type="button" onClick={() => void handleRunAnalysis()} disabled={running} className={primaryButtonClass}>{running ? "Running analysis…" : "Run analysis"}</button></div>
-              <AnalysisHero run={analysis} historyError={analysisHistoryError} historyLoaded={analysisHistoryLoaded} running={running} />
-            </section> : null}
+            {detailSection === "safety" ? <SafetyDetail run={analysis} historyError={analysisHistoryError} historyLoaded={analysisHistoryLoaded} running={running} onRunAnalysis={() => void handleRunAnalysis()} /> : null}
 
             {detailSection === "medications" ? <section id="medications" aria-labelledby="medications-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
