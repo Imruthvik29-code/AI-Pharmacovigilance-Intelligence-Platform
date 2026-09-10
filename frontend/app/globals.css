@@ -37,6 +37,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   min-height: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -70,6 +71,7 @@ textarea {
 /* Patient workspace: layered primary card and an integrated section rail. */
 .workspace-deck { margin-top: 2.5rem; max-width: 58rem; }
 .workspace-card-stage { position: relative; height: 28rem; isolation: isolate; touch-action: pan-y; }
+.workspace-card-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: .5rem; border-radius: 2rem; }
 .workspace-primary, .workspace-card-shadow { position: absolute; inset: 0; border-radius: 2rem; }
 .workspace-card-shadow { border: 1px solid var(--line); background: var(--card); }
 .workspace-card-shadow-one { z-index: -1; transform: translate(1.5rem, 1rem); opacity: .72; }

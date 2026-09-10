@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { PointerEvent } from "react";
+import type { KeyboardEvent, PointerEvent } from "react";
 import type { AnalysisRunResponse, MedicationResponse, SymptomResponse, TimelineEventResponse } from "@/lib/api/types";
 
 export type WorkspaceCardId = "safety" | "medications" | "symptoms" | "timeline";
@@ -57,10 +57,26 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
     if (delta > 0) select(activeIndex - 1);
   }
 
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (transitioning) return;
+    const nextIndex = event.key === "ArrowRight" || event.key === "ArrowDown"
+      ? activeIndex + 1
+      : event.key === "ArrowLeft" || event.key === "ArrowUp"
+        ? activeIndex - 1
+        : event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? sections.length - 1
+            : null;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    select(Math.max(0, Math.min(sections.length - 1, nextIndex)));
+  }
+
   function renderPrimary(index: number, className: string, hidden = false) {
     const section = sections[index];
     return (
-      <article className={`workspace-primary ${className}`} aria-labelledby={`workspace-${section.id}`} aria-hidden={hidden || undefined}>
+      <article className={`workspace-primary ${className}`} data-workspace-card={section.id} aria-labelledby={`workspace-${section.id}`} aria-hidden={hidden || undefined}>
         <div className="workspace-primary-top">
           <span className={`workspace-section-icon workspace-section-icon-${section.id}`} aria-hidden="true">{section.icon}</span>
           <div>
@@ -84,9 +100,9 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
 
   return (
     <section className="workspace-deck" aria-label="Patient workspace">
-      <div className="workspace-card-stage" onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerCancel={() => { pointerStart.current = null; }}>
-        <div className="workspace-card-shadow workspace-card-shadow-one" aria-hidden="true" />
-        <div className="workspace-card-shadow workspace-card-shadow-two" aria-hidden="true" />
+      <div className="workspace-card-stage" data-testid="workspace-card-stack" data-active-card={sections[activeIndex].id} tabIndex={0} role="group" aria-label="Workspace card stack" onKeyDown={handleKeyDown} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerCancel={() => { pointerStart.current = null; }}>
+        <div className="workspace-card-shadow workspace-card-shadow-one" data-testid="workspace-companion-card" aria-hidden="true" />
+        <div className="workspace-card-shadow workspace-card-shadow-two" data-testid="workspace-companion-card" aria-hidden="true" />
         {transitioning ? <>{renderPrimary(activeIndex, `workspace-exit-${transitionDirection}`, true)}{renderPrimary(transitionIndex!, `workspace-enter-${transitionDirection}`, true)}</> : renderPrimary(activeIndex, "workspace-current")}
       </div>
       <div className="workspace-section-rail" aria-label="Select patient workspace section">

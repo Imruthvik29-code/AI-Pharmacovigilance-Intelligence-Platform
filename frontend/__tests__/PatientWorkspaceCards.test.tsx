@@ -14,6 +14,27 @@ describe("PatientWorkspaceCards", () => {
     expect(screen.getByRole("button", { name: "Open Medications" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Symptoms" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Timeline" })).toBeInTheDocument();
+    const stack = screen.getByTestId("workspace-card-stack");
+    expect(stack).toHaveAttribute("data-active-card", "safety");
+    expect(screen.getAllByTestId("workspace-companion-card")).toHaveLength(2);
+    expect(stack.querySelectorAll('[data-workspace-card]:not([aria-hidden="true"])')).toHaveLength(1);
+  });
+
+  it("supports directional and boundary keyboard navigation on the stack", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PatientWorkspaceCards analysis={analysis} medications={[]} symptoms={[]} timeline={[]} onViewDetails={vi.fn()} />);
+      const stack = screen.getByRole("group", { name: "Workspace card stack" });
+      fireEvent.keyDown(stack, { key: "ArrowRight" });
+      act(() => vi.advanceTimersByTime(300));
+      expect(stack).toHaveAttribute("data-active-card", "medications");
+      fireEvent.keyDown(stack, { key: "End" });
+      act(() => vi.advanceTimersByTime(300));
+      expect(screen.getByRole("heading", { name: "Timeline" })).toBeInTheDocument();
+      fireEvent.keyDown(stack, { key: "Home" });
+      act(() => vi.advanceTimersByTime(300));
+      expect(stack).toHaveAttribute("data-active-card", "safety");
+    } finally { vi.useRealTimers(); }
   });
 
   it("selects a section by tap and opens its matching details", () => {
