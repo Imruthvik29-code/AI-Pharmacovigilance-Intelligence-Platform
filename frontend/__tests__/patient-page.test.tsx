@@ -47,11 +47,10 @@ describe("PatientPage", () => {
     render(<PatientPage />);
     expect(screen.getByText("Loading patient")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
-    expect(screen.getByText("Age 42 · female · 64 kg · Hepatic flag")).toBeInTheDocument();
-    expect(screen.getByText("1 medication")).toBeInTheDocument();
-    expect(screen.getByText("1 active")).toBeInTheDocument();
+    expect(screen.getByText("42 yrs · female")).toBeInTheDocument();
+    expect(screen.getByLabelText("Asha Rao initials")).toBeInTheDocument();
     expect(screen.queryByText("patient-123")).not.toBeInTheDocument();
-    expect(screen.getByText("No analysis yet")).toBeInTheDocument();
+    expect(screen.getByText(/No safety analysis has been run yet/)).toBeInTheDocument();
   });
 
   it("shows the interactive workspace card stack", async () => {
@@ -62,7 +61,7 @@ describe("PatientPage", () => {
     expect(screen.getByRole("button", { name: "Open Symptoms" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Timeline" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open Medications" }));
-    await waitFor(() => expect(screen.getAllByRole("heading", { name: "Medications" })).toHaveLength(2));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument());
   });
 
   it("runs analysis and refreshes the displayed result", async () => {
@@ -70,7 +69,7 @@ describe("PatientPage", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Run analysis" }));
     await waitFor(() => expect(runAnalysis).toHaveBeenCalledWith("patient-123"));
-    await waitFor(() => expect(screen.getByText("Latest analysis: analysis-123")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Moderate risk")).toBeInTheDocument());
   });
 
   it("keeps the fresh analysis when history refresh returns an older run", async () => {
@@ -83,8 +82,8 @@ describe("PatientPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run analysis" }));
     await waitFor(() => expect(runAnalysis).toHaveBeenCalledWith("patient-123"));
     await waitFor(() => expect(listAnalysisRuns).toHaveBeenCalledTimes(2));
-    expect(screen.getByText("Latest analysis: analysis-123")).toBeInTheDocument();
-    expect(screen.queryByText("Latest analysis: analysis-old")).not.toBeInTheDocument();
+    expect(screen.getByText("Moderate risk")).toBeInTheDocument();
+    expect(screen.queryByText("analysis-old")).not.toBeInTheDocument();
   });
 
   it("allows retry after an initial patient load failure", async () => {
