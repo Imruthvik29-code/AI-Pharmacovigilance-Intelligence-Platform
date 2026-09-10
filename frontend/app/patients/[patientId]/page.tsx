@@ -11,6 +11,7 @@ import { MedicationList } from "@/components/MedicationList";
 import { MedicationPicker } from "@/components/MedicationPicker";
 import { PatientWorkspaceCards, type WorkspaceCardId } from "@/components/PatientWorkspaceCards";
 import { PatientAvatar } from "@/components/PatientAvatar";
+import { PatientFindingRow, PatientInformationRow, PatientInformationRows, PatientSectionDetail } from "@/components/PatientSectionDetail";
 import { SchedulePanel } from "@/components/SchedulePanel";
 import { StatusBanner } from "@/components/StatusBanner";
 import { SymptomPanel } from "@/components/SymptomPanel";
@@ -157,13 +158,17 @@ export default function PatientPage() {
 
   const activeCount = medications.filter((medication) => medication.status === "active").length;
   const unresolvedSymptoms = symptoms.filter((symptom) => !symptom.resolved_date).length;
+  const latestTimelineEvent = [...timeline].sort((a, b) => b.event_time.localeCompare(a.event_time))[0];
+  const deterministicResult = analysis?.deterministic_result;
+  const interactionCount = deterministicResult && "interaction_findings" in deterministicResult && Array.isArray(deterministicResult.interaction_findings) ? deterministicResult.interaction_findings.length : 0;
+  const adrCount = deterministicResult && "adr_findings" in deterministicResult && Array.isArray(deterministicResult.adr_findings) ? deterministicResult.adr_findings.length : 0;
 
   return (
     <AuthGate>
       <AppShell>
-        <Link href="/dashboard" className="patient-back-link">
+        {!detailSection ? <Link href="/dashboard" className="patient-back-link">
           <span aria-hidden="true">←</span> Patients
-        </Link>
+        </Link> : null}
 
         {loading ? <div className="mt-6 max-w-md"><LoadingSkeleton label="Loading patient" lines={4} /></div> : null}
         {pageError ? (
@@ -175,7 +180,7 @@ export default function PatientPage() {
 
         {patient ? (
           <>
-            <header className="patient-hero">
+            {!detailSection ? <header className="patient-hero">
               <PatientAvatar patient={patient} size="lg" />
               <div className="patient-hero-copy">
                 <p className="patient-hero-kicker">Patient record</p>
@@ -183,59 +188,44 @@ export default function PatientPage() {
                 <p>{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
                 {patient.relation ? <span>{patient.relation === "Self" ? "My profile" : patient.relation}</span> : null}
               </div>
-              {!detailSection ? <p className="patient-hero-note">A focused record for treatment, symptoms, and safety.</p> : null}
-            </header>
+              <p className="patient-hero-note">A focused record for treatment, symptoms, and safety.</p>
+            </header> : null}
             {!detailSection ? <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} onRunAnalysis={() => void handleRunAnalysis()} analysisRunning={running} /> : null}
-            {detailSection ? <div className="mt-7 flex items-center justify-between"><button type="button" onClick={() => setDetailSection(null)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 text-sm font-medium">← Overview</button><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Details</p></div> : null}
 
             {analysisError ? <div className="mt-4"><StatusBanner tone="error" role="alert">{analysisError}</StatusBanner></div> : null}
 
-            {detailSection === "safety" ? <section id="safety" aria-labelledby="safety-heading" className="mt-8 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
-              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">01 · Safety</p><h2 id="safety-heading" className="mt-1 text-xl font-semibold tracking-tight">Safety analysis</h2></div>
-                <p className="text-xs text-muted">Deterministic findings with evidence-backed explanation</p>
+            {detailSection === "safety" ? <PatientSectionDetail eyebrow={`01 · ${patient.name}`} title="Safety analysis" description="Deterministic findings with evidence-backed explanation from the current medication record." onBack={() => setDetailSection(null)} action={<button type="button" onClick={() => void handleRunAnalysis()} disabled={running} className={`${primaryButtonClass} w-full justify-center sm:w-auto`}>{running ? "Running analysis…" : "Run analysis"}</button>}>
+              <PatientInformationRows label="Safety summary">
+                <PatientInformationRow label="Safety score" value={analysis?.safety_score ?? "Not analyzed"} />
+                <PatientInformationRow label="Risk level" value={analysis?.risk_level ?? "Pending"} />
+                <PatientInformationRow label="Last analysis" value={analysis ? new Date(analysis.created_at).toLocaleString() : "Never"} />
+                <PatientInformationRow label="Analysis version" value={analysis?.analysis_version ?? "—"} />
+              </PatientInformationRows>
+              <div className="space-y-2" aria-label="Safety findings">
+                <PatientFindingRow label="Drug interactions" detail="Interactions identified in the active medication record." value={interactionCount} tone={interactionCount ? "critical" : "positive"} />
+                <PatientFindingRow label="Adverse drug reactions" detail="Known reaction signals identified by the analysis." value={adrCount} tone={adrCount ? "warning" : "positive"} />
               </div>
-              <div className="mb-5 flex justify-end"><button type="button" onClick={() => void handleRunAnalysis()} disabled={running} className={primaryButtonClass}>{running ? "Running analysis…" : "Run analysis"}</button></div>
               <AnalysisHero run={analysis} historyError={analysisHistoryError} historyLoaded={analysisHistoryLoaded} running={running} />
-            </section> : null}
+            </PatientSectionDetail> : null}
 
-            {detailSection === "medications" ? <section id="medications" aria-labelledby="medications-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
-              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">02 · Treatment</p><h2 id="medications-heading" className="mt-1 text-xl font-semibold tracking-tight">Medications</h2></div>
-                <p className="text-xs text-muted">{activeCount} active of {medications.length} recorded</p>
-              </div>
+            {detailSection === "medications" ? <PatientSectionDetail eyebrow={`02 · ${patient.name}`} title="Medications" description="Current treatments, medication details, and scheduled dose activity." onBack={() => setDetailSection(null)} action={<button type="button" onClick={() => setShowPicker((open) => !open)} className={`${primaryButtonClass} w-full justify-center sm:w-auto`}>{showPicker ? "Close medication form" : "Add medication"}</button>}>
+              <PatientInformationRows label="Medication summary"><PatientInformationRow label="Active" value={activeCount} /><PatientInformationRow label="Total recorded" value={medications.length} /></PatientInformationRows>
               <div className="space-y-6">
                 <MedicationList medications={medications} error={medError} />
-                <div className="border-t border-line pt-5">
-                  <button type="button" onClick={() => setShowPicker((open) => !open)} className={`${secondaryButtonClass} w-full justify-center sm:w-auto`}>{showPicker ? "Hide medication form" : "Add medication"}</button>
-                  {showPicker ? <div className="mt-4"><MedicationPicker patientId={patientId} onCreated={(medication) => { setMedications((current) => [...current, medication]); setShowPicker(false); void refreshSecondary(); }} /></div> : null}
-                </div>
-              </div>
-            </section> : null}
-
-            {detailSection === "medications" ? <section aria-labelledby="schedule-heading" className="mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
-              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">03 · Adherence</p><h2 id="schedule-heading" className="mt-1 text-xl font-semibold tracking-tight">Dose schedule</h2></div>
-                <p className="text-xs text-muted">Scheduled doses and adherence activity</p>
+                {showPicker ? <MedicationPicker patientId={patientId} onCreated={(medication) => { setMedications((current) => [...current, medication]); setShowPicker(false); void refreshSecondary(); }} /> : null}
               </div>
               <SchedulePanel patientId={patientId} medications={medications} onTimelineRefresh={() => void refreshSecondary()} />
-            </section> : null}
+            </PatientSectionDetail> : null}
 
-            {detailSection === "symptoms" ? <section id="symptoms" aria-labelledby="symptoms-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
-              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">04 · Clinical signals</p><h2 id="symptoms-heading" className="mt-1 text-xl font-semibold tracking-tight">Symptoms</h2></div>
-                <p className="text-xs text-muted">{unresolvedSymptoms} unresolved of {symptoms.length} recorded</p>
-              </div>
+            {detailSection === "symptoms" ? <PatientSectionDetail eyebrow={`03 · ${patient.name}`} title="Symptoms" description="Clinical signals recorded for this patient and their relationship to treatment." onBack={() => setDetailSection(null)}>
+              <PatientInformationRows label="Symptom summary"><PatientInformationRow label="Unresolved" value={unresolvedSymptoms} /><PatientInformationRow label="Total recorded" value={symptoms.length} /></PatientInformationRows>
               <SymptomPanel patientId={patientId} medications={medications} symptoms={symptoms} loading={symptomsLoading} error={symptomsError} onCreated={(symptom) => { setSymptoms((current) => [...current, symptom]); void refreshSecondary(); }} />
-            </section> : null}
+            </PatientSectionDetail> : null}
 
-            {detailSection === "timeline" ? <section id="timeline" aria-labelledby="timeline-heading" className="mt-6 scroll-mt-6 rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
-              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">05 · Activity</p><h2 id="timeline-heading" className="mt-1 text-xl font-semibold tracking-tight">Patient timeline</h2></div>
-                <p className="text-xs text-muted">Recent patient activity</p>
-              </div>
+            {detailSection === "timeline" ? <PatientSectionDetail eyebrow={`04 · ${patient.name}`} title="Patient timeline" description="A chronological view of medication, symptom, adherence, and analysis activity." onBack={() => setDetailSection(null)}>
+              <PatientInformationRows label="Timeline summary"><PatientInformationRow label="Total events" value={timeline.length} /><PatientInformationRow label="Latest activity" value={latestTimelineEvent ? new Date(latestTimelineEvent.event_time).toLocaleString() : "No activity"} /></PatientInformationRows>
               <TimelineList events={timeline} error={timelineError} />
-            </section> : null}
+            </PatientSectionDetail> : null}
           </>
         ) : null}
       </AppShell>
