@@ -126,4 +126,12 @@ textarea {
 .patient-hero-copy span, .patient-hero-kicker { display: block; margin-top: .35rem; color: var(--muted); font-size: .78rem; }
 .patient-hero-kicker { color: var(--accent); font-family: var(--font-mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; }
 .patient-hero-note { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.55; text-align: right; }
-@media (max-width: 639px) { .patient-hero { grid-template-columns: auto minmax(0, 1fr); gap: 1rem; margin-top: 1rem; padding-bottom: 1.35rem; } .patient-hero-note { display: none; } .patient-hero-copy h1 { font-size: 2.35rem; } }
+.patient-overview-sheet { position: relative; z-index: 1; max-width: 58rem; margin-top: -1rem; border-radius: 2.75rem 2.75rem 0 0; background: #fff; padding: 1.15rem clamp(1rem, 3vw, 2.25rem) 2.5rem; box-shadow: 0 -1px 0 rgb(20 32 41 / .04), 0 18px 36px rgb(20 32 41 / .06); }
+.patient-overview-nav { display: flex; align-items: center; gap: .35rem; overflow-x: auto; padding: .35rem; border-radius: 999px; background: #f4f2ed; scrollbar-width: none; }
+.patient-overview-nav::-webkit-scrollbar { display: none; }
+.patient-overview-nav-item { flex: 0 0 auto; min-height: 2.4rem; border-radius: 999px; padding: 0 .9rem; color: var(--muted); font-size: .78rem; font-weight: 650; white-space: nowrap; transition: background-color 180ms ease, box-shadow 180ms ease, color 180ms ease, transform 180ms ease; }
+.patient-overview-nav-item:hover:not(.is-active) { color: var(--ink); }
+.patient-overview-nav-item.is-active { background: #fff; color: var(--ink); box-shadow: 0 3px 9px rgb(20 32 41 / .13), 0 1px 2px rgb(20 32 41 / .08); }
+.patient-overview-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.patient-overview-sheet .workspace-deck { margin-top: 2rem; }
+@media (max-width: 639px) { .patient-hero { grid-template-columns: auto minmax(0, 1fr); gap: 1rem; margin-top: 1rem; padding-bottom: 1.35rem; } .patient-hero-note { display: none; } .patient-hero-copy h1 { font-size: 2.35rem; } .patient-overview-sheet { margin-top: -.7rem; border-radius: 2rem 2rem 0 0; padding: .85rem 1rem 2rem; } .patient-overview-sheet .workspace-deck { margin-top: 1.45rem; } }
