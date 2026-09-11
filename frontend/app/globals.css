@@ -91,7 +91,25 @@ textarea {
 .workspace-pagination { display: flex; justify-content: center; gap: .5rem; margin-top: 1.2rem; }.workspace-pagination > span { width: .55rem; height: .55rem; border-radius: 50%; background: #cfd6da; }.workspace-pagination > span.is-active { background: #20272b; }
 .workspace-enter-forward { animation: workspace-forward 240ms cubic-bezier(.2,.8,.2,1); }.workspace-enter-backward { animation: workspace-backward 240ms cubic-bezier(.2,.8,.2,1); }@keyframes workspace-forward { from { transform: translateX(1.5rem); opacity: .45; } }@keyframes workspace-backward { from { transform: translateX(-1.5rem); opacity: .45; } }
 .patient-detail-header, .patient-detail-panel { width: min(100%, 52rem); margin-inline: auto; }.patient-detail-header { display: flex; align-items: center; gap: .8rem; margin-top: .5rem; padding: .25rem; }.patient-detail-header > button { display: inline-flex; width: 2.75rem; height: 2.75rem; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 50%; background: var(--card); }.patient-detail-header p { margin: 0; font-weight: 650; }.patient-detail-header div span { color: var(--muted); font-size: .75rem; }
-@media (max-width: 767px) { .patient-overview { display: block; min-height: 39rem; }.patient-identity { min-height: 16rem; align-items: flex-end; padding: 1.25rem 1.25rem 6.8rem; border-radius: 1.65rem; }.patient-identity-mark { width: 15rem; height: 15rem; top: -8rem; right: -6rem; }.patient-identity .h-24 { width: 4.5rem; height: 4.5rem; border-radius: 1.15rem; font-size: 1.35rem; }.patient-identity-copy h1 { font-size: 2.15rem; }.patient-identity-copy span { margin-top: .4rem; font-size: .85rem; }.workspace-deck { width: calc(100% - 1rem); margin: -5.7rem .5rem 0; }.workspace-card-stage { height: 26rem; }.workspace-primary { width: 75%; padding: 1.3rem; border-radius: 1.5rem; }.workspace-section-icon { width: 3.6rem; height: 3.6rem; font-size: 1.6rem; }.workspace-primary h2 { font-size: 1.8rem; }.workspace-description { font-size: .86rem; }.workspace-companions { gap: .24rem; padding: .55rem 0 .55rem .3rem; }.workspace-companion { border-radius: .95rem; padding: .65rem .05rem; }.workspace-companion-icon { width: 1.65rem; height: 1.65rem; font-size: .95rem; }.workspace-companion strong { margin-top: .7rem; font-size: .54rem; }.workspace-pagination { margin-top: 1rem; } }
+@media (max-width: 767px) {
+  .patient-overview { display: block; min-height: 38rem; }
+  .patient-identity { min-height: 12.5rem; align-items: center; padding: 1.25rem 1.25rem 3.2rem; border-radius: 1.65rem; }
+  .patient-identity-mark { width: 12rem; height: 12rem; top: -7rem; right: -4rem; }
+  .patient-identity .h-24 { width: 4.5rem; height: 4.5rem; border-radius: 1.15rem; font-size: 1.35rem; }
+  .patient-identity-copy h1 { font-size: 2.15rem; }
+  .patient-identity-copy span { margin-top: .4rem; font-size: .85rem; }
+  .workspace-deck { width: calc(100% - 1rem); margin: -2.5rem .5rem 0; }
+  .workspace-card-stage { display: grid; height: auto; grid-template-rows: 22.5rem 5.5rem; }
+  .workspace-primary { width: 100%; padding: 1.3rem; border-radius: 1.5rem; }
+  .workspace-section-icon { width: 3.6rem; height: 3.6rem; font-size: 1.25rem; }
+  .workspace-primary h2 { font-size: 1.8rem; }
+  .workspace-description { font-size: .86rem; }
+  .workspace-companions { width: calc(100% - 1.5rem); gap: .45rem; margin: -.35rem auto 0; padding: 0; }
+  .workspace-companion { min-height: 5.5rem; flex-direction: row; justify-content: flex-start; gap: .55rem; border-radius: 1rem; padding: .7rem; text-align: left; }
+  .workspace-companion-icon { width: 1.75rem; height: 1.75rem; flex-shrink: 0; font-size: .72rem; }
+  .workspace-companion strong { margin-top: 0; overflow-wrap: anywhere; font-size: .58rem; line-height: 1.15; writing-mode: horizontal-tb; }
+  .workspace-pagination { margin-top: .85rem; }
+}
 @media (prefers-reduced-motion: reduce) { .workspace-enter-forward, .workspace-enter-backward { animation: none; }.workspace-companion { transition: none; } }
 
 /* Patient selection uses the same identity, surface, and action language as the workspace. */

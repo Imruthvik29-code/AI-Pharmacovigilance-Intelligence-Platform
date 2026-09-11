@@ -23,7 +23,7 @@ type Props = {
 
 const sections: Array<{ id: WorkspaceCardId; label: string; icon: string }> = [
   { id: "safety", label: "Safety", icon: "⌁" },
-  { id: "medications", label: "Medications", icon: "+" },
+  { id: "medications", label: "Medications", icon: "Rx" },
   { id: "symptoms", label: "Symptoms", icon: "◌" },
   { id: "timeline", label: "Timeline", icon: "◷" },
 ];
