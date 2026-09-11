@@ -78,4 +78,14 @@ describe("MedicationList", () => {
     expect(screen.getByText("Verified")).toBeInTheDocument();
     expect(screen.queryByText("Stale browser name")).not.toBeInTheDocument();
   });
+
+  it("omits its repeated heading when embedded in the medication detail", () => {
+    render(<MedicationList medications={[medication]} embedded />);
+
+    expect(screen.getByLabelText("Medication list")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Medications" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Treatment")).not.toBeInTheDocument();
+    expect(screen.queryByText("Current medication record.")).not.toBeInTheDocument();
+    expect(screen.getByText(UNCACHED_DRUG_LABEL)).toBeInTheDocument();
+  });
 });

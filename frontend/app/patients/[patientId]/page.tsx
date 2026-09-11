@@ -171,24 +171,20 @@ export default function PatientPage() {
     <div className="patient-detail-stack">
       <section id="medications" aria-labelledby="medications-heading" className="patient-detail-panel rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
         <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">02 · Treatment</p><h2 id="medications-heading" className="mt-1 text-xl font-semibold tracking-tight">Medications</h2></div>
+          <h2 id="medications-heading" className="text-xl font-semibold tracking-tight">Medications</h2>
           <p className="text-xs text-muted">{activeCount} active of {medications.length} recorded</p>
         </div>
         <div className="space-y-6">
-          <MedicationList medications={medications} error={medError} />
+          <MedicationList medications={medications} error={medError} embedded />
           <div className="border-t border-line pt-5">
             <button type="button" onClick={() => setShowPicker((open) => !open)} className={`${secondaryButtonClass} w-full justify-center sm:w-auto`}>{showPicker ? "Hide medication form" : "Add medication"}</button>
             {showPicker ? <div className="mt-4"><MedicationPicker patientId={patientId} onCreated={(medication) => { setMedications((current) => [...current, medication]); setShowPicker(false); void refreshSecondary(); }} /></div> : null}
           </div>
         </div>
       </section>
-      <section aria-labelledby="schedule-heading" className="patient-detail-panel rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
-        <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Dose schedule</p><h2 id="schedule-heading" className="mt-1 text-xl font-semibold tracking-tight">Adherence</h2></div>
-          <p className="text-xs text-muted">Scheduled doses and adherence activity</p>
-        </div>
+      <div className="patient-detail-panel border-t border-line pt-6">
         <SchedulePanel patientId={patientId} medications={medications} onTimelineRefresh={() => void refreshSecondary()} />
-      </section>
+      </div>
     </div>
   ) : detailSection === "symptoms" ? (
     <section id="symptoms" aria-labelledby="symptoms-heading" className="patient-detail-panel rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
@@ -196,7 +192,7 @@ export default function PatientPage() {
         <div><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">03 · Clinical signals</p><h2 id="symptoms-heading" className="mt-1 text-xl font-semibold tracking-tight">Symptoms</h2></div>
         <p className="text-xs text-muted">{unresolvedSymptoms} unresolved of {symptoms.length} recorded</p>
       </div>
-      <SymptomPanel patientId={patientId} medications={medications} symptoms={symptoms} loading={symptomsLoading} error={symptomsError} onCreated={(symptom) => { setSymptoms((current) => [...current, symptom]); void refreshSecondary(); }} />
+      <SymptomPanel patientId={patientId} medications={medications} symptoms={symptoms} loading={symptomsLoading} error={symptomsError} onCreated={(symptom) => { setSymptoms((current) => [...current, symptom]); void refreshSecondary(); }} embedded />
     </section>
   ) : detailSection === "timeline" ? (
     <section id="timeline" aria-labelledby="timeline-heading" className="patient-detail-panel rounded-3xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(20,32,41,0.03)] sm:p-6">
