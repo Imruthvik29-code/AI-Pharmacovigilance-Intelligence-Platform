@@ -77,8 +77,8 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />);
 
-    await waitFor(() => expect(screen.getByText("Asha Rao")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: /Asha Rao/i }));
+    await waitFor(() => expect(screen.getAllByText("Asha Rao")).toHaveLength(2));
+    fireEvent.click(screen.getByRole("button", { name: "Open Asha Rao" }));
 
     expect(mocks.push).toHaveBeenCalledWith("/patients/patient-1");
   });

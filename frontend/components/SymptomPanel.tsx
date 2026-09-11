@@ -34,6 +34,7 @@ export function SymptomPanel({
   loading,
   error,
   onCreated,
+  embedded = false,
 }: {
   patientId: string;
   medications: MedicationResponse[];
@@ -41,6 +42,7 @@ export function SymptomPanel({
   loading?: boolean;
   error?: string | null;
   onCreated: (symptom: SymptomResponse) => void;
+  embedded?: boolean;
 }) {
   const descriptionId = useId();
   const severityId = useId();
@@ -80,15 +82,17 @@ export function SymptomPanel({
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(20,32,41,0.04)]" aria-label="Symptoms">
-      <div className="border-b border-line px-5 py-4">
+    <section className={embedded ? "min-w-0" : "overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(20,32,41,0.04)]"} aria-label="Symptom management">
+      {!embedded ? <div className="border-b border-line px-5 py-4">
         <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Patient report</p>
         <h2 className="mt-1 text-base font-semibold tracking-tight">Symptoms</h2>
         <p className="mt-1 text-xs leading-5 text-muted">Record a new symptom and, when known, the medication it may relate to.</p>
-      </div>
+      </div> : null}
 
-      <div className="grid gap-5 p-5 lg:grid-cols-[0.9fr_1.1fr]">
-        <form onSubmit={handleSubmit} className="rounded-xl border border-line bg-paper/45 p-4">
+      <div className={`grid gap-6 lg:grid-cols-[0.9fr_1.1fr] ${embedded ? "" : "p-5"}`}>
+        <div>
+          <h3 className="mb-3 text-sm font-semibold text-ink">Record a symptom</h3>
+          <form onSubmit={handleSubmit} className="rounded-xl border border-line bg-paper/45 p-4">
           <div>
             <label className="block text-sm font-medium" htmlFor={descriptionId}>What are you experiencing?</label>
             <textarea
@@ -137,9 +141,11 @@ export function SymptomPanel({
           <button type="submit" disabled={!description.trim() || submitting} className={`${primaryButtonClass} mt-4 w-full justify-center`}>
             {submitting ? "Recording…" : "Report symptom"}
           </button>
-        </form>
+          </form>
+        </div>
 
         <div>
+          <h3 className="mb-3 text-sm font-semibold text-ink">Recorded symptoms</h3>
           {loading ? <p className="text-sm text-muted">Loading symptom history…</p> : null}
           {error ? <p className="text-sm text-high" role="alert">{error}</p> : null}
           {!loading && !error && symptoms.length === 0 ? (

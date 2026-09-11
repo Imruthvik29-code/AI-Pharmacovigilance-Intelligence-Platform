@@ -21,8 +21,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-line bg-card/80 backdrop-blur">
+    <div className="app-shell min-h-screen">
+      <header className="app-shell-header border-b border-line bg-card/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5 no-underline">
             <BrandMark size="sm" />
@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      <main className="app-shell-main mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
   );
 }

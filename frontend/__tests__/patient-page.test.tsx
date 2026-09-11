@@ -35,6 +35,7 @@ const analysis = { id: "analysis-123", patient_id: "patient-123", analysis_versi
 describe("PatientPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.scrollTo = vi.fn();
     vi.mocked(getPatient).mockResolvedValue(patient);
     vi.mocked(listMedications).mockResolvedValue([medication]);
     vi.mocked(listSymptoms).mockResolvedValue([]);
@@ -62,6 +63,18 @@ describe("PatientPage", () => {
     expect(screen.getByRole("button", { name: "Open Timeline" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open Medications" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument());
+  });
+
+  it("replaces the overview with the selected detail and returns cleanly", async () => {
+    render(<PatientPage />);
+    await waitFor(() => expect(screen.getByRole("region", { name: "Patient workspace" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Open Medications" }));
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    expect(screen.queryByRole("region", { name: "Patient workspace" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Return to patient overview" }));
+    expect(screen.getByRole("region", { name: "Patient workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Medications" })).not.toBeInTheDocument();
   });
 
   it("runs analysis and refreshes the displayed result", async () => {

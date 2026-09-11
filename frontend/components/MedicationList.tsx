@@ -9,14 +9,16 @@ export function MedicationList({
   medications,
   loading,
   error,
+  embedded = false,
 }: {
   medications: MedicationResponse[];
   loading?: boolean;
   error?: string | null;
+  embedded?: boolean;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(20,32,41,0.04)]" aria-label="Medications">
-      <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+    <section className={embedded ? "min-w-0" : "overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(20,32,41,0.04)]"} aria-label="Medication list">
+      {!embedded ? <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Treatment</p>
           <h2 className="mt-1 text-base font-semibold tracking-tight">Medications</h2>
@@ -25,8 +27,8 @@ export function MedicationList({
         <span className="rounded-full bg-paper px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-muted">
           {medications.length} {medications.length === 1 ? "item" : "items"}
         </span>
-      </div>
-      <div className="px-5 pb-5">
+      </div> : null}
+      <div className={embedded ? "pb-1" : "px-5 pb-5"}>
         {loading ? (
           <div className="pt-4">
             <LoadingSkeleton label="Loading medications" lines={3} />

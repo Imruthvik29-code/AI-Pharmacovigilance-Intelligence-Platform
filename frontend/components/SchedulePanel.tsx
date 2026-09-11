@@ -97,8 +97,8 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
       <div className="border-b border-line bg-paper/30 px-5 py-5 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">Medication schedule</p>
-            <h2 id="schedule-heading" className="mt-1 text-lg font-semibold tracking-tight text-ink">What is due next</h2>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">Adherence</p>
+            <h2 id="schedule-heading" className="mt-1 text-lg font-semibold tracking-tight text-ink">Dose schedule</h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">Only future, unmarked doses for active medications appear here.</p>
           </div>
           <button type="button" onClick={() => void loadDoses()} disabled={loading} className={secondaryButtonClass}>

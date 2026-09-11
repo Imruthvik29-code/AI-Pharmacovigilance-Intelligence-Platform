@@ -24,7 +24,7 @@ describe("PatientWorkspaceCards", () => {
       fireEvent.click(screen.getByRole("button", { name: "Open Symptoms" }));
       act(() => vi.advanceTimersByTime(300));
       expect(screen.getByRole("heading", { name: "Symptoms" })).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: /View symptoms details/ }));
+      fireEvent.click(screen.getByRole("button", { name: "View details" }));
       expect(onViewDetails).toHaveBeenCalledWith("symptoms");
     } finally { vi.useRealTimers(); }
   });
@@ -43,6 +43,15 @@ describe("PatientWorkspaceCards", () => {
       act(() => vi.advanceTimersByTime(300));
       expect(screen.getByRole("heading", { name: "Safety" })).toBeInTheDocument();
     } finally { vi.useRealTimers(); }
+  });
+
+  it("moves between adjacent sections with arrow keys", () => {
+    render(<PatientWorkspaceCards analysis={analysis} medications={[]} symptoms={[]} timeline={[]} />);
+    const carousel = screen.getByRole("group", { name: /Safety, section 1 of 4/ });
+    fireEvent.keyDown(carousel, { key: "ArrowRight" });
+    expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
+    fireEvent.keyDown(carousel, { key: "ArrowLeft" });
+    expect(screen.getByRole("heading", { name: "Safety" })).toBeInTheDocument();
   });
 
   it("offers the deterministic analysis action only in the unanalysed Safety state", () => {
