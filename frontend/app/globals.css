@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #f3f0e8;
-  --ink: #142029;
-  --muted: #4d5c65;
-  --card: #fffdf8;
-  --line: #d8d2c4;
-  --accent: #0d6b63;
-  --accent-ink: #084843;
+  --paper: #f6f8f9;
+  --ink: #11191e;
+  --muted: #71808c;
+  --card: #ffffff;
+  --line: #e1e6e9;
+  --accent: #087a67;
+  --accent-ink: #075e51;
   --high: #9f1239;
   --moderate: #b45309;
   --low: #0f766e;
@@ -67,61 +67,402 @@ textarea {
   font-family: var(--font-mono);
 }
 
-/* Patient experience */
-.patient-back-link { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .55rem; color: var(--muted); font-size: .82rem; font-weight: 600; }
-.patient-overview { position: relative; display: grid; width: min(100%, 68rem); min-height: 39rem; grid-template-columns: minmax(19rem, 43%) 1fr; align-items: center; margin: .25rem auto 0; }
-.patient-identity { position: relative; display: flex; min-height: 34rem; align-items: flex-end; gap: 1rem; overflow: hidden; border-radius: 2.1rem; background: #173b40; padding: 3rem 3rem 6rem; color: white; }
-.patient-identity-mark { position: absolute; width: 23rem; height: 23rem; top: -10rem; right: -10rem; border: 1px solid rgb(255 255 255 / .15); border-radius: 50%; background: #28565b; }
-.patient-identity > * { position: relative; z-index: 1; }
-.patient-identity-copy p { margin: 0 0 .45rem; color: rgb(255 255 255 / .63); font-family: var(--font-mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; }
-.patient-identity-copy h1 { margin: 0; font-size: clamp(2.7rem, 5vw, 4.4rem); font-weight: 700; letter-spacing: -.075em; line-height: .9; }
-.patient-identity-copy span { display: block; margin-top: .75rem; color: rgb(255 255 255 / .85); font-size: 1rem; }
-.patient-identity-copy small { display: block; margin-top: .35rem; color: rgb(255 255 255 / .68); font-size: .76rem; }
-.patient-identity .rounded-\[1\.35rem\] { border-color: rgb(255 255 255 / .28); background: rgb(255 255 255 / .12); color: white; box-shadow: none; }
-.workspace-deck { position: relative; z-index: 2; width: calc(100% + 5rem); margin-left: -5rem; }
-.workspace-card-stage { display: flex; height: 31rem; touch-action: pan-y; }
-.workspace-primary { position: relative; z-index: 2; display: flex; width: 68%; flex-shrink: 0; flex-direction: column; overflow: hidden; border: 1px solid #e3e7e9; border-radius: 1.8rem; background: #fff; padding: 2rem; box-shadow: 0 1.2rem 3rem rgb(13 30 35 / .16); }
-.workspace-primary::after { position: absolute; width: 14rem; height: 14rem; right: -7rem; bottom: -8rem; border-radius: 50%; background: #f2f7f7; content: ""; }
-.workspace-primary > * { position: relative; z-index: 1; }
-.workspace-section-icon { display: inline-flex; width: 4.4rem; height: 4.4rem; align-items: center; justify-content: center; border-radius: 50%; font-size: 2rem; }
-.workspace-tone-safety { color: #bb171c; background: #fee8e8; }.workspace-tone-medications { color: #08775c; background: #e2f5e8; }.workspace-tone-symptoms { color: #56349c; background: #ede7fa; }.workspace-tone-timeline { color: #126b9e; background: #e1f0f9; }
-.workspace-primary-copy { margin-top: auto; padding: 1.3rem 0 1rem; }.workspace-primary h2 { margin: 0; font-size: 2.3rem; font-weight: 700; letter-spacing: -.055em; line-height: 1; }.workspace-description { max-width: 21rem; margin: .55rem 0 0; color: #71808e; font-size: .96rem; line-height: 1.45; }.workspace-summary { display: grid; gap: .25rem; margin-top: 1rem; border-radius: 1rem; background: #f6f8f9; padding: .9rem 1rem; }.workspace-summary strong { font-size: .88rem; }.workspace-summary span { color: #71808e; font-size: .76rem; }
-.workspace-primary-action { display: flex; min-height: 4rem; width: 100%; align-items: center; justify-content: space-between; border-radius: 1.05rem; background: #20272b; padding: .7rem .8rem .7rem 1.35rem; color: white; font-size: .95rem; font-weight: 650; }.workspace-primary-action span { display: inline-flex; width: 2.65rem; height: 2.65rem; align-items: center; justify-content: center; border-radius: 50%; background: white; color: #20272b; font-size: 1.35rem; }.workspace-primary-action:hover:not(:disabled) { background: #30393e; }.workspace-primary-action:disabled { cursor: wait; opacity: .65; }
-.workspace-companions { display: flex; flex: 1; gap: .5rem; padding: .75rem 0 .75rem .55rem; }.workspace-companion { display: flex; min-width: 0; flex: 1; align-items: center; flex-direction: column; border-radius: 1.4rem; padding: 1rem .2rem; transition: transform 180ms ease; }.workspace-companion:hover { transform: translateY(-.3rem); }.workspace-companion-icon { display: inline-flex; width: 2.25rem; height: 2.25rem; align-items: center; justify-content: center; border-radius: 50%; background: rgb(255 255 255 / .42); font-size: 1.25rem; }.workspace-companion strong { margin-top: 1rem; font-size: .68rem; letter-spacing: .04em; text-transform: uppercase; writing-mode: vertical-rl; }
-.workspace-pagination { display: flex; justify-content: center; gap: .5rem; margin-top: 1.2rem; }.workspace-pagination > span { width: .55rem; height: .55rem; border-radius: 50%; background: #cfd6da; }.workspace-pagination > span.is-active { background: #20272b; }
-.workspace-enter-forward { animation: workspace-forward 240ms cubic-bezier(.2,.8,.2,1); }.workspace-enter-backward { animation: workspace-backward 240ms cubic-bezier(.2,.8,.2,1); }@keyframes workspace-forward { from { transform: translateX(1.5rem); opacity: .45; } }@keyframes workspace-backward { from { transform: translateX(-1.5rem); opacity: .45; } }
-.patient-detail-header, .patient-detail-panel { width: min(100%, 52rem); margin-inline: auto; }.patient-detail-header { display: flex; align-items: center; gap: .8rem; margin-top: .5rem; padding: .25rem; }.patient-detail-header > button { display: inline-flex; width: 2.75rem; height: 2.75rem; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 50%; background: var(--card); }.patient-detail-header p { margin: 0; font-weight: 650; }.patient-detail-header div span { color: var(--muted); font-size: .75rem; }
-@media (max-width: 767px) {
-  .patient-overview { display: block; min-height: 35rem; }
-  .patient-identity { min-height: 10.5rem; align-items: center; justify-content: flex-start; padding: 1rem 1.25rem 2.5rem; border-radius: 1.65rem; }
-  .patient-identity-mark { width: 12rem; height: 12rem; top: -7rem; right: -4rem; }
-  .patient-identity .h-24 { width: 4.5rem; height: 4.5rem; border-radius: 1.15rem; font-size: 1.35rem; }
-  .patient-identity-copy h1 { font-size: 2.15rem; }
-  .patient-identity-copy span { margin-top: .4rem; font-size: .85rem; }
-  .workspace-deck { width: calc(100% - 1rem); margin: -2rem .5rem 0; }
-  .workspace-card-stage { display: grid; height: auto; grid-template-rows: 20rem 6rem; }
-  .workspace-primary { width: 100%; padding: 1.3rem; border-radius: 1.5rem; }
-  .workspace-section-icon { width: 3.6rem; height: 3.6rem; font-size: 1.25rem; }
-  .workspace-primary h2 { font-size: 1.8rem; }
-  .workspace-description { font-size: .86rem; }
-  .workspace-primary-copy { padding: .75rem 0 .55rem; }
-  .workspace-summary { margin-top: .7rem; padding: .75rem .85rem; }
-  .workspace-primary-action { min-height: 3.5rem; }
-  .workspace-companions { width: calc(100% - 1.5rem); gap: .45rem; margin: -.35rem auto 0; padding: 0; }
-  .workspace-companion { min-height: 6rem; flex-direction: row; justify-content: flex-start; gap: .55rem; border: 1px solid rgb(20 32 41 / .05); border-radius: 1rem; padding: .75rem; text-align: left; }
-  .workspace-companion-icon { width: 1.75rem; height: 1.75rem; flex-shrink: 0; font-size: .72rem; }
-  .workspace-companion strong { margin-top: 0; overflow-wrap: anywhere; font-size: .58rem; line-height: 1.15; writing-mode: horizontal-tb; }
-  .workspace-pagination { margin-top: .85rem; }
+/* Patient experience — quiet surfaces, editorial type, and layered navigation. */
+.app-shell-header { background: rgb(255 255 255 / .94); box-shadow: 0 1px 0 rgb(17 25 30 / .03); }
+.app-shell-main { width: 100%; }
+.patient-back-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: .5rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 600;
 }
-@media (prefers-reduced-motion: reduce) { .workspace-enter-forward, .workspace-enter-backward { animation: none; }.workspace-companion { transition: none; } }
 
-/* Patient selection uses the same identity, surface, and action language as the workspace. */
-.patient-list { width: min(100%, 68rem); margin-inline: auto; }.patient-list-header, .patient-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }.patient-list-header > div > p { margin: 0; color: var(--muted); font-size: .82rem; }.patient-list-header h1 { margin: .15rem 0 0; font-size: 2.7rem; font-weight: 700; letter-spacing: -.06em; line-height: 1; }.patient-list-content { margin-top: 2rem; }.patient-list-heading h2 { font-size: 1.2rem; font-weight: 650; }.patient-list-heading span { color: var(--muted); font-size: .78rem; }
-.patient-picker { display: flex; gap: .65rem; margin-top: 1rem; overflow-x: auto; padding: .15rem .1rem .65rem; scrollbar-width: thin; }.patient-picker li { flex: 0 0 auto; }.patient-picker button { display: flex; min-width: 10rem; min-height: 4.7rem; align-items: center; gap: .7rem; border: 1px solid var(--line); border-radius: 1.15rem; background: var(--card); padding: .65rem; text-align: left; }.patient-picker button.is-selected { border-color: var(--accent); background: #f0f8f6; }.patient-picker strong, .patient-picker small { display: block; }.patient-picker strong { max-width: 7rem; overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }.patient-picker small { margin-top: .2rem; color: var(--muted); font-size: .71rem; }
-.patient-preview { position: relative; display: flex; width: min(100%, 40rem); min-height: 22rem; flex-direction: column; justify-content: flex-end; overflow: hidden; margin-top: 1.7rem; border-radius: 2rem; background: #173b40; padding: 1.6rem; color: white; text-align: left; box-shadow: 0 1rem 2.5rem rgb(13 30 35 / .14); }.patient-preview-mark { position: absolute; width: 24rem; height: 24rem; top: -13rem; right: -9rem; border: 1px solid rgb(255 255 255 / .15); border-radius: 50%; background: #2a595e; }.patient-preview > * { position: relative; z-index: 1; }.patient-preview .rounded-\[1\.35rem\] { border-color: rgb(255 255 255 / .25); background: rgb(255 255 255 / .12); color: white; }.patient-preview-copy { margin-top: 1.5rem; }.patient-preview-copy p { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -.05em; }.patient-preview-copy span, .patient-preview-copy small { display: block; margin-top: .3rem; color: rgb(255 255 255 / .77); font-size: .84rem; }.patient-preview-action { display: flex; min-height: 3.8rem; align-items: center; justify-content: space-between; margin-top: 1.4rem; border-radius: 1rem; background: rgb(10 20 24 / .65); padding: .6rem .65rem .6rem 1.2rem; font-size: .9rem; font-weight: 650; }.patient-preview-action b { display: inline-flex; width: 2.55rem; height: 2.55rem; align-items: center; justify-content: center; border-radius: 50%; background: white; color: #20272b; font-size: 1.3rem; }
-@media (min-width: 900px) { .patient-list-content { display: grid; grid-template-columns: 18rem minmax(0, 1fr); column-gap: 2.5rem; }.patient-list-heading { grid-column: 1 / -1; }.patient-picker { max-height: 25rem; flex-direction: column; overflow-x: visible; overflow-y: auto; }.patient-picker button { width: 100%; }.patient-preview { grid-column: 2; grid-row: 2; width: 100%; min-height: 25rem; margin-top: 1rem; } }
-@media (max-width: 639px) { .patient-list-header h1 { font-size: 2.25rem; }.patient-list-content { margin-top: 1.6rem; }.patient-preview { min-height: 20rem; border-radius: 1.6rem; padding: 1.25rem; }.patient-preview-copy p { font-size: 1.7rem; } }
-.patient-detail-view { width: min(100%, 52rem); margin-inline: auto; }
+.patient-overview {
+  position: relative;
+  display: grid;
+  width: min(100%, 72rem);
+  min-height: 42rem;
+  grid-template-columns: minmax(20rem, 44%) minmax(0, 1fr);
+  align-items: center;
+  margin: .25rem auto 0;
+}
+
+.patient-identity {
+  position: relative;
+  display: flex;
+  min-height: 36rem;
+  align-items: flex-end;
+  gap: 1rem;
+  overflow: hidden;
+  border-radius: 2.25rem;
+  background: #173f47;
+  padding: 3.25rem 3.25rem 7rem;
+  color: white;
+  box-shadow: 0 1rem 3rem rgb(21 43 49 / .14);
+}
+
+.patient-identity-mark,
+.patient-preview-mark {
+  position: absolute;
+  width: 28rem;
+  height: 28rem;
+  top: -16rem;
+  right: -9rem;
+  border: 1px solid rgb(255 255 255 / .14);
+  border-radius: 50%;
+  background: #32636b;
+}
+
+.patient-identity::after,
+.patient-preview::after {
+  position: absolute;
+  width: 24rem;
+  height: 10rem;
+  right: -6rem;
+  bottom: -6rem;
+  border: 1px solid rgb(255 255 255 / .1);
+  border-radius: 50%;
+  background: #102f36;
+  content: "";
+  transform: rotate(-8deg);
+}
+
+.patient-identity > *,
+.patient-preview > * { position: relative; z-index: 1; }
+.patient-identity-copy p {
+  margin: 0 0 .45rem;
+  color: rgb(255 255 255 / .66);
+  font-size: .68rem;
+  font-weight: 650;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.patient-identity-copy h1 {
+  margin: 0;
+  font-size: clamp(2.75rem, 5vw, 4.75rem);
+  font-weight: 700;
+  letter-spacing: -.065em;
+  line-height: .92;
+}
+.patient-identity-copy span {
+  display: block;
+  margin-top: .7rem;
+  color: rgb(255 255 255 / .86);
+  font-size: 1rem;
+}
+.patient-identity-copy small {
+  display: block;
+  margin-top: .32rem;
+  color: rgb(255 255 255 / .68);
+  font-size: .78rem;
+}
+.patient-identity .rounded-\[1\.35rem\],
+.patient-preview .rounded-\[1\.35rem\] {
+  border-color: rgb(255 255 255 / .3);
+  background: rgb(255 255 255 / .13);
+  color: white;
+  box-shadow: none;
+}
+
+.workspace-deck {
+  position: relative;
+  z-index: 2;
+  width: calc(100% + 5rem);
+  margin-left: -5rem;
+}
+.workspace-card-stage { display: flex; height: 32rem; touch-action: pan-y; }
+.workspace-primary {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: 69%;
+  flex-shrink: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e6eaec;
+  border-radius: 1.8rem;
+  background: #fff;
+  padding: 2.15rem;
+  box-shadow: 0 1.1rem 2.8rem rgb(18 34 40 / .14);
+}
+.workspace-primary::after {
+  position: absolute;
+  width: 15rem;
+  height: 15rem;
+  right: -8rem;
+  bottom: -9rem;
+  border-radius: 50%;
+  background: #f4f8f8;
+  content: "";
+}
+.workspace-primary > * { position: relative; z-index: 1; }
+.workspace-section-icon {
+  display: inline-flex;
+  width: 4.5rem;
+  height: 4.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 1.65rem;
+  font-weight: 650;
+}
+.workspace-tone-safety { color: #c51d25; background: #fee8e9; }
+.workspace-tone-medications { color: #087b58; background: #e1f5e8; }
+.workspace-tone-symptoms { color: #55359d; background: #eee8fa; }
+.workspace-tone-timeline { color: #126f9f; background: #e2f1f9; }
+.workspace-primary-copy { margin-top: auto; padding: 1.35rem 0 1rem; }
+.workspace-primary h2 {
+  margin: 0;
+  font-size: 2.35rem;
+  font-weight: 700;
+  letter-spacing: -.055em;
+  line-height: 1;
+}
+.workspace-description {
+  max-width: 21rem;
+  margin: .6rem 0 0;
+  color: var(--muted);
+  font-size: .98rem;
+  line-height: 1.45;
+}
+.workspace-summary {
+  display: grid;
+  gap: .25rem;
+  margin-top: 1.1rem;
+  border-radius: 1rem;
+  background: #f6f8f9;
+  padding: .9rem 1rem;
+}
+.workspace-summary strong { font-size: .88rem; }
+.workspace-summary span { color: var(--muted); font-size: .77rem; }
+.workspace-primary-action,
+.patient-preview-action {
+  display: flex;
+  min-height: 4rem;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 1.05rem;
+  background: #20272b;
+  padding: .7rem .75rem .7rem 1.35rem;
+  color: white;
+  font-size: .94rem;
+  font-weight: 650;
+}
+.workspace-primary-action span,
+.patient-preview-action b {
+  display: inline-flex;
+  width: 2.65rem;
+  height: 2.65rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: white;
+  color: #20272b;
+  font-size: 1.35rem;
+}
+.workspace-primary-action:hover:not(:disabled) { background: #30383c; }
+.workspace-primary-action:disabled { cursor: wait; opacity: .65; }
+.workspace-companions { display: flex; flex: 1; gap: .45rem; padding: .75rem 0 .75rem .55rem; }
+.workspace-companion {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  flex-direction: column;
+  border: 1px solid rgb(20 32 41 / .04);
+  border-radius: 1.4rem;
+  padding: 1rem .2rem;
+  transition: transform 180ms ease;
+}
+.workspace-companion:hover { transform: translateY(-.3rem); }
+.workspace-companion-icon {
+  display: inline-flex;
+  width: 2.3rem;
+  height: 2.3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / .48);
+  font-size: .82rem;
+}
+.workspace-companion strong {
+  margin-top: 1rem;
+  font-size: .67rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+}
+.workspace-pagination { display: flex; justify-content: center; gap: .5rem; margin-top: 1.15rem; }
+.workspace-pagination > span { width: .52rem; height: .52rem; border-radius: 50%; background: #cfd6da; }
+.workspace-pagination > span.is-active { background: #20272b; }
+.workspace-enter-forward { animation: workspace-forward 240ms cubic-bezier(.2,.8,.2,1); }
+.workspace-enter-backward { animation: workspace-backward 240ms cubic-bezier(.2,.8,.2,1); }
+@keyframes workspace-forward { from { transform: translateX(1.5rem); opacity: .45; } }
+@keyframes workspace-backward { from { transform: translateX(-1.5rem); opacity: .45; } }
+
+.patient-detail-view { width: min(100%, 54rem); margin-inline: auto; }
+.patient-detail-header {
+  display: flex;
+  width: min(100%, 54rem);
+  align-items: center;
+  gap: .8rem;
+  margin: .5rem auto 0;
+  padding: .25rem;
+}
+.patient-detail-header > button {
+  display: inline-flex;
+  width: 2.9rem;
+  height: 2.9rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 .4rem 1rem rgb(20 32 41 / .06);
+}
+.patient-detail-header p { margin: 0; font-weight: 700; }
+.patient-detail-header div span { color: var(--muted); font-size: .75rem; }
 .patient-detail-view > .patient-detail-panel,
-.patient-detail-view > .patient-detail-stack { margin-top: 1.75rem; }
-.patient-detail-stack { display: grid; gap: 1.5rem; }
+.patient-detail-view > .patient-detail-stack { margin-top: 1.5rem; }
+.patient-detail-panel { border-color: var(--line); background: white; box-shadow: 0 .5rem 1.5rem rgb(20 32 41 / .05); }
+.patient-detail-stack { display: grid; gap: 1.35rem; }
+
+/* Patient selection uses the same identity and layered-card language. */
+.patient-list { width: min(100%, 68rem); margin-inline: auto; }
+.patient-list-header,
+.patient-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.patient-list-header > div > p { margin: 0; color: var(--muted); font-size: .86rem; }
+.patient-list-header h1 { margin: .15rem 0 0; font-size: 2.75rem; font-weight: 700; letter-spacing: -.055em; line-height: 1; }
+.patient-list-content { margin-top: 2.2rem; }
+.patient-list-heading h2 { font-size: 1.25rem; font-weight: 700; }
+.patient-list-heading span { color: var(--muted); font-size: .8rem; }
+.patient-picker { display: flex; gap: .7rem; margin-top: 1rem; overflow-x: auto; padding: .15rem .1rem .75rem; scrollbar-width: thin; }
+.patient-picker li { flex: 0 0 auto; }
+.patient-picker button {
+  display: flex;
+  min-width: 10.5rem;
+  min-height: 4.7rem;
+  align-items: center;
+  gap: .7rem;
+  border: 1px solid var(--line);
+  border-radius: 1.15rem;
+  background: white;
+  padding: .65rem;
+  text-align: left;
+  box-shadow: 0 .3rem 1rem rgb(20 32 41 / .035);
+}
+.patient-picker button.is-selected { border-color: #2a9d88; background: #f2faf8; }
+.patient-picker strong,
+.patient-picker small { display: block; }
+.patient-picker strong { max-width: 7rem; overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+.patient-picker small { margin-top: .2rem; color: var(--muted); font-size: .72rem; }
+.patient-preview {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  width: min(100%, 40rem);
+  min-height: 24rem;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: visible;
+  margin-top: 1.8rem;
+  border-radius: 2rem;
+  background: #173f47;
+  padding: 1.6rem;
+  color: white;
+  text-align: left;
+  box-shadow: 0 1rem 2.5rem rgb(13 30 35 / .14);
+}
+.patient-preview::before {
+  position: absolute;
+  z-index: -1;
+  inset: 1.4rem -2.2rem 1.4rem auto;
+  width: 4rem;
+  border-radius: 1.4rem;
+  background: #7fb6c0;
+  content: "";
+}
+.patient-preview-copy { margin-top: 1.35rem; }
+.patient-preview-copy p { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -.05em; }
+.patient-preview-copy span,
+.patient-preview-copy small { display: block; margin-top: .3rem; color: rgb(255 255 255 / .78); font-size: .84rem; }
+.patient-preview-action { margin-top: 1.35rem; background: rgb(16 25 29 / .8); }
+
+@media (min-width: 900px) {
+  .patient-list-content { display: grid; grid-template-columns: 18rem minmax(0, 1fr); column-gap: 3rem; }
+  .patient-list-heading { grid-column: 1 / -1; }
+  .patient-picker { max-height: 27rem; flex-direction: column; overflow-x: visible; overflow-y: auto; }
+  .patient-picker button { width: 100%; }
+  .patient-preview { grid-column: 2; grid-row: 2; width: calc(100% - 2.5rem); min-height: 27rem; margin-top: 1rem; }
+}
+
+@media (max-width: 767px) {
+  .patient-back-link {
+    position: absolute;
+    z-index: 5;
+    width: 2.8rem;
+    height: 2.8rem;
+    min-height: 0;
+    justify-content: center;
+    overflow: hidden;
+    margin: .9rem 0 0 .9rem;
+    border: 1px solid rgb(255 255 255 / .55);
+    background: rgb(255 255 255 / .9);
+    color: var(--ink);
+    font-size: 0;
+    box-shadow: 0 .45rem 1.2rem rgb(20 32 41 / .1);
+  }
+  .patient-back-link span { font-size: 1.1rem; }
+  .patient-overview { display: block; min-height: 43rem; margin-top: 0; }
+  .patient-identity {
+    min-height: 17rem;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding: 1.35rem 1.35rem 4.6rem;
+    border-radius: 1.7rem;
+  }
+  .patient-identity-mark { width: 16rem; height: 16rem; top: -9rem; right: -5rem; }
+  .patient-identity::after { width: 18rem; height: 7rem; right: -5rem; bottom: -4rem; }
+  .patient-identity .h-24 { width: 4.6rem; height: 4.6rem; border-radius: 1.2rem; font-size: 1.35rem; }
+  .patient-identity-copy p { font-size: .58rem; }
+  .patient-identity-copy h1 { font-size: 2.1rem; }
+  .patient-identity-copy span { margin-top: .4rem; font-size: .85rem; }
+  .workspace-deck { width: calc(100% - 1.1rem); margin: -3.2rem .55rem 0; }
+  .workspace-card-stage { display: flex; height: 24rem; }
+  .workspace-primary { width: 64%; padding: 1.25rem; border-radius: 1.5rem; }
+  .workspace-section-icon { width: 3.65rem; height: 3.65rem; font-size: 1.2rem; }
+  .workspace-primary h2 { font-size: 1.8rem; }
+  .workspace-description { font-size: .84rem; line-height: 1.4; }
+  .workspace-primary-copy { padding: .8rem 0 .6rem; }
+  .workspace-summary { margin-top: .7rem; padding: .72rem .8rem; }
+  .workspace-primary-action { min-height: 3.55rem; padding-left: 1rem; font-size: .82rem; }
+  .workspace-primary-action span { width: 2.3rem; height: 2.3rem; font-size: 1.1rem; }
+  .workspace-companions { gap: .28rem; padding: .5rem 0 .5rem .35rem; }
+  .workspace-companion { min-height: 0; flex-direction: column; justify-content: flex-start; gap: 0; border-radius: 1rem; padding: .7rem .05rem; text-align: center; }
+  .workspace-companion-icon { width: 1.65rem; height: 1.65rem; flex-shrink: 0; font-size: .58rem; }
+  .workspace-companion strong { margin-top: .75rem; overflow-wrap: normal; font-size: .53rem; line-height: 1; writing-mode: vertical-rl; }
+  .workspace-pagination { margin-top: .85rem; }
+  .patient-detail-view { width: 100%; }
+  .patient-detail-header { margin-top: 0; }
+  .patient-detail-view > .patient-detail-panel,
+  .patient-detail-view > .patient-detail-stack { margin-top: 1.15rem; }
+  .patient-detail-panel { border-radius: 1.5rem; }
+}
+
+@media (max-width: 639px) {
+  .patient-list-header h1 { font-size: 2.35rem; }
+  .patient-list-content { margin-top: 1.75rem; }
+  .patient-preview { width: calc(100% - 2rem); min-height: 23rem; border-radius: 1.65rem; padding: 1.3rem; }
+  .patient-preview-copy p { font-size: 1.8rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-enter-forward,
+  .workspace-enter-backward { animation: none; }
+  .workspace-companion { transition: none; }
+}
