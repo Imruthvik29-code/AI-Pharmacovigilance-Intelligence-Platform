@@ -113,8 +113,6 @@
   --color-high: var(--high);
   --color-low: var(--low);
   --color-hairline: var(--hairline);
-  --color-identity: var(--identity-b);
-  --color-mild-surface: var(--mild-bg);
 
   /* Typography scale. Tailwind's steps are remapped onto it, so a stray
      text-sm lands on the system instead of a default. Floor is 11px. */

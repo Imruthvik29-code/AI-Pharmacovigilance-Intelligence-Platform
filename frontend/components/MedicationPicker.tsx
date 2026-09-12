@@ -13,6 +13,7 @@ import {
 import { localCalendarDate } from "@/lib/dates/localDate";
 import { rememberDrug } from "@/lib/drugs/nameCache";
 import { medicationSearchSubtitle, termTypeLabel } from "@/lib/drugs/termType";
+import { SearchIcon } from "@/components/icons/Icons";
 import { fieldOnSunkClass, primaryButtonClass } from "@/lib/ui/classes";
 
 export function MedicationPicker({
@@ -171,7 +172,9 @@ export function MedicationPicker({
       <div ref={rootRef} className="relative mt-5">
         <label className="block text-sm font-medium" htmlFor={inputId}>Medicine name</label>
         <div className="relative mt-2">
-          <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2">⌕</span>
+          <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2">
+            <SearchIcon className="h-[1.05rem] w-[1.05rem]" />
+          </span>
           <input
             id={inputId}
             type="text"

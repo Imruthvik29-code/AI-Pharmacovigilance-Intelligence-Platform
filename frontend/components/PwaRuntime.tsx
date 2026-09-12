@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ghostButtonClass, primaryButtonClass } from "@/lib/ui/classes";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -58,7 +59,7 @@ export function PwaRuntime() {
       <button
         type="button"
         onClick={install}
-        className="min-h-10 shrink-0 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-accent-ink"
+        className={`${primaryButtonClass} shrink-0`}
       >
         Install
       </button>
@@ -68,7 +69,7 @@ export function PwaRuntime() {
           setDismissed(true);
           window.__pvInstallPrompt = undefined;
         }}
-        className="min-h-10 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+        className={`${ghostButtonClass} shrink-0`}
         aria-label="Dismiss install prompt"
       >
         Not now

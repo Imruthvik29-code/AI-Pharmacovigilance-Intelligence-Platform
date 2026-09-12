@@ -82,7 +82,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
     <article className="space-y-5" aria-label="Safety analysis report">
       {breakdown ? (
         <div
-          className="flex items-center gap-3 rounded-md px-4 py-3.5"
+          className="flex items-center gap-3 rounded-row px-4 py-3.5"
           style={{ backgroundColor: alertTone.surface }}
         >
           <IconChip
