@@ -25,7 +25,7 @@ export const CATEGORIES: readonly Category[] = [
     id: "safety",
     label: "Safety",
     number: "01",
-    description: "Interaction, ADR and adherence findings for this record.",
+    description: "Interaction, ADR and adherence findings.",
     Icon: ShieldIcon,
     surface: "var(--safety-bg)",
     ink: "var(--safety-fg)",
