@@ -1,5 +1,7 @@
 "use client";
 
+import { IconChip } from "@/components/ui/IconChip";
+import { CapsuleIcon } from "@/components/icons/Icons";
 import { displayDrugName } from "@/lib/drugs/nameCache";
 import { termTypeLabel } from "@/lib/drugs/termType";
 import type { MedicationResponse } from "@/lib/api/types";
@@ -9,45 +11,48 @@ export function MedicationList({
   medications,
   loading,
   error,
+  showHeading = true,
 }: {
   medications: MedicationResponse[];
   loading?: boolean;
   error?: string | null;
+  /** Off when the surrounding DetailSheet already names the section. */
+  showHeading?: boolean;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(20,32,41,0.04)]" aria-label="Medications">
-      <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Treatment</p>
-          <h2 className="mt-1 text-base font-semibold tracking-tight">Medications</h2>
-          <p className="mt-1 text-xs text-muted">Current medication record.</p>
-        </div>
-        <span className="rounded-full bg-paper px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-muted">
-          {medications.length} {medications.length === 1 ? "item" : "items"}
-        </span>
-      </div>
-      <div className="px-5 pb-5">
-        {loading ? (
-          <div className="pt-4">
-            <LoadingSkeleton label="Loading medications" lines={3} />
+    <section aria-label="Medications">
+      {showHeading ? (
+        <div className="flex items-end justify-between gap-4 px-1">
+          <div>
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">
+              Treatment
+            </p>
+            <h2 className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em]">Medications</h2>
           </div>
-        ) : null}
+          <span className="text-[0.75rem] text-ink-3">
+            {medications.length} {medications.length === 1 ? "item" : "items"}
+          </span>
+        </div>
+      ) : null}
+
+      <div className={`${showHeading ? "mt-3" : ""} space-y-2`}>
+        {loading ? <LoadingSkeleton label="Loading medications" lines={3} /> : null}
         {error ? (
-          <p className="pt-4 text-sm text-high" role="alert">
+          <p className="rounded-md bg-severe-surface px-4 py-3 text-[0.875rem] text-severe" role="alert">
             {error}
           </p>
         ) : null}
         {!loading && !error && medications.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-dashed border-line bg-paper/60 px-4 py-5">
-            <p className="text-sm font-medium">No medications recorded</p>
-            <p className="mt-1 text-sm leading-6 text-muted">
+          <div className="rounded-md bg-surface-sunk px-4 py-5">
+            <p className="text-[0.9375rem] font-semibold">No medications recorded</p>
+            <p className="mt-1 text-[0.875rem] leading-6 text-ink-2">
               Search the catalog to add an active course to this patient.
             </p>
           </div>
         ) : null}
-        {!loading && medications.length > 0 ? (
-          <ul className="mt-2 divide-y divide-line">
-            {medications.map((medication) => {
+
+        {!loading && medications.length > 0
+          ? medications.map((medication) => {
               const cached = displayDrugName(medication.drug_id);
               const name = medication.drug_name ?? cached.name;
               const termType = medication.drug_term_type
@@ -55,47 +60,59 @@ export function MedicationList({
                 : cached.termType
                   ? termTypeLabel(cached.termType)
                   : null;
-              const genericContext = medication.drug_generic_name && medication.drug_generic_name !== name
-                ? medication.drug_generic_name
-                : null;
+              const genericContext =
+                medication.drug_generic_name && medication.drug_generic_name !== name
+                  ? medication.drug_generic_name
+                  : null;
               const identityVerified = Boolean(medication.drug_name);
+
               return (
-                <li key={medication.id} className="py-4 first:pt-3 last:pb-0">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className={`truncate font-medium ${identityVerified || cached.cached ? "text-ink" : "text-muted"}`}>
+                <article key={medication.id} className="px-row items-start">
+                  <IconChip
+                    Icon={CapsuleIcon}
+                    surface="var(--medications-surface)"
+                    ink="var(--medications-ink)"
+                    size="sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <p
+                          className={`truncate font-semibold tracking-[-0.01em] ${identityVerified || cached.cached ? "text-ink" : "text-ink-3"}`}
+                        >
                           {name}
                         </p>
                         {identityVerified ? (
-                          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                          <span className="rounded-full bg-medications px-2 py-0.5 text-[0.6875rem] font-semibold text-medications-ink">
                             Verified
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-1 text-xs text-muted">
-                        {[termType, genericContext, medication.dose]
-                          .filter(Boolean)
-                          .join(" · ") || "Medication details not recorded"}
-                      </p>
+                      <span className="shrink-0 rounded-full bg-surface-sunk px-2.5 py-0.5 text-[0.6875rem] font-semibold capitalize text-ink-2">
+                        {medication.status}
+                      </span>
                     </div>
-                    <span className="shrink-0 rounded-full border border-line px-2 py-1 font-mono text-[10px] uppercase tracking-wide text-muted">
-                      {medication.status}
-                    </span>
+                    <p className="mt-1 text-[0.8125rem] text-ink-2">
+                      {[termType, genericContext, medication.dose].filter(Boolean).join(" · ") ||
+                        "Medication details not recorded"}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[0.75rem] text-ink-3">
+                      {medication.start_date ? <span>Started {medication.start_date}</span> : null}
+                      {medication.end_date ? <span>Ends {medication.end_date}</span> : null}
+                      {medication.times_per_day != null ? (
+                        <span>{medication.times_per_day}× daily</span>
+                      ) : null}
+                    </div>
+                    {medication.purpose_text ? (
+                      <p className="mt-1.5 text-[0.8125rem] leading-5 text-ink-2">
+                        {medication.purpose_text}
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-                    {medication.start_date ? <span>Started {medication.start_date}</span> : null}
-                    {medication.end_date ? <span>Ends {medication.end_date}</span> : null}
-                    {medication.times_per_day != null ? <span>{medication.times_per_day}× daily</span> : null}
-                  </div>
-                  {medication.purpose_text ? (
-                    <p className="mt-2 text-sm leading-5 text-muted">{medication.purpose_text}</p>
-                  ) : null}
-                </li>
+                </article>
               );
-            })}
-          </ul>
-        ) : null}
+            })
+          : null}
       </div>
     </section>
   );

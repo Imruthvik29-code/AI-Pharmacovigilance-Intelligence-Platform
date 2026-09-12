@@ -1,52 +1,57 @@
 import { Disclaimer } from "@/components/Disclaimer";
 import { SafetyScoreCard } from "@/components/SafetyScoreCard";
+import { IconChip } from "@/components/ui/IconChip";
+import { SeverityPill } from "@/components/ui/SeverityPill";
+import { AlertIcon, CheckIcon, DocumentIcon, PulseIcon, SparkIcon } from "@/components/icons/Icons";
 import { parseDeterministicResult } from "@/lib/analysis/deterministic";
-import type { AnalysisRunResponse, SeverityLevel } from "@/lib/api/types";
+import {
+  evidenceSources,
+  findingBreakdown,
+  formatDateTime,
+  peakSeverity,
+  severitySummary,
+} from "@/lib/patient/summaries";
+import type { AnalysisRunResponse } from "@/lib/api/types";
 
-const severityClass: Record<SeverityLevel, string> = {
-  severe: "bg-[#fdf2f4] text-high",
-  moderate: "bg-[#fdf6ec] text-moderate",
-  mild: "bg-[#eef7f4] text-low",
-};
+const SEVERITY_TONE = {
+  severe: { surface: "var(--severe-surface)", ink: "var(--severe-ink)" },
+  moderate: { surface: "var(--moderate-surface)", ink: "var(--moderate-ink)" },
+  mild: { surface: "var(--mild-surface)", ink: "var(--mild-ink)" },
+} as const;
 
-function Badge({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+function EmptyNote({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${className ?? ""}`}
-    >
+    <p className="rounded-md bg-surface-sunk px-4 py-3.5 text-[0.8125rem] leading-5 text-ink-2">
       {children}
-    </span>
+    </p>
   );
 }
 
-function EmptyNote({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm leading-6 text-muted">{children}</p>;
-}
-
-function ReportSection({
+function Block({
   eyebrow,
   title,
+  meta,
   children,
 }: {
   eyebrow?: string;
   title: string;
+  meta?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(20,32,41,0.04)]">
-      <div className="border-b border-line px-5 py-4">
-        {eyebrow ? (
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">{eyebrow}</p>
-        ) : null}
-        <h3 className={`${eyebrow ? "mt-1" : ""} text-base font-semibold tracking-tight`}>{title}</h3>
+    <section>
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 px-1">
+        <div>
+          {eyebrow ? (
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">
+              {eyebrow}
+            </p>
+          ) : null}
+          <h3 className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em]">{title}</h3>
+        </div>
+        {meta ? <div className="text-[0.75rem] text-ink-3">{meta}</div> : null}
       </div>
-      <div className="px-5 pb-5">{children}</div>
+      <div className="mt-3 space-y-2">{children}</div>
     </section>
   );
 }
@@ -58,155 +63,258 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
   const adherenceCount = result?.adherence_findings.length ?? 0;
   const llmAvailable = Boolean(run.llm_summary);
 
+  const breakdown = findingBreakdown(run);
+  const severity = peakSeverity(run);
+  const split = severitySummary(breakdown);
+  const sources = evidenceSources(run);
+  const alertTone = severity ? SEVERITY_TONE[severity] : SEVERITY_TONE.mild;
+
   return (
     <article className="space-y-5" aria-label="Safety analysis report">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Latest assessment</p>
-          <h2 className="mt-1 text-xl font-semibold tracking-tight">Safety findings</h2>
+      {breakdown ? (
+        <div
+          className="flex items-center gap-3 rounded-md px-4 py-3.5"
+          style={{ backgroundColor: alertTone.surface }}
+        >
+          <IconChip
+            Icon={breakdown.total > 0 ? AlertIcon : CheckIcon}
+            surface="rgb(255 255 255 / 0.66)"
+            ink={alertTone.ink}
+            size="sm"
+          />
+          <div className="min-w-0">
+            <p className="text-[0.9375rem] font-semibold" style={{ color: alertTone.ink }}>
+              {breakdown.total === 0
+                ? "No interaction or ADR findings identified"
+                : `${breakdown.total} safety ${breakdown.total === 1 ? "finding" : "findings"} identified`}
+            </p>
+            {split ? (
+              <p className="mt-0.5 text-[0.8125rem]" style={{ color: alertTone.ink, opacity: 0.85 }}>
+                {split}
+              </p>
+            ) : null}
+          </div>
         </div>
-        <p className="text-xs text-muted">
-          Version {run.analysis_version} · {new Date(run.created_at).toLocaleString()}
-        </p>
-      </header>
+      ) : null}
 
       <SafetyScoreCard safetyScore={run.safety_score} riskLevel={run.risk_level} />
 
-      <section className="grid gap-3 sm:grid-cols-3" aria-label="Finding counts">
-        <Metric label="Interactions" value={interactionCount} />
-        <Metric label="ADRs" value={adrCount} />
-        <Metric
-          label="Adherence records"
-          value={adherenceCount}
-          hint={adherenceCount === 0 ? "No dose history in this run" : undefined}
-        />
-      </section>
+      <div
+        className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[0.8125rem] text-ink-2"
+        aria-label="Finding counts"
+      >
+        <span>
+          Interactions <strong className="font-semibold text-ink">{interactionCount}</strong>
+        </span>
+        <span aria-hidden="true" className="text-ink-3">
+          ·
+        </span>
+        <span>
+          ADRs <strong className="font-semibold text-ink">{adrCount}</strong>
+        </span>
+        <span aria-hidden="true" className="text-ink-3">
+          ·
+        </span>
+        <span>
+          Adherence records <strong className="font-semibold text-ink">{adherenceCount}</strong>
+        </span>
+        <span className="w-full text-[0.75rem] text-ink-3">
+          Version {run.analysis_version} · {formatDateTime(run.created_at)}
+        </span>
+      </div>
 
-      <ReportSection eyebrow="Decision trace" title="Penalty summary">
-        <p className="pt-4 text-xs leading-5 text-muted">
+      <Block eyebrow="Deterministic engine" title="Drug interactions">
+        {result && result.interaction_findings.length > 0 ? (
+          <ul className="space-y-2">
+            {result.interaction_findings.map((finding) => (
+              <li key={finding.interaction_rule_id} className="px-row items-start">
+                <IconChip
+                  Icon={AlertIcon}
+                  surface={SEVERITY_TONE[finding.severity].surface}
+                  ink={SEVERITY_TONE[finding.severity].ink}
+                  size="sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold tracking-[-0.01em]">
+                      {finding.drug_a_name} + {finding.drug_b_name}
+                    </p>
+                    <SeverityPill severity={finding.severity} />
+                  </div>
+                  {finding.mechanism ? (
+                    <p className="mt-1.5 text-[0.8125rem] leading-5 text-ink-2">{finding.mechanism}</p>
+                  ) : null}
+                  {finding.recommendation ? (
+                    <p className="mt-1 text-[0.8125rem] leading-5 text-ink-2">
+                      {finding.recommendation}
+                    </p>
+                  ) : null}
+                  {finding.source ? (
+                    <p className="mt-2 text-[0.75rem] text-ink-3">Source · {finding.source}</p>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyNote>No interaction findings in this analysis.</EmptyNote>
+        )}
+      </Block>
+
+      <Block eyebrow="Deterministic engine" title="Adverse drug reactions">
+        {result && result.adr_findings.length > 0 ? (
+          <ul className="space-y-2">
+            {result.adr_findings.map((finding) => (
+              <li key={finding.adr_rule_id} className="px-row items-start">
+                <IconChip
+                  Icon={PulseIcon}
+                  surface={SEVERITY_TONE[finding.severity].surface}
+                  ink={SEVERITY_TONE[finding.severity].ink}
+                  size="sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold tracking-[-0.01em]">
+                      {finding.drug_name}
+                      <span className="font-normal text-ink-2"> · {finding.reaction_description}</span>
+                    </p>
+                    <SeverityPill severity={finding.severity} />
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 text-[0.75rem] text-ink-3">
+                    {finding.frequency_class ? <span>Frequency · {finding.frequency_class}</span> : null}
+                    {finding.source ? <span>Source · {finding.source}</span> : null}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyNote>No ADR findings in this analysis.</EmptyNote>
+        )}
+      </Block>
+
+      <Block eyebrow="Decision trace" title="Penalty summary">
+        {result && result.penalties.length > 0 ? (
+          <ul className="space-y-2">
+            {result.penalties.map((penalty, index) => (
+              <li key={`${penalty.category}-${index}`} className="px-row">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.9375rem] font-medium">{penalty.description}</p>
+                  <p className="mt-0.5 text-[0.75rem] uppercase tracking-[0.1em] text-ink-3">
+                    {penalty.category}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2.5">
+                  <SeverityPill severity={penalty.severity} />
+                  <span className="font-mono text-[0.9375rem] font-semibold">−{penalty.points}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyNote>No penalties were recorded for this run.</EmptyNote>
+        )}
+        <p className="px-1 text-[0.75rem] leading-5 text-ink-3">
           Point deductions recorded with this analysis. This page does not recalculate them.
         </p>
-        {result && result.penalties.length > 0 ? (
-          <ul className="mt-2 divide-y divide-line">
-            {result.penalties.map((penalty, index) => (
-              <li key={`${penalty.category}-${index}`} className="flex items-start justify-between gap-4 py-3">
-                <div>
-                  <p className="text-sm font-medium">{penalty.description}</p>
-                  <p className="mt-1 text-[11px] uppercase tracking-wide text-muted">{penalty.category}</p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <Badge className={severityClass[penalty.severity]}>{penalty.severity}</Badge>
-                  <span className="font-mono text-sm">−{penalty.points}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="mt-3"><EmptyNote>No penalties were recorded for this run.</EmptyNote></div>
-        )}
-      </ReportSection>
-
-      <ReportSection eyebrow="Deterministic engine" title="Drug interactions">
-        {result && result.interaction_findings.length > 0 ? (
-          <ul className="space-y-3 pt-4">
-            {result.interaction_findings.map((finding) => (
-              <li key={finding.interaction_rule_id} className="rounded-xl border border-line bg-paper/35 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium">{finding.drug_a_name} + {finding.drug_b_name}</p>
-                  <Badge className={severityClass[finding.severity]}>{finding.severity}</Badge>
-                </div>
-                {finding.mechanism ? <p className="mt-3 text-sm leading-6">{finding.mechanism}</p> : null}
-                {finding.recommendation ? <p className="mt-2 text-sm leading-6 text-muted">{finding.recommendation}</p> : null}
-                {finding.source ? <p className="mt-3 text-xs text-muted">Source · {finding.source}</p> : null}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="pt-4"><EmptyNote>No interaction findings in this analysis.</EmptyNote></div>
-        )}
-      </ReportSection>
-
-      <ReportSection eyebrow="Deterministic engine" title="Adverse drug reactions">
-        {result && result.adr_findings.length > 0 ? (
-          <ul className="space-y-3 pt-4">
-            {result.adr_findings.map((finding) => (
-              <li key={finding.adr_rule_id} className="rounded-xl border border-line bg-paper/35 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium">
-                    {finding.drug_name}
-                    <span className="font-normal text-muted"> · {finding.reaction_description}</span>
-                  </p>
-                  <Badge className={severityClass[finding.severity]}>{finding.severity}</Badge>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted">
-                  {finding.frequency_class ? <span>Frequency · {finding.frequency_class}</span> : null}
-                  {finding.source ? <span>Source · {finding.source}</span> : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="pt-4"><EmptyNote>No ADR findings in this analysis.</EmptyNote></div>
-        )}
-      </ReportSection>
+      </Block>
 
       {result && result.adherence_findings.length > 0 ? (
-        <ReportSection eyebrow="Observed history" title="Adherence">
-          <ul className="divide-y divide-line pt-1">
+        <Block eyebrow="Observed history" title="Adherence">
+          <ul className="space-y-2">
             {result.adherence_findings.map((finding) => (
-              <li key={finding.medication_id} className="py-3 text-sm">
-                <span className="font-medium">{finding.drug_name}</span>
-                <span className="text-muted">
-                  {" "}· taken {finding.taken} / due {finding.due}
-                  {finding.adherence_rate == null ? "" : ` · ${Math.round(finding.adherence_rate * 100)}%`}
+              <li key={finding.medication_id} className="px-row">
+                <span className="min-w-0 flex-1 text-[0.875rem]">
+                  <span className="font-semibold">{finding.drug_name}</span>
+                  <span className="text-ink-2">
+                    {" "}
+                    · taken {finding.taken} / due {finding.due}
+                    {finding.adherence_rate == null
+                      ? ""
+                      : ` · ${Math.round(finding.adherence_rate * 100)}%`}
+                  </span>
                 </span>
               </li>
             ))}
           </ul>
-        </ReportSection>
+        </Block>
       ) : null}
 
-      <ReportSection eyebrow="Explain, don't decide" title="AI explanation">
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-4">
-          <p className="text-xs leading-5 text-muted">Generated from the recorded deterministic findings.</p>
-          {run.confidence_score !== null && run.confidence_level ? (
-            <p className="text-[11px] uppercase tracking-wide text-muted">
+      {sources.length > 0 ? (
+        <Block eyebrow="Provenance" title="Evidence sources">
+          <div className="px-row">
+            <IconChip
+              Icon={DocumentIcon}
+              surface="var(--surface-sunk)"
+              ink="var(--ink-2)"
+              size="sm"
+            />
+            <p className="min-w-0 flex-1 text-[0.8125rem] leading-5 text-ink-2">
+              {sources.join(" · ")}
+            </p>
+          </div>
+        </Block>
+      ) : null}
+
+      <Block
+        eyebrow="Explain, don't decide"
+        title="AI explanation"
+        meta={
+          run.confidence_score !== null && run.confidence_level ? (
+            <span className="uppercase tracking-[0.1em]">
               Confidence · {run.confidence_level} ({run.confidence_score})
-            </p>
-          ) : null}
+            </span>
+          ) : null
+        }
+      >
+        <div className="px-row flex-col items-start gap-3">
+          <p className="text-[0.75rem] leading-5 text-ink-3">
+            Generated from the recorded deterministic findings.
+          </p>
+          {llmAvailable ? (
+            <div className="space-y-3 text-[0.875rem] leading-6">
+              <p className="flex gap-2.5">
+                <IconChip
+                  Icon={SparkIcon}
+                  surface="var(--mild-surface)"
+                  ink="var(--mild-ink)"
+                  size="sm"
+                />
+                <span>{run.llm_summary}</span>
+              </p>
+              {run.llm_reasoning ? (
+                <div>
+                  <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-ink-3">
+                    Reasoning
+                  </p>
+                  <p className="mt-1">{run.llm_reasoning}</p>
+                </div>
+              ) : null}
+              {run.llm_recommendations ? (
+                <div>
+                  <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-ink-3">
+                    Recommendations
+                  </p>
+                  <p className="mt-1">{run.llm_recommendations}</p>
+                </div>
+              ) : null}
+              <p className="border-t border-hairline pt-3 text-[0.75rem] leading-5 text-ink-3">
+                The language model explains deterministic findings. It does not compute the safety
+                score or invent rules.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-[0.875rem] text-ink-2">AI explanation unavailable for this analysis.</p>
+              <p className="mt-1 text-[0.75rem] text-ink-3">
+                The safety score and findings above still come from the rule engines.
+              </p>
+            </div>
+          )}
         </div>
-        {llmAvailable ? (
-          <div className="mt-3 space-y-3 text-sm leading-6">
-            <p>{run.llm_summary}</p>
-            {run.llm_reasoning ? (
-              <div><p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Reasoning</p><p className="mt-1">{run.llm_reasoning}</p></div>
-            ) : null}
-            {run.llm_recommendations ? (
-              <div><p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Recommendations</p><p className="mt-1">{run.llm_recommendations}</p></div>
-            ) : null}
-            <p className="border-t border-line pt-3 text-xs leading-5 text-muted">
-              The language model explains deterministic findings. It does not compute the safety score or invent rules.
-            </p>
-          </div>
-        ) : (
-          <div className="mt-3 rounded-xl bg-paper px-4 py-3">
-            <p className="text-sm text-muted">AI explanation unavailable for this analysis.</p>
-            <p className="mt-1 text-xs text-muted">The safety score and findings above still come from the rule engines.</p>
-          </div>
-        )}
-      </ReportSection>
+      </Block>
 
       <Disclaimer />
     </article>
-  );
-}
-
-function Metric({ label, value, hint }: { label: string; value: number; hint?: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-card px-4 py-4 shadow-[0_1px_2px_rgba(20,32,41,0.04)]">
-      <p className="text-[11px] uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 font-mono text-3xl font-semibold tracking-tight">{value}</p>
-      {hint ? <p className="mt-1 text-xs leading-5 text-muted">{hint}</p> : null}
-    </div>
   );
 }

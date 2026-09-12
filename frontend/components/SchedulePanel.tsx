@@ -5,7 +5,9 @@ import { ApiError } from "@/lib/api/errors";
 import { generateMedicationSchedule, listUpcomingDoses, markDose } from "@/lib/api/schedule";
 import type { DoseStatus, MedicationResponse, UpcomingDoseResponse } from "@/lib/api/types";
 import { displayDrugName } from "@/lib/drugs/nameCache";
-import { cardClass, primaryButtonClass, secondaryButtonClass } from "@/lib/ui/classes";
+import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui/classes";
+import { IconChip } from "@/components/ui/IconChip";
+import { CheckIcon, ClockIcon } from "@/components/icons/Icons";
 import { StatusBanner } from "@/components/StatusBanner";
 
 type Props = {
@@ -93,27 +95,25 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
   );
 
   return (
-    <section className={`${cardClass} overflow-hidden`} aria-labelledby="schedule-heading">
-      <div className="border-b border-line bg-paper/30 px-5 py-5 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">Medication schedule</p>
-            <h2 id="schedule-heading" className="mt-1 text-lg font-semibold tracking-tight text-ink">What is due next</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">Only future, unmarked doses for active medications appear here.</p>
-          </div>
-          <button type="button" onClick={() => void loadDoses()} disabled={loading} className={secondaryButtonClass}>
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
+    <section aria-labelledby="schedule-heading">
+      <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">Medication schedule</p>
+          <h2 id="schedule-heading" className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em] text-ink">What is due next</h2>
+          <p className="mt-1 max-w-2xl text-[0.8125rem] leading-5 text-ink-2">Only future, unmarked doses for active medications appear here.</p>
         </div>
+        <button type="button" onClick={() => void loadDoses()} disabled={loading} className={secondaryButtonClass}>
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
 
-      <div className="px-5 py-5 sm:px-6">
+      <div className="mt-3">
         {error ? <div className="mb-4"><StatusBanner tone="error" role="alert">{error}</StatusBanner></div> : null}
         {notice ? <div className="mb-4"><StatusBanner tone="info">{notice}</StatusBanner></div> : null}
 
         {loading ? (
           <div className="space-y-3" aria-label="Loading schedule">
-            {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-paper" />)}
+            {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-md bg-surface-sunk" />)}
           </div>
         ) : doses.length > 0 ? (
           <div className="space-y-3">
@@ -125,29 +125,31 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
             })}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-line bg-paper/35 px-5 py-8 text-center">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-card text-accent" aria-hidden="true">✓</div>
-            <h3 className="mt-3 text-sm font-semibold text-ink">No upcoming doses</h3>
-            <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted">Generate a schedule for an active medication with a duration and dosing frequency, or check back after the next dose is due.</p>
+          <div className="rounded-md bg-surface-sunk px-5 py-8 text-center">
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-mild-surface text-mild">
+              <CheckIcon className="h-5 w-5" />
+            </span>
+            <h3 className="mt-3 text-[0.9375rem] font-semibold text-ink">No upcoming doses</h3>
+            <p className="mx-auto mt-1 max-w-md text-[0.875rem] leading-6 text-ink-2">Generate a schedule for an active medication with a duration and dosing frequency, or check back after the next dose is due.</p>
           </div>
         )}
 
         {schedulableMedications.length > 0 ? (
-          <div className="mt-6 border-t border-line pt-5">
+          <div className="mt-6 border-t border-hairline pt-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-ink">Medication schedules</p>
-                <p className="mt-1 text-xs text-muted">Schedules are created once per medication.</p>
+                <p className="text-[0.9375rem] font-semibold text-ink">Medication schedules</p>
+                <p className="mt-1 text-[0.75rem] text-ink-3">Schedules are created once per medication.</p>
               </div>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {schedulableMedications.map((medication) => {
                 const drugLabel = displayDrugName(medication.drug_id);
                 return (
-                  <div key={medication.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper/25 px-3.5 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink">{drugLabel.name}</p>
-                      <p className="mt-0.5 text-xs text-muted">{medication.dose ?? "Dose not recorded"}</p>
+                  <div key={medication.id} className="flex flex-col items-start gap-3 rounded-md bg-surface-sunk px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 max-w-full">
+                      <p className="truncate text-[0.875rem] font-semibold text-ink">{drugLabel.name}</p>
+                      <p className="mt-0.5 text-[0.75rem] text-ink-3">{medication.dose ?? "Dose not recorded"}</p>
                     </div>
                     <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className={primaryButtonClass} aria-label={`Create schedule for ${drugLabel.name}`}>
                       {generatingMedicationId === medication.id ? "Creating…" : "Create schedule"}
@@ -171,16 +173,16 @@ function DoseRow({ dose, medication, busy, onMark }: { dose: UpcomingDoseRespons
   const medicationLabel = dose.drug_name || displayDrugName(medication?.drug_id ?? "").name;
 
   return (
-    <div className="rounded-2xl border border-line bg-card px-4 py-4 sm:px-5">
+    <div className="rounded-md bg-surface px-4 py-4 shadow-[var(--e1)] sm:px-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent" aria-hidden="true">◷</div>
+          <IconChip Icon={ClockIcon} surface="var(--medications-surface)" ink="var(--medications-ink)" size="sm" className="mt-0.5" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <p className="font-medium text-ink">{medicationLabel}</p>
-              <span className="text-xs text-muted">{dose.dose ?? medication?.dose ?? "Dose not recorded"}</span>
+              <p className="font-semibold tracking-[-0.01em] text-ink">{medicationLabel}</p>
+              <span className="text-[0.75rem] text-ink-3">{dose.dose ?? medication?.dose ?? "Dose not recorded"}</span>
             </div>
-            <p className="mt-1 text-sm text-muted">{dateLabel} · {timeLabel}</p>
+            <p className="mt-1 text-[0.8125rem] text-ink-2">{dateLabel} · {timeLabel}</p>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 lg:min-w-[300px]" aria-label={`Update ${medicationLabel} dose status`}>

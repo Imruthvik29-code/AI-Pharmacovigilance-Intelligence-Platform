@@ -13,7 +13,7 @@ import {
 import { localCalendarDate } from "@/lib/dates/localDate";
 import { rememberDrug } from "@/lib/drugs/nameCache";
 import { medicationSearchSubtitle, termTypeLabel } from "@/lib/drugs/termType";
-import { fieldClass, primaryButtonClass } from "@/lib/ui/classes";
+import { fieldOnSunkClass, primaryButtonClass } from "@/lib/ui/classes";
 
 export function MedicationPicker({
   patientId,
@@ -156,7 +156,7 @@ export function MedicationPicker({
     : undefined;
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-3xl border border-line bg-card p-5 shadow-sm sm:p-6">
+    <form onSubmit={handleSubmit} className="rounded-lg bg-surface-sunk p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">Medication identity</p>
@@ -165,7 +165,7 @@ export function MedicationPicker({
             Search by the name on the strip or bottle. Brand names and ingredients can both be recognized.
           </p>
         </div>
-        <span className="hidden rounded-full bg-paper px-3 py-1 text-xs font-medium text-muted sm:inline-flex">Verified catalog</span>
+        <span className="hidden rounded-full bg-surface px-3 py-1 text-[0.75rem] font-semibold text-ink-2 sm:inline-flex">Verified catalog</span>
       </div>
 
       <div ref={rootRef} className="relative mt-5">
@@ -181,7 +181,7 @@ export function MedicationPicker({
             onChange={(event) => { setQuery(event.target.value); setSelected(null); }}
             onKeyDown={onSearchKeyDown}
             placeholder="e.g. Vasograin, aspirin, metformin"
-            className={`${fieldClass} pl-9`}
+            className={`${fieldOnSunkClass} pl-9`}
             aria-expanded={open}
             aria-haspopup="listbox"
             aria-controls={open ? listId : undefined}
@@ -193,14 +193,14 @@ export function MedicationPicker({
         {searching ? <p className="mt-2 text-sm text-muted">Checking the medication catalog…</p> : null}
         {searchError ? <div className="mt-2"><StatusBanner tone="error" role="alert">{searchError}</StatusBanner></div> : null}
         {!searching && !searchError && query.trim().length >= REFERENCE_DRUG_MIN_QUERY_LENGTH && open && results.length === 0 ? (
-          <div className="mt-3 rounded-xl border border-dashed border-line bg-paper p-4">
+          <div className="mt-3 rounded-md bg-surface p-4">
             <p className="text-sm font-medium">We couldn’t find a verified catalog match.</p>
             <p className="mt-1 text-xs leading-5 text-muted">Check the spelling or use the active ingredient printed on the package. We won’t guess a medication identity.</p>
           </div>
         ) : null}
 
         {open && results.length > 0 ? (
-          <ul id={listId} role="listbox" className="mt-2 max-h-72 overflow-auto rounded-2xl border border-line bg-card p-1 shadow-lg">
+          <ul id={listId} role="listbox" className="mt-2 max-h-72 overflow-auto rounded-md bg-surface p-1 shadow-[var(--e2)]">
             {results.map((drug, index) => {
               const active = index === activeIndex;
               return (
@@ -211,11 +211,11 @@ export function MedicationPicker({
                   aria-selected={active}
                   onMouseEnter={() => setActiveIndex(index)}
                   onMouseDown={(event) => { event.preventDefault(); selectDrug(drug); }}
-                  className={`cursor-pointer rounded-xl px-3 py-3 ${active ? "bg-paper" : "hover:bg-paper/70"}`}
+                  className={`cursor-pointer rounded-md px-3 py-3 ${active ? "bg-surface-sunk" : "hover:bg-surface-sunk/70"}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold">{drug.name}</span>
-                    <span className="rounded-full bg-paper px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    <span className="rounded-full bg-surface-sunk px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-ink-2">
                       {drug.term_type || "match"}
                     </span>
                   </div>
@@ -228,7 +228,7 @@ export function MedicationPicker({
       </div>
 
       {selected ? (
-        <div className="mt-4 rounded-2xl border border-accent/20 bg-[#edf7f5] p-4">
+        <div className="mt-4 rounded-md bg-mild-surface p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Medication selected</p>
           <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="text-base font-semibold">{selected.name}</span>
@@ -241,16 +241,16 @@ export function MedicationPicker({
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div>
           <label className="block text-sm font-medium" htmlFor="start-date">Start date</label>
-          <input id="start-date" type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} className={fieldClass} />
+          <input id="start-date" type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} className={fieldOnSunkClass} />
         </div>
         <div>
           <label className="block text-sm font-medium" htmlFor="dose">Dose <span className="font-normal text-muted">(optional)</span></label>
-          <input id="dose" value={dose} onChange={(event) => setDose(event.target.value)} placeholder="e.g. 1 tablet" className={fieldClass} />
+          <input id="dose" value={dose} onChange={(event) => setDose(event.target.value)} placeholder="e.g. 1 tablet" className={fieldOnSunkClass} />
         </div>
       </div>
 
       <label className="mt-3 block text-sm font-medium" htmlFor="purpose">Purpose <span className="font-normal text-muted">(optional)</span></label>
-      <input id="purpose" value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="e.g. Migraine" className={fieldClass} />
+      <input id="purpose" value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="e.g. Migraine" className={fieldOnSunkClass} />
 
       {submitError ? <div className="mt-3"><StatusBanner tone="error" role="alert">{submitError}</StatusBanner></div> : null}
       <button type="submit" disabled={!selected || submitting} className={`${primaryButtonClass} mt-5 w-full sm:w-auto`}>

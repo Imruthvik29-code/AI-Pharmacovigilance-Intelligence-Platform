@@ -1,3 +1,6 @@
+import { IconChip } from "@/components/ui/IconChip";
+import { AlertIcon, CalendarIcon, CapsuleIcon, PulseIcon, SparkIcon } from "@/components/icons/Icons";
+import { formatDateTime } from "@/lib/patient/summaries";
 import type { TimelineEventResponse } from "@/lib/api/types";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 
@@ -5,70 +8,94 @@ function labelFor(eventType: string): string {
   return eventType.replaceAll("_", " ");
 }
 
-function accentFor(eventType: string): string {
-  if (eventType === "analysis_run") return "border-accent bg-[#eef6f4]";
-  if (eventType === "medication_started" || eventType === "medication_discontinued") {
-    return "border-ink/40 bg-card";
+/** Event-type tint. Restrained: the four clinical tints, nothing new. */
+function toneFor(eventType: string) {
+  if (eventType === "analysis_run") return { Icon: SparkIcon, surface: "var(--safety-surface)", ink: "var(--safety-ink)" };
+  if (eventType.startsWith("medication")) {
+    return { Icon: CapsuleIcon, surface: "var(--medications-surface)", ink: "var(--medications-ink)" };
   }
-  return "border-line bg-card";
+  if (eventType.startsWith("dose")) {
+    return { Icon: CapsuleIcon, surface: "var(--medications-surface)", ink: "var(--medications-ink)" };
+  }
+  if (eventType.startsWith("symptom")) {
+    return { Icon: PulseIcon, surface: "var(--symptoms-surface)", ink: "var(--symptoms-ink)" };
+  }
+  if (eventType.startsWith("condition")) {
+    return { Icon: AlertIcon, surface: "var(--timeline-surface)", ink: "var(--timeline-ink)" };
+  }
+  return { Icon: CalendarIcon, surface: "var(--timeline-surface)", ink: "var(--timeline-ink)" };
 }
 
 export function TimelineList({
   events,
   loading,
   error,
+  showHeading = true,
 }: {
   events: TimelineEventResponse[];
   loading?: boolean;
   error?: string | null;
+  /** Off when the surrounding DetailSheet already names the section. */
+  showHeading?: boolean;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(20,32,41,0.04)]" aria-label="Patient timeline">
-      <div className="border-b border-line px-5 py-4">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Record</p>
-        <h2 className="mt-1 text-base font-semibold tracking-tight">Timeline</h2>
-        <p className="mt-1 text-xs leading-5 text-muted">A chronological view of recorded patient activity.</p>
-      </div>
-      <div className="px-5 pb-5">
-        {loading ? (
-          <div className="pt-4">
-            <LoadingSkeleton label="Loading timeline" lines={3} />
-          </div>
-        ) : null}
+    <section aria-label="Patient timeline">
+      {showHeading ? (
+        <div className="px-1">
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">
+            Record
+          </p>
+          <h2 className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em]">Timeline</h2>
+          <p className="mt-1 text-[0.8125rem] leading-5 text-ink-2">
+            A chronological view of recorded patient activity.
+          </p>
+        </div>
+      ) : null}
+
+      <div className={`${showHeading ? "mt-3" : ""} space-y-2`}>
+        {loading ? <LoadingSkeleton label="Loading timeline" lines={3} /> : null}
         {error ? (
-          <p className="pt-4 text-sm text-high" role="alert">
+          <p className="rounded-md bg-severe-surface px-4 py-3 text-[0.875rem] text-severe" role="alert">
             {error}
           </p>
         ) : null}
         {!loading && !error && events.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-dashed border-line bg-paper/60 px-4 py-5">
-            <p className="text-sm font-medium">No events yet</p>
-            <p className="mt-1 text-sm leading-6 text-muted">
+          <div className="rounded-md bg-surface-sunk px-4 py-5">
+            <p className="text-[0.9375rem] font-semibold">No events yet</p>
+            <p className="mt-1 text-[0.875rem] leading-6 text-ink-2">
               Adding a medication or running analysis will appear here.
             </p>
           </div>
         ) : null}
+
         {!loading && events.length > 0 ? (
-          <ol className="relative mt-4 space-y-3 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-line">
-            {events.map((event) => (
-              <li key={event.id} className="relative pl-6">
-                <span className="absolute left-0 top-4 h-2 w-2 rounded-full border-2 border-card bg-accent ring-1 ring-line" aria-hidden="true" />
-                <div className={`rounded-xl border border-l-4 px-3.5 py-3 ${accentFor(event.event_type)}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                    <p className="font-mono text-[10px] uppercase tracking-wide text-muted">
-                      {labelFor(event.event_type)}
+          <ol className="space-y-2">
+            {events.map((event) => {
+              const tone = toneFor(event.event_type);
+              return (
+                <li key={event.id} className="px-row items-start">
+                  <IconChip Icon={tone.Icon} surface={tone.surface} ink={tone.ink} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-ink-3">
+                        {labelFor(event.event_type)}
+                      </p>
+                      <time dateTime={event.event_time} className="text-[0.75rem] text-ink-3">
+                        {formatDateTime(event.event_time)}
+                      </time>
+                    </div>
+                    <p className="mt-1 text-[0.9375rem] font-medium tracking-[-0.01em]">
+                      {event.event_title}
                     </p>
-                    <time dateTime={event.event_time} className="text-[11px] text-muted">
-                      {new Date(event.event_time).toLocaleString()}
-                    </time>
+                    {event.event_description ? (
+                      <p className="mt-0.5 text-[0.8125rem] leading-5 text-ink-2">
+                        {event.event_description}
+                      </p>
+                    ) : null}
                   </div>
-                  <p className="mt-1 text-sm font-medium">{event.event_title}</p>
-                  {event.event_description ? (
-                    <p className="mt-1 text-sm leading-5 text-muted">{event.event_description}</p>
-                  ) : null}
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ol>
         ) : null}
       </div>
