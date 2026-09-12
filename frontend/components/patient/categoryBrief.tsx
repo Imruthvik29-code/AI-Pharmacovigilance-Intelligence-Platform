@@ -45,11 +45,11 @@ export type WorkspaceData = {
   timeline: TimelineEventResponse[];
 };
 
-const NEUTRAL = { surface: "var(--surface-sunk)", ink: "var(--ink-2)" };
+const NEUTRAL = { surface: "var(--surface-2)", ink: "var(--ink-2)" };
 const SEVERITY_TONE = {
-  severe: { surface: "var(--severe-surface)", ink: "var(--severe-ink)" },
-  moderate: { surface: "var(--moderate-surface)", ink: "var(--moderate-ink)" },
-  mild: { surface: "var(--mild-surface)", ink: "var(--mild-ink)" },
+  severe: { surface: "var(--severe-bg)", ink: "var(--severe-fg)" },
+  moderate: { surface: "var(--moderate-bg)", ink: "var(--moderate-fg)" },
+  mild: { surface: "var(--mild-bg)", ink: "var(--mild-fg)" },
 } as const;
 
 /**
@@ -144,8 +144,8 @@ function medicationRows(medications: MedicationResponse[]): BriefRow[] {
         medications.length === 0
           ? "No medications recorded"
           : `${active} active of ${medications.length} recorded`,
-      surface: "var(--medications-surface)",
-      ink: "var(--medications-ink)",
+      surface: "var(--medications-bg)",
+      ink: "var(--medications-fg)",
     },
   ];
 
@@ -166,8 +166,8 @@ function symptomRows(symptoms: SymptomResponse[]): BriefRow[] {
         symptoms.length === 0
           ? "No symptoms reported"
           : `${unresolved} unresolved of ${symptoms.length} reported`,
-      surface: "var(--symptoms-surface)",
-      ink: "var(--symptoms-ink)",
+      surface: "var(--symptoms-bg)",
+      ink: "var(--symptoms-fg)",
     },
   ];
 
@@ -193,8 +193,8 @@ function timelineRows(timeline: TimelineEventResponse[]): BriefRow[] {
         timeline.length === 0
           ? "No events recorded yet"
           : `${timeline.length} recorded ${timeline.length === 1 ? "event" : "events"}`,
-      surface: "var(--timeline-surface)",
-      ink: "var(--timeline-ink)",
+      surface: "var(--timeline-bg)",
+      ink: "var(--timeline-fg)",
     },
   ];
 

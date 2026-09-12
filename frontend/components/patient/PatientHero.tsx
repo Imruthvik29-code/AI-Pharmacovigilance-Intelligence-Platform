@@ -6,59 +6,45 @@ import { patientInitials } from "@/components/PatientAvatar";
 import { demographicLine } from "@/lib/patient/summaries";
 import type { PatientResponse } from "@/lib/api/types";
 
-type BackAction = { label: string; href?: string; onClick?: () => void };
-
 /**
- * Dark identity surface the foreground card overlaps.
+ * The identity surface, reproducing the reference hero's composition: a
+ * full-bleed image plane with a floating circular control at the top-left and
+ * the name and metadata set against its darkened foot.
  *
- * The surface is intentionally identical for every patient and every render —
- * no per-patient gradient, no risk colouring. Patient identity stays visually
- * stable; clinical state is expressed by severity pills and findings surfaces.
+ * The reference uses photography, which a patient record cannot. The stand-in
+ * keeps the same tonal composition — warm light in the upper right falling to
+ * a deep mass at the lower left — so the layering and the white-on-dark type
+ * read the same. It is identical for every patient and every render: identity
+ * surfaces stay calm, and clinical state is never expressed here.
  */
 export function PatientHero({
   patient,
-  variant = "full",
-  back,
+  backHref,
+  backLabel,
 }: {
   patient: PatientResponse;
-  variant?: "full" | "compact";
-  back: BackAction;
+  backHref: string;
+  backLabel: string;
 }) {
-  const compact = variant === "compact";
-  const control = (
-    <span className="px-round" aria-hidden="true">
-      <ArrowLeftIcon className="h-5 w-5" />
-    </span>
-  );
-
   return (
-    <header className={`px-hero on-dark ${compact ? "px-hero-compact" : ""}`}>
-      <div className="flex items-start justify-between gap-3">
-        {back.href ? (
-          <Link href={back.href} aria-label={back.label} className="rounded-full">
-            {control}
-          </Link>
-        ) : (
-          <button type="button" onClick={back.onClick} aria-label={back.label} className="rounded-full">
-            {control}
-          </button>
-        )}
-      </div>
-
-      <div className={`flex items-end gap-4 ${compact ? "mt-4" : "mt-auto pt-6"}`}>
+    <header className="pv-hero on-dark">
+      <div className="flex items-start justify-between">
+        <Link href={backHref} aria-label={backLabel} className="rounded-full">
+          <span className="pv-round" aria-hidden="true">
+            <ArrowLeftIcon className="h-5 w-5" />
+          </span>
+        </Link>
         <span
           aria-label={`${patient.name} initials`}
-          className={`px-initials ${compact ? "h-12 w-12 text-base" : "h-14 w-14 text-lg sm:h-16 sm:w-16 sm:text-xl"}`}
+          className="pv-initials h-11 w-11 text-sm sm:h-12 sm:w-12 sm:text-base"
         >
           {patientInitials(patient.name)}
         </span>
-        <div className="min-w-0">
-          {compact ? null : <p className="px-hero-eyebrow">Patient record</p>}
-          <h1 className={`px-hero-name ${compact ? "!text-[1.5rem] sm:!text-[1.75rem]" : ""}`}>
-            {patient.name}
-          </h1>
-          <p className="px-hero-meta">{demographicLine(patient)}</p>
-        </div>
+      </div>
+
+      <div className="mt-auto pt-8">
+        <h1 className="pv-hero-name">{patient.name}</h1>
+        <p className="pv-hero-meta">{demographicLine(patient)}</p>
       </div>
     </header>
   );
