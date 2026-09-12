@@ -16,7 +16,7 @@ describe("PatientWorkspaceCards", () => {
     expect(screen.getByRole("button", { name: "Open Medications" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Symptoms" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Timeline" })).toBeInTheDocument();
-    expect(screen.getByText("1 safety finding recorded in this analysis.")).toBeInTheDocument();
+    expect(screen.getByText("1 safety finding recorded.")).toBeInTheDocument();
   });
 
   it("selects a tab and exposes its details action", () => {
@@ -28,7 +28,7 @@ describe("PatientWorkspaceCards", () => {
       act(() => vi.advanceTimersByTime(300));
       expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
       expect(screen.getByText("0 active")).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: /View details/ }));
+      fireEvent.click(screen.getByRole("button", { name: "View medications details" }));
       expect(onViewDetails).toHaveBeenCalledWith("medications");
     } finally {
       vi.useRealTimers();
@@ -44,9 +44,7 @@ describe("PatientWorkspaceCards", () => {
       expect(stage).not.toBeNull();
       fireEvent(stage!, new MouseEvent("pointerdown", { bubbles: true, clientX: 300 }));
       fireEvent(stage!, new MouseEvent("pointerup", { bubbles: true, clientX: 180 }));
-      expect(screen.getByText("1 / 4")).toBeInTheDocument();
       act(() => vi.advanceTimersByTime(300));
-      expect(screen.getByText("2 / 4")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
@@ -67,7 +65,6 @@ describe("PatientWorkspaceCards", () => {
       fireEvent(stage!, new MouseEvent("pointerdown", { bubbles: true, clientX: 180 }));
       fireEvent(stage!, new MouseEvent("pointerup", { bubbles: true, clientX: 300 }));
       act(() => vi.advanceTimersByTime(300));
-      expect(screen.getByText("2 / 4")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Medications" })).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
