@@ -67,14 +67,14 @@ export default function DashboardPage() {
 
   return (
     <AuthGate>
-      <div className="pv-canvas min-h-screen px-4 pb-16 pt-7 sm:px-6">
+      <div className="pv-canvas min-h-screen px-4 pb-16 pt-8 sm:px-6">
         <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[1.625rem] font-bold leading-tight tracking-[-0.025em] sm:text-[2rem]">
+            <h1 className="text-[1.75rem] font-bold leading-tight tracking-[-0.025em] sm:text-[2.125rem]">
               Patients
             </h1>
             <p className="mt-1 text-[0.9375rem] text-ink-2">
-              Choose a record to review treatment and safety
+              Choose a record to review
             </p>
             {email ? (
               <p className="mt-0.5 hidden truncate text-[0.8125rem] text-ink-3 sm:block">{email}</p>
@@ -139,7 +139,7 @@ export default function DashboardPage() {
           ) : null}
 
           {!loading && patients.length > 0 ? (
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
               {patients.map((patient) => (
                 <li key={patient.id}>
                   <button
@@ -149,10 +149,10 @@ export default function DashboardPage() {
                   >
                     <PatientAvatar patient={patient} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[1.0625rem] font-bold tracking-[-0.015em]">
+                      <span className="block truncate text-[1.125rem] font-bold tracking-[-0.015em]">
                         {patient.name}
                       </span>
-                      <span className="mt-0.5 block truncate text-[0.8125rem] text-ink-3">
+                      <span className="mt-1 block truncate text-[0.875rem] text-ink-3">
                         {demographicLine(patient)}
                       </span>
                     </span>

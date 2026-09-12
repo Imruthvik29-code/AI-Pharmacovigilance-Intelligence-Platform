@@ -30,23 +30,29 @@ export function CategoryCardFace({
 
   return (
     <>
-      <IconChip Icon={category.Icon} surface={category.surface} ink={category.ink} size="lg" />
+      <IconChip
+        Icon={category.Icon}
+        surface={category.surface}
+        ink={category.ink}
+        size="lg"
+        className="sm:h-14 sm:w-14"
+      />
 
       <h2 className="pv-card-title mt-3 lg:mt-4">{category.label}</h2>
-      <p className="pv-card-desc line-clamp-3">{category.description}</p>
+      <p className="pv-card-desc line-clamp-3 sm:line-clamp-4">{category.description}</p>
 
-      <ul className="mt-3.5 space-y-2 lg:mt-5 lg:space-y-3">
+      <ul className="mt-3.5 space-y-2 sm:mt-4 sm:space-y-2.5 lg:mt-5 lg:space-y-3">
         {rows.map((row) => (
           <li key={row.key} className="flex items-start gap-2">
             <span className="mt-px flex-none" style={{ color: row.ink }} aria-hidden="true">
               <row.Icon className="h-[1.0625rem] w-[1.0625rem]" />
             </span>
             <span className="min-w-0">
-              <span className="block text-[0.8125rem] font-medium leading-[1.35] text-ink-2 lg:text-[0.875rem]">
+              <span className="block text-[0.8125rem] font-medium leading-[1.35] text-ink-2 sm:text-[0.9375rem] lg:text-[0.875rem]">
                 {row.text}
               </span>
               {row.sub ? (
-                <span className="mt-0.5 block text-[0.75rem] leading-[1.35] text-ink-3">
+                <span className="mt-0.5 block text-[0.75rem] leading-[1.35] text-ink-3 sm:text-[0.8125rem]">
                   {row.sub}
                 </span>
               ) : null}

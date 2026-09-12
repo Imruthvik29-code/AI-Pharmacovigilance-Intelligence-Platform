@@ -19,9 +19,9 @@
 
   /* Identity surface: abstract stand-in for the reference photograph, keeping
      its tonal composition (warm light upper-right, deep mass lower-left). */
-  --identity-a: #3c6069;
-  --identity-b: #1d333a;
-  --identity-c: #0a1316;
+  --identity-a: #47707a;
+  --identity-b: #1d343b;
+  --identity-c: #070f12;
 
   /* Text */
   --ink: #15181c;
@@ -181,7 +181,7 @@ textarea {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    min-height: 19rem;
+    min-height: clamp(17rem, 40svh, 26rem);
     padding: 1rem 1rem 3.25rem;
     color: var(--on-dark);
     background: linear-gradient(163deg, var(--identity-a) 0%, var(--identity-b) 46%, var(--identity-c) 100%);
@@ -192,12 +192,13 @@ textarea {
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(88% 52% at 84% -14%, rgb(255 226 190 / 0.46), transparent 72%),
-      linear-gradient(208deg, rgb(255 216 172 / 0.34) 0%, rgb(255 216 172 / 0.06) 26%, transparent 46%),
-      linear-gradient(194deg, transparent 24%, rgb(163 214 205 / 0.12) 44%, transparent 62%),
-      radial-gradient(150% 66% at 100% -6%, rgb(255 233 208 / 0.16), transparent 62%),
-      radial-gradient(110% 78% at 2% 108%, rgb(4 10 12 / 0.78), transparent 62%),
-      linear-gradient(0deg, rgb(6 12 15 / 0.62) 0%, transparent 46%);
+      radial-gradient(86% 48% at 82% -12%, rgb(255 228 194 / 0.52), transparent 70%),
+      linear-gradient(206deg, rgb(255 218 176 / 0.36) 0%, rgb(255 218 176 / 0.07) 24%, transparent 44%),
+      linear-gradient(180deg, transparent 44%, rgb(9 20 24 / 0.34) 56%, rgb(9 20 24 / 0.44) 62%, transparent 64%),
+      linear-gradient(192deg, transparent 22%, rgb(170 219 210 / 0.13) 42%, transparent 60%),
+      radial-gradient(150% 62% at 100% -8%, rgb(255 236 214 / 0.18), transparent 60%),
+      radial-gradient(105% 74% at 0% 110%, rgb(3 8 10 / 0.82), transparent 60%),
+      linear-gradient(0deg, rgb(4 10 13 / 0.34) 0%, transparent 42%);
     pointer-events: none;
   }
 
@@ -205,8 +206,8 @@ textarea {
     content: "";
     position: absolute;
     inset: auto 0 0;
-    height: 62%;
-    background: linear-gradient(to top, rgb(8 14 16 / 0.78), transparent);
+    height: 58%;
+    background: linear-gradient(to top, rgb(7 13 16 / 0.62), transparent);
     pointer-events: none;
   }
 
@@ -293,7 +294,7 @@ textarea {
     --tab-gap: 0.375rem;
     --rail-w: calc(3 * var(--tab-w) + 2 * var(--tab-gap));
     --overlap: 0.5rem;
-    --card-h: 24rem;
+    --card-h: clamp(22rem, 45svh, 30rem);
     position: relative;
     height: var(--card-h);
     touch-action: pan-y;
@@ -532,14 +533,27 @@ textarea {
   }
 
   /* ============================================================== Roster */
+  .pv-identity-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    border-radius: 999px;
+    background: linear-gradient(163deg, var(--identity-a) 0%, var(--identity-b) 52%, var(--identity-c) 100%);
+    color: var(--on-dark);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
   .pv-roster-card {
     display: flex;
     width: 100%;
     align-items: center;
     gap: 0.875rem;
+    min-height: 5.25rem;
     border-radius: var(--r-card);
     background: var(--surface);
-    padding: 1rem;
+    padding: 1rem 1.125rem;
     text-align: left;
     box-shadow: var(--e-row);
     transition: transform 180ms var(--stack-ease), box-shadow 180ms var(--stack-ease);
@@ -554,7 +568,6 @@ textarea {
 /* ===================================================== 440px and wider */
 @media (min-width: 440px) {
   .pv-hero {
-    min-height: 21.25rem;
     padding: 1.25rem 1.5rem 3.75rem;
   }
 
@@ -573,17 +586,20 @@ textarea {
   .pv-stage {
     --pad-l: 1.5rem;
     --pad-r: 0.875rem;
-    --tab-w: 3.125rem;
     --tab-gap: 0.4375rem;
-    --card-h: 25.5rem;
   }
 
   .pv-card {
-    padding: 1.375rem;
+    padding: 1.5rem;
   }
 
   .pv-card-title {
-    font-size: 1.625rem;
+    font-size: 1.875rem;
+  }
+
+  .pv-card-desc {
+    font-size: 1rem;
+    margin-top: 0.5rem;
   }
 
   .pv-topbar,

@@ -21,12 +21,12 @@ export function PatientAvatar({
   size?: "sm" | "md" | "lg";
 }) {
   const dimensions =
-    size === "lg" ? "h-14 w-14 text-lg" : size === "sm" ? "h-9 w-9 text-[0.75rem]" : "h-12 w-12 text-[0.9375rem]";
+    size === "lg" ? "h-16 w-16 text-xl" : size === "sm" ? "h-9 w-9 text-[0.75rem]" : "h-[3.25rem] w-[3.25rem] text-[1rem]";
 
   return (
     <span
       aria-label={`${patient.name} initials`}
-      className={`${dimensions} inline-flex shrink-0 items-center justify-center rounded-full bg-surface-2 font-bold tracking-[-0.01em] text-ink`}
+      className={`${dimensions} pv-identity-chip`}
     >
       {patientInitials(patient.name)}
     </span>
