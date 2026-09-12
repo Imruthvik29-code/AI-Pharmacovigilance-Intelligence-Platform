@@ -1,59 +1,126 @@
 @import "tailwindcss";
 
+/*
+ * Single token layer for the patient visual system.
+ * Cool neutral canvas, one dark identity surface, borderless surfaces with
+ * soft elevation, restrained category tints. Legacy token names (paper/card/
+ * line/muted) are kept and remapped so existing Tailwind utilities inherit the
+ * cool system without per-component edits.
+ */
 :root {
-  --paper: #f3f0e8;
-  --ink: #142029;
-  --muted: #4d5c65;
-  --card: #fffdf8;
-  --line: #d8d2c4;
+  /* Ground + surfaces */
+  --canvas: #eef1f3;
+  --surface: #ffffff;
+  --surface-sunk: #e7edef;
+  --identity: #17282c;
+  --identity-deep: #12191d;
+
+  /* Text */
+  --ink: #12191d;
+  --ink-2: #46555c;
+  --ink-3: #5d6b73;
+  --on-identity: #ffffff;
+  --on-identity-2: rgb(255 255 255 / 0.68);
+  --on-identity-3: rgb(255 255 255 / 0.5);
+
+  /* Lines + focus */
+  --hairline: rgb(18 25 29 / 0.09);
   --accent: #0d6b63;
   --accent-ink: #084843;
+  --focus-light: #0d6b63;
+  --focus-dark: #7fd8c8;
+
+  /* Category tints */
+  --safety-surface: #f9dede;
+  --safety-ink: #9b2c2c;
+  --medications-surface: #dcf1e5;
+  --medications-ink: #06614e;
+  --symptoms-surface: #ebe4f7;
+  --symptoms-ink: #5b3f8c;
+  --timeline-surface: #dceaf7;
+  --timeline-ink: #1d5c82;
+
+  /* Severity */
+  --severe-surface: #fdecef;
+  --severe-ink: #9f1239;
+  --moderate-surface: #fdf3e3;
+  --moderate-ink: #a15c07;
+  --mild-surface: #e7f4f1;
+  --mild-ink: #0f766e;
+
+  /* Legacy aliases, remapped onto the cool system */
+  --paper: #e7edef;
+  --card: #ffffff;
+  --line: rgb(18 25 29 / 0.1);
+  --muted: #46555c;
   --high: #9f1239;
-  --moderate: #b45309;
-  --low: #0f766e;
   --severe: #9f1239;
+  --low: #0f766e;
+
+  /* Geometry */
+  --r-sm: 0.75rem;
+  --r-md: 1.25rem;
+  --r-lg: 1.75rem;
+  --r-xl: 2.25rem;
+  --r-pill: 999px;
+  --e1: 0 1px 2px rgb(18 25 29 / 0.05);
+  --e2: 0 10px 28px rgb(18 25 29 / 0.07);
+  --e3: 0 22px 55px rgb(18 25 29 / 0.13);
+
   --font-sans: "Segoe UI", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
-  --px-canvas: #eef2f3;
-  --px-ink: #12191d;
-  --px-muted: #71808a;
-  --px-identity: #17282c;
-  --px-surface: #ffffff;
-  --px-safety: #f9dede;
-  --px-medications: #dff3e6;
-  --px-symptoms: #eee5f8;
-  --px-timeline: #deedf8;
-  --px-radius: 2rem;
-  --px-pill: 999px;
-  --px-shadow: 0 22px 55px rgb(23 40 44 / .12);
 }
 
 @theme inline {
-  --color-paper: var(--paper);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunk: var(--surface-sunk);
+  --color-identity: var(--identity);
+  --color-identity-deep: var(--identity-deep);
   --color-ink: var(--ink);
-  --color-muted: var(--muted);
-  --color-card: var(--card);
-  --color-line: var(--line);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-hairline: var(--hairline);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
+  --color-safety: var(--safety-surface);
+  --color-safety-ink: var(--safety-ink);
+  --color-medications: var(--medications-surface);
+  --color-medications-ink: var(--medications-ink);
+  --color-symptoms: var(--symptoms-surface);
+  --color-symptoms-ink: var(--symptoms-ink);
+  --color-timeline: var(--timeline-surface);
+  --color-timeline-ink: var(--timeline-ink);
+  --color-severe: var(--severe-ink);
+  --color-severe-surface: var(--severe-surface);
+  --color-moderate: var(--moderate-ink);
+  --color-moderate-surface: var(--moderate-surface);
+  --color-mild: var(--mild-ink);
+  --color-mild-surface: var(--mild-surface);
   --color-high: var(--high);
-  --color-moderate: var(--moderate);
   --color-low: var(--low);
-  --color-severe: var(--severe);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
   --font-sans: "Segoe UI", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
 }
 
 html,
 body {
-  background: var(--paper);
-  color: var(--ink);
   min-height: 100%;
+  background: var(--canvas);
+  color: var(--ink);
 }
 
 body {
   font-family: var(--font-sans);
-  background: var(--px-canvas);
+  overflow-x: hidden;
 }
 
 button,
@@ -72,131 +139,505 @@ textarea {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-light);
   outline-offset: 2px;
+}
+
+/* Focus ring on dark surfaces needs its own colour to clear 3:1. */
+.on-dark :focus-visible,
+.on-dark:focus-visible {
+  outline-color: var(--focus-dark);
+}
+
+/* The active tab is a dark surface inside a light strip, so it needs the
+   dark-surface ring even though its container is light. */
+.px-tab-active:focus-visible {
+  outline-color: var(--focus-dark);
+}
+
+/* Focus is moved here only to announce the new view; it is not a control. */
+.px-detail-heading:focus,
+.px-detail-heading:focus-visible {
+  outline: none;
 }
 
 .font-mono {
   font-family: var(--font-mono);
 }
 
-/* Patient workspace: layered primary card and an integrated section rail. */
-.workspace-deck { margin-top: 2.5rem; max-width: 58rem; }
-.workspace-card-stage { position: relative; height: 28rem; isolation: isolate; touch-action: pan-y; }
-.workspace-primary, .workspace-card-shadow { position: absolute; inset: 0; border-radius: 2rem; }
-.workspace-card-shadow { border: 1px solid var(--line); background: var(--card); }
-.workspace-card-shadow-one { z-index: -1; transform: translate(1.5rem, 1rem); opacity: .72; }
-.workspace-card-shadow-two { z-index: -2; transform: translate(3rem, 2rem); opacity: .38; }
-.workspace-primary { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 1px solid var(--line); background: var(--card); padding: clamp(1.5rem, 4vw, 2.8rem); box-shadow: 0 20px 45px rgb(20 32 41 / .10); will-change: transform, opacity; }
-.workspace-primary::before { position: absolute; top: 0; right: 0; width: 38%; height: 100%; background: #f5faf8; content: ""; }
-.workspace-primary > * { position: relative; }
-.workspace-primary-top { display: flex; align-items: center; gap: 1rem; }
-.workspace-primary h2 { margin: .15rem 0 0; font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1; letter-spacing: -.06em; }
-.workspace-eyebrow { margin: 0; color: var(--accent); font-family: var(--font-mono); font-size: .65rem; letter-spacing: .18em; }
-.workspace-section-icon, .workspace-rail-icon { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; }
-.workspace-section-icon { width: 3.65rem; height: 3.65rem; font-size: 1.75rem; }
-.workspace-section-icon-safety { color: #a93632; background: #f9e8e7; }
-.workspace-section-icon-medications { color: #08755d; background: #e5f3ec; }
-.workspace-section-icon-symptoms { color: #7053a2; background: #eee9f9; }
-.workspace-section-icon-timeline { color: #246d98; background: #e6f1f8; }
-.workspace-primary-copy { max-width: 31rem; margin-top: auto; padding: 2.2rem 0; }
-.workspace-primary-copy p { margin: .55rem 0 0; color: var(--muted); font-size: 1rem; line-height: 1.65; }
-.workspace-primary-copy .workspace-metric { color: var(--ink); font-size: clamp(1.65rem, 4vw, 2.65rem); font-weight: 650; letter-spacing: -.05em; line-height: 1; }
-.workspace-primary-copy small { display: block; margin-top: 1rem; color: var(--muted); font-size: .75rem; }
-.workspace-primary-action { display: flex; width: 100%; min-height: 4rem; align-items: center; justify-content: space-between; border-radius: 1.2rem; background: var(--ink); padding: 1rem 1.25rem; color: white; font-size: .94rem; font-weight: 650; transition: transform 180ms ease, background-color 180ms ease; }
-.workspace-primary-action:hover:not(:disabled) { transform: translateY(-2px); background: #22323a; }
-.workspace-primary-action:disabled { cursor: wait; opacity: .65; }
-.workspace-primary-action:focus-visible, .workspace-section-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.workspace-section-rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin-top: 2.5rem; }
-.workspace-section-button { display: flex; min-height: 7.5rem; flex-direction: column; justify-content: space-between; border: 1px solid var(--line); border-radius: 1.45rem; background: var(--card); padding: .9rem; color: var(--ink); text-align: left; box-shadow: 0 6px 18px rgb(20 32 41 / .04); transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease; }
-.workspace-section-button:not(.is-active):hover:not(:disabled) { transform: translateY(-3px); border-color: #9dcac2; }
-.workspace-section-button.is-active { border-color: var(--accent); background: #f0f8f6; }
-.workspace-section-button:disabled { cursor: wait; opacity: .65; }
-.workspace-rail-icon { width: 2rem; height: 2rem; font-size: 1rem; }
-.workspace-section-button small, .workspace-section-button strong { display: block; }
-.workspace-section-button small { color: var(--muted); font-family: var(--font-mono); font-size: .6rem; letter-spacing: .14em; }
-.workspace-section-button strong { margin-top: .2rem; font-size: .85rem; line-height: 1.15; }
-.workspace-section-button > span:last-child { align-self: flex-end; color: var(--accent); font-size: .7rem; }
-.workspace-selected { font-family: var(--font-mono); letter-spacing: .05em; }
-.workspace-gesture-hint { margin: 1rem 0 0; color: var(--muted); font-size: .72rem; text-align: center; }
-.workspace-current { transform: translateX(0); }
-.workspace-exit-left { z-index: 2; animation: workspace-exit-left 260ms cubic-bezier(.4,0,1,1) forwards; }
-.workspace-exit-right { z-index: 2; animation: workspace-exit-right 260ms cubic-bezier(.4,0,1,1) forwards; }
-.workspace-enter-left { z-index: 1; animation: workspace-enter-left 260ms cubic-bezier(0,0,.2,1) forwards; }
-.workspace-enter-right { z-index: 1; animation: workspace-enter-right 260ms cubic-bezier(0,0,.2,1) forwards; }
-@keyframes workspace-exit-left { to { transform: translateX(-105%) scale(.985); opacity: 0; } }
-@keyframes workspace-exit-right { to { transform: translateX(105%) scale(.985); opacity: 0; } }
-@keyframes workspace-enter-left { from { transform: translateX(105%) scale(.985); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes workspace-enter-right { from { transform: translateX(-105%) scale(.985); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@media (max-width: 639px) { .workspace-deck { margin-top: 1.75rem; } .workspace-card-stage { height: 26rem; } .workspace-primary, .workspace-card-shadow { border-radius: 1.65rem; } .workspace-card-shadow-one { transform: translate(.65rem, .65rem); } .workspace-card-shadow-two { transform: translate(1.3rem, 1.3rem); } .workspace-primary::before { width: 52%; } .workspace-section-rail { grid-template-columns: repeat(2, 1fr); gap: .6rem; margin-top: 1.8rem; } .workspace-section-button { min-height: 6.2rem; border-radius: 1.2rem; } }
-@media (prefers-reduced-motion: reduce) { .workspace-primary, .workspace-section-button, .workspace-primary-action { transition: none; } .workspace-exit-left, .workspace-exit-right, .workspace-enter-left, .workspace-enter-right { animation: none; } }
+@layer components {
+  /* ---------------------------------------------------------------- Hero */
+  .px-hero {
+    position: relative;
+    overflow: hidden;
+    background: var(--identity);
+    color: var(--on-identity);
+    border-radius: 0 0 var(--r-xl) var(--r-xl);
+    padding: 1.25rem 1.25rem 4.25rem;
+    min-height: 15rem;
+    display: flex;
+    flex-direction: column;
+  }
 
-.patient-back-link { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .55rem; border-radius: 999px; color: var(--muted); font-size: .82rem; font-weight: 600; transition: background-color 180ms ease, color 180ms ease; }
-.patient-back-link:hover { color: var(--ink); }
-.patient-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(12rem, 18rem); align-items: end; gap: 1.25rem; max-width: 58rem; margin-top: 2rem; padding: 1.2rem 0 1.7rem; border-bottom: 1px solid var(--line); }
-.patient-hero-copy h1 { margin: .25rem 0 0; font-size: clamp(2.2rem, 6vw, 4.4rem); font-weight: 650; letter-spacing: -.075em; line-height: .9; }
-.patient-hero-copy p { margin: .7rem 0 0; color: var(--muted); font-size: .95rem; }
-.patient-hero-copy span, .patient-hero-kicker { display: block; margin-top: .35rem; color: var(--muted); font-size: .78rem; }
-.patient-hero-kicker { color: var(--accent); font-family: var(--font-mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; }
-.patient-hero-note { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.55; text-align: right; }
-@media (max-width: 639px) { .patient-hero { grid-template-columns: auto minmax(0, 1fr); gap: 1rem; margin-top: 1rem; padding-bottom: 1.35rem; } .patient-hero-note { display: none; } .patient-hero-copy h1 { font-size: 2.35rem; } }
+  /* Static sheen. Identical for every patient and every render. */
+  .px-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 95% at 86% -18%, rgb(126 197 183 / 0.26), transparent 64%),
+      radial-gradient(85% 80% at 100% 60%, rgb(126 197 183 / 0.1), transparent 62%),
+      radial-gradient(95% 75% at 4% 112%, rgb(255 255 255 / 0.08), transparent 62%);
+    pointer-events: none;
+  }
 
-/* Reference-led patient experience */
-.patient-directory { padding-top: clamp(1rem, 4vw, 3rem); }
-.directory-heading { padding-bottom: 1.75rem; border-bottom: 1px solid rgb(18 25 29 / .1); }
-.patient-grid { align-items: stretch; }
-.patient-list-card { position: relative; display: grid; grid-template-columns: auto 1fr auto; min-height: 10rem; align-items: center; gap: 1.1rem; overflow: hidden; border: 0; border-radius: var(--px-radius); background: var(--px-surface); padding: 1.35rem; box-shadow: 0 12px 34px rgb(23 40 44 / .07); transition: transform .2s ease, box-shadow .2s ease; }
-.patient-list-card::after { position: absolute; inset: auto 0 0; height: .35rem; background: #93c6bb; content: ""; }
-.patient-list-card:hover { transform: translateY(-4px); box-shadow: var(--px-shadow); }
-.patient-list-copy { min-width: 0; }
-.patient-list-arrow, .workspace-action-badge { display: inline-flex; width: 2.55rem; height: 2.55rem; flex: none; align-items: center; justify-content: center; border-radius: 50%; background: white; color: var(--px-ink); box-shadow: 0 5px 14px rgb(0 0 0 / .12); font-size: 1.15rem; }
+  .px-hero > * {
+    position: relative;
+    z-index: 1;
+  }
 
-.patient-back-link { margin-bottom: 1rem; padding: 0 1rem; background: rgb(255 255 255 / .72); box-shadow: 0 5px 16px rgb(23 40 44 / .06); }
-.patient-hero { position: relative; grid-template-columns: auto minmax(0, 1fr) minmax(10rem, 16rem); min-height: 17.5rem; max-width: none; align-items: end; overflow: hidden; margin-top: 0; padding: 2rem 2.25rem 3.2rem; border: 0; border-radius: 2.5rem; background: var(--px-identity); color: white; box-shadow: var(--px-shadow); }
-.patient-hero::before, .patient-hero::after { position: absolute; border-radius: 50%; content: ""; pointer-events: none; }
-.patient-hero::before { width: 23rem; height: 23rem; right: -5rem; top: -13rem; border: 1px solid rgb(255 255 255 / .16); box-shadow: 0 0 0 3.5rem rgb(255 255 255 / .025), 0 0 0 7rem rgb(255 255 255 / .02); }
-.patient-hero::after { width: 12rem; height: 12rem; right: 9rem; bottom: -9rem; background: #87bcb1; opacity: .18; }
-.patient-hero > * { position: relative; z-index: 1; }
-.patient-hero-copy h1 { color: white; font-size: clamp(2.6rem, 5vw, 4.8rem); font-weight: 650; }
-.patient-hero-copy p, .patient-hero-copy span, .patient-hero-note { color: rgb(255 255 255 / .66); }
-.patient-hero-kicker { color: #9ed5ca !important; }
-.patient-hero-note { max-width: 14rem; }
-.patient-hero [aria-label$="initials"] { border: 1px solid rgb(255 255 255 / .28); background: rgb(255 255 255 / .1); color: white; box-shadow: none; }
+  .px-hero-compact {
+    min-height: 8.5rem;
+    padding-bottom: 3rem;
+  }
 
-.workspace-deck { position: relative; max-width: 61rem; margin: -1.9rem auto 0; padding: 0 1rem 1rem; }
-.workspace-card-stage { height: 27.5rem; }
-.workspace-primary, .workspace-card-shadow { border: 0; border-radius: 2.15rem; }
-.workspace-primary { padding: 2rem; background: white; box-shadow: var(--px-shadow); }
-.workspace-primary::before { width: 34%; background: linear-gradient(180deg, rgb(238 245 244 / .72), transparent); }
-.workspace-card-shadow-one { background: var(--px-medications); transform: translate(1.25rem, .8rem); }
-.workspace-card-shadow-two { background: var(--px-symptoms); transform: translate(2.5rem, 1.6rem); }
-.workspace-primary h2 { font-size: clamp(2rem, 5vw, 3.2rem); }
-.workspace-primary-action { min-height: 3.9rem; border-radius: var(--px-pill); padding: .55rem .6rem .55rem 1.5rem; background: var(--px-ink); }
-.workspace-section-rail { gap: .55rem; margin-top: 2rem; }
-.workspace-section-button { min-height: 6.7rem; border: 0; border-radius: 1.55rem; box-shadow: 0 9px 25px rgb(23 40 44 / .08); }
-.workspace-section-button:nth-child(1) { background: var(--px-safety); }
-.workspace-section-button:nth-child(2) { background: var(--px-medications); }
-.workspace-section-button:nth-child(3) { background: var(--px-symptoms); }
-.workspace-section-button:nth-child(4) { background: var(--px-timeline); }
-.workspace-section-button.is-active { background: var(--px-ink); color: white; }
-.workspace-section-button.is-active small { color: rgb(255 255 255 / .65); }
-.detail-toolbar { display: flex; align-items: center; justify-content: space-between; margin: -1.35rem 1.5rem 0; position: relative; z-index: 2; border-radius: var(--px-pill); background: white; padding: .5rem; box-shadow: 0 12px 30px rgb(23 40 44 / .12); }
-.detail-toolbar p { padding-right: 1rem; color: var(--px-muted); font-size: .68rem; text-transform: uppercase; letter-spacing: .16em; }
-.detail-back { display: inline-flex; min-height: 2.8rem; align-items: center; gap: .6rem; border-radius: var(--px-pill); background: var(--px-ink); padding: 0 1.1rem; color: white; font-size: .83rem; font-weight: 650; }
-.detail-toolbar ~ section { border: 0 !important; border-radius: var(--px-radius) !important; padding: clamp(1.25rem, 3vw, 2rem) !important; box-shadow: 0 14px 38px rgb(23 40 44 / .08) !important; }
+  .px-hero-eyebrow {
+    margin: 0;
+    color: #9ed5ca;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
 
-@media (max-width: 639px) {
-  .directory-heading { align-items: flex-start; }
-  .patient-list-card { min-height: 9rem; padding: 1.1rem; }
-  .patient-hero { min-height: 15.5rem; grid-template-columns: auto 1fr; gap: 1rem; padding: 1.4rem 1.25rem 3.2rem; border-radius: 2rem; }
-  .patient-hero-copy h1 { font-size: 2.35rem; }
-  .patient-hero [aria-label$="initials"] { width: 4.3rem; height: 4.3rem; border-radius: 1.25rem; font-size: 1.4rem; }
-  .workspace-deck { margin-top: -1.8rem; padding-inline: .7rem; }
-  .workspace-card-stage { height: 26rem; }
-  .workspace-primary { padding: 1.45rem; }
-  .workspace-primary-copy { padding: 1.4rem 0; }
-  .workspace-section-rail { display: flex; overflow-x: auto; padding: .2rem .1rem .8rem; scroll-snap-type: x mandatory; }
-  .workspace-section-button { min-width: 8.3rem; min-height: 6.2rem; scroll-snap-align: start; }
-  .workspace-gesture-hint { margin-top: .25rem; }
-  .patient-hero.is-detail { min-height: 12rem; }
+  .px-hero-name {
+    margin: 0.4rem 0 0;
+    font-size: 2.125rem;
+    font-weight: 650;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--on-identity);
+  }
+
+  .px-hero-meta {
+    margin: 0.45rem 0 0;
+    color: var(--on-identity-2);
+    font-size: 0.8125rem;
+  }
+
+  .px-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    border-radius: var(--r-md);
+    background: rgb(255 255 255 / 0.1);
+    color: var(--on-identity);
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  /* Circular control used over the hero and in list rows. */
+  .px-round {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: none;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.14);
+    color: var(--on-identity);
+    transition: background-color 160ms ease;
+  }
+
+  .px-round:hover {
+    background: rgb(255 255 255 / 0.24);
+  }
+
+  .px-round-light {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--e1);
+  }
+
+  .px-round-light:hover {
+    background: var(--surface);
+    box-shadow: var(--e2);
+  }
+
+  /* ------------------------------------------------------- Card + ribbon */
+  .px-stage {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    margin-top: -2.75rem;
+    padding: 0 0.625rem;
+  }
+
+  .px-card {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 20rem;
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    box-shadow: var(--e3);
+    padding: 1.15rem;
+  }
+
+  .px-ribbon {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: none;
+    gap: 0.25rem;
+    margin-left: -0.625rem;
+    padding: 1.5rem 0;
+  }
+
+  .px-ribbon-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    border-radius: var(--r-md);
+    padding: 0.75rem 0;
+    box-shadow: var(--e1);
+    transition: transform 160ms ease, filter 160ms ease;
+  }
+
+  .px-ribbon-tab:first-child {
+    width: 3.375rem;
+    padding-left: 0.625rem;
+  }
+
+  .px-ribbon-tab:hover {
+    transform: translateY(-3px);
+  }
+
+  .px-ribbon-label {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 0.6875rem;
+    font-weight: 650;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* Desktop: siblings widen into a stacked column at the same z-depth. */
+  .px-ribbon-stack {
+    display: none;
+  }
+
+  .px-dots {
+    display: flex;
+    justify-content: center;
+    gap: 0.4rem;
+    margin-top: 1.1rem;
+  }
+
+  .px-dot {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: rgb(18 25 29 / 0.22);
+    transition: background-color 160ms ease, width 160ms ease;
+  }
+
+  .px-dot-active {
+    width: 1.1rem;
+    border-radius: var(--r-pill);
+    background: var(--ink);
+  }
+
+  /* ------------------------------------------------------------ Segments */
+  .px-tabs {
+    display: flex;
+    gap: 0.1875rem;
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    padding: 0.3125rem;
+    box-shadow: var(--e2);
+  }
+
+  .px-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 2.75rem;
+    border-radius: var(--r-pill);
+    color: var(--ink-2);
+    font-size: 0.6875rem;
+    font-weight: 650;
+    letter-spacing: -0.005em;
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+
+  .px-tab-active {
+    background: var(--identity-deep);
+    color: #fff;
+  }
+
+  /* The detail stack overlaps the compact hero the same way the card does. */
+  .px-detail {
+    position: relative;
+    z-index: 2;
+    margin-top: -1.5rem;
+    padding: 0 0.625rem;
+  }
+
+  /* ------------------------------------------------------- Sheets + rows */
+  .px-sheet {
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    box-shadow: var(--e2);
+    padding: 1.15rem;
+  }
+
+  .px-row {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    width: 100%;
+    border-radius: var(--r-md);
+    background: var(--surface);
+    padding: 0.85rem;
+    text-align: left;
+    box-shadow: var(--e1);
+  }
+
+  .px-row-flat {
+    box-shadow: none;
+    background: var(--surface-sunk);
+  }
+
+  /* ------------------------------------------------------------ Pill CTA */
+  .px-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 3.5rem;
+    border-radius: var(--r-pill);
+    background: var(--identity-deep);
+    padding: 0.375rem 0.375rem 0.375rem 1.35rem;
+    color: #fff;
+    font-size: 0.9375rem;
+    font-weight: 650;
+    transition: transform 160ms ease, background-color 160ms ease;
+  }
+
+  .px-pill:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background: #1f2b31;
+  }
+
+  .px-pill:disabled {
+    cursor: wait;
+    opacity: 0.62;
+  }
+
+  .px-pill-block {
+    width: 100%;
+  }
+
+  .px-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: none;
+    border-radius: 50%;
+    background: #fff;
+    color: var(--identity-deep);
+  }
+
+  .px-pill-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    padding: 0 1.1rem;
+    color: var(--ink);
+    font-size: 0.8125rem;
+    font-weight: 650;
+    box-shadow: var(--e1);
+  }
+}
+
+/* ------------------------------------------------------------ Breakpoints */
+@media (min-width: 640px) {
+  .px-hero {
+    min-height: 16rem;
+    border-radius: var(--r-xl);
+    padding: 1.75rem 1.75rem 4.75rem;
+    margin: 0 0.5rem;
+  }
+
+  .px-hero-compact {
+    min-height: 9.5rem;
+    padding-bottom: 3.25rem;
+  }
+
+  .px-hero-name {
+    font-size: 2.5rem;
+  }
+
+  .px-stage {
+    margin-top: -3rem;
+    padding: 0 0.5rem;
+  }
+
+  .px-card {
+    min-height: 22rem;
+    border-radius: var(--r-xl);
+    padding: 1.75rem;
+  }
+
+  .px-ribbon {
+    gap: 0.375rem;
+    margin-left: -0.75rem;
+    padding: 2.25rem 0;
+  }
+
+  .px-ribbon-tab {
+    width: 3.25rem;
+  }
+
+  .px-ribbon-tab:first-child {
+    width: 4rem;
+    padding-left: 0.75rem;
+  }
+
+  .px-detail {
+    margin-top: -1.75rem;
+    padding: 0 1rem;
+  }
+
+  .px-sheet {
+    border-radius: var(--r-xl);
+    padding: 1.75rem;
+  }
+
+  .px-tab {
+    font-size: 0.8125rem;
+  }
+
+  .px-tabs {
+    gap: 0.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .px-hero {
+    min-height: 16rem;
+    padding: 2.25rem 2.5rem 5rem;
+    margin: 0 1.5rem;
+  }
+
+  .px-hero-compact {
+    min-height: 10.5rem;
+    padding-bottom: 3.5rem;
+  }
+
+  .px-hero-name {
+    font-size: 2.875rem;
+  }
+
+  /* The foreground card stays a portrait surface at desktop rather than
+     stretching; the sibling stack sits beside it at the same z-depth. */
+  .px-stage {
+    margin-top: -3.5rem;
+    padding: 0 4rem;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .px-detail {
+    max-width: 54rem;
+    margin: -2rem auto 0;
+    padding: 0 1rem;
+  }
+
+  .px-tabs {
+    max-width: 34rem;
+  }
+
+  .px-card {
+    min-height: 23.5rem;
+    flex: 0 1 36rem;
+    padding: 2rem 2.25rem;
+  }
+
+  /* Siblings stop being slivers and become a readable stacked column, still
+     tucked behind the foreground card's right edge. */
+  .px-ribbon {
+    display: none;
+  }
+
+  .px-ribbon-stack {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 0.625rem;
+    width: 19.5rem;
+    margin-left: -1.5rem;
+    padding: 1.75rem 0;
+  }
+
+  /* A pill is a shape — it must not stretch across a desktop card. */
+  .px-pill-block {
+    width: auto;
+    max-width: 20rem;
+    align-self: flex-start;
+  }
+
+  .px-ribbon-card {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.3rem;
+    min-height: 5.5rem;
+    border-radius: var(--r-md);
+    padding: 0.9rem 1.1rem 0.9rem 2.6rem;
+    text-align: left;
+    box-shadow: var(--e1);
+    transition: transform 160ms ease;
+  }
+
+  .px-ribbon-card:hover {
+    transform: translateX(4px);
+  }
+
+  .px-dots {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .px-pill,
+  .px-ribbon-tab,
+  .px-ribbon-card,
+  .px-round,
+  .px-tab,
+  .px-dot {
+    transition: none;
+  }
+
+  .px-pill:hover:not(:disabled),
+  .px-ribbon-tab:hover,
+  .px-ribbon-card:hover {
+    transform: none;
+  }
 }
