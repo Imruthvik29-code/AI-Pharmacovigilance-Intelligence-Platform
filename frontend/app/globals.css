@@ -54,12 +54,7 @@
   --mild-bg: #ddf2e5;
   --mild-fg: #12805c;
 
-  /* Legacy aliases so untouched utilities inherit the reconstructed palette */
-  --paper: #f1f3f5;
-  --card: #ffffff;
-  --line: rgb(21 24 28 / 0.08);
-  --muted: #5b6470;
-  --accent-ink: #0a6e55;
+  --hairline: rgb(21 24 28 / 0.08);
   --high: #c2303f;
   --severe: #c2303f;
   --low: #12805c;
@@ -68,13 +63,16 @@
   --focus-light: #0e8f6f;
   --focus-dark: #7fd8c8;
 
-  /* Geometry */
+  /* Radius: one scale. Small controls through to the identity plane. */
+  --r-control: 0.875rem;
   --r-row: 1.25rem;
   --r-card: 1.5rem;
   --r-sheet: 1.75rem;
   --r-hero: 2rem;
 
+  /* Elevation: background, midground, foreground. */
   --e-row: 0 1px 2px rgb(21 24 28 / 0.04);
+  --e-panel: 0 2px 10px -4px rgb(21 24 28 / 0.1);
   --e-card: 0 18px 40px -12px rgb(21 24 28 / 0.22), 0 2px 8px rgb(21 24 28 / 0.05);
   --e-float: 0 6px 18px rgb(21 24 28 / 0.14);
   --e-cta: 0 10px 24px -8px rgb(21 24 28 / 0.45);
@@ -98,7 +96,6 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-cta: var(--cta);
-  --color-hairline: var(--line);
   --color-safety: var(--safety-bg);
   --color-safety-fg: var(--safety-fg);
   --color-medications: var(--medications-bg);
@@ -115,10 +112,38 @@
   --color-mild-bg: var(--mild-bg);
   --color-high: var(--high);
   --color-low: var(--low);
-  --color-paper: var(--paper);
-  --color-card: var(--card);
-  --color-line: var(--line);
-  --color-muted: var(--muted);
+  --color-hairline: var(--hairline);
+  --color-identity: var(--identity-b);
+  --color-mild-surface: var(--mild-bg);
+
+  /* Typography scale. Tailwind's steps are remapped onto it, so a stray
+     text-sm lands on the system instead of a default. Floor is 11px. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.45;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.4;
+  --text-xl: 1.1875rem;
+  --text-xl--line-height: 1.3;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 1.75rem;
+  --text-3xl--line-height: 1.15;
+  --text-4xl: 2.125rem;
+  --text-4xl--line-height: 1.1;
+
+  /* Radius scale. Remapping Tailwind's steps retires the competing values
+     (rounded-md/lg/xl/2xl) onto the system without a file-by-file migration. */
+  --radius-sm: 0.625rem;
+  --radius-md: var(--r-control);
+  --radius-lg: var(--r-row);
+  --radius-xl: var(--r-card);
+  --radius-2xl: var(--r-sheet);
+  --radius-3xl: var(--r-hero);
+  --radius-control: var(--r-control);
   --radius-row: var(--r-row);
   --radius-card: var(--r-card);
   --radius-sheet: var(--r-sheet);

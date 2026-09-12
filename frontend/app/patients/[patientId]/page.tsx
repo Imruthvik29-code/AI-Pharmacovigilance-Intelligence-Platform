@@ -296,7 +296,7 @@ function PatientPage() {
                   <button
                     type="button"
                     onClick={() => setShowPicker((open) => !open)}
-                    className={`${secondaryButtonClass} w-full justify-center sm:w-auto`}
+                    className={secondaryButtonClass}
                   >
                     {showPicker ? "Hide medication form" : "Add medication"}
                   </button>

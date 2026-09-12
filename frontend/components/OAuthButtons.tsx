@@ -47,9 +47,9 @@ export function OAuthButtons() {
   return (
     <div className="mt-5">
       <div className="relative flex items-center py-1.5">
-        <div className="h-px flex-1 bg-line" />
-        <span className="px-3 text-[10px] font-medium uppercase tracking-[0.16em] text-muted">or</span>
-        <div className="h-px flex-1 bg-line" />
+        <div className="h-px flex-1 bg-hairline" />
+        <span className="px-3 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-ink-3">or</span>
+        <div className="h-px flex-1 bg-hairline" />
       </div>
       <div className="mt-2 flex justify-center gap-2">
         {providers.map((provider) => (
@@ -60,14 +60,14 @@ export function OAuthButtons() {
             disabled={loading !== null}
             aria-label={`Continue with ${oauthProviderLabel(provider)}`}
             title={`Continue with ${oauthProviderLabel(provider)}`}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-card text-ink transition hover:border-accent hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-control bg-surface text-ink shadow-[var(--e-row)] transition hover:shadow-[var(--e-panel)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading === provider ? <span className="text-xs" aria-hidden="true">…</span> : <ProviderIcon provider={provider} />}
           </button>
         ))}
       </div>
       {error ? <div className="mt-3"><StatusBanner tone="error" role="alert">{error}</StatusBanner></div> : null}
-      <p className="mt-2 text-center text-[11px] leading-5 text-muted">Sign in securely with your Google or Microsoft account.</p>
+      <p className="mt-2.5 text-center text-[0.6875rem] leading-5 text-ink-3">Sign in securely with your Google or Microsoft account.</p>
     </div>
   );
 }

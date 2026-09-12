@@ -161,7 +161,7 @@ export function MedicationPicker({
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">Medication identity</p>
           <h2 className="mt-1 text-lg font-semibold tracking-tight">What medication are you taking?</h2>
-          <p className="mt-1 max-w-xl text-sm text-muted">
+          <p className="mt-1 max-w-xl text-sm text-ink-2">
             Search by the name on the strip or bottle. Brand names and ingredients can both be recognized.
           </p>
         </div>
@@ -171,7 +171,7 @@ export function MedicationPicker({
       <div ref={rootRef} className="relative mt-5">
         <label className="block text-sm font-medium" htmlFor={inputId}>Medicine name</label>
         <div className="relative mt-2">
-          <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">⌕</span>
+          <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2">⌕</span>
           <input
             id={inputId}
             type="text"
@@ -190,12 +190,12 @@ export function MedicationPicker({
           />
         </div>
 
-        {searching ? <p className="mt-2 text-sm text-muted">Checking the medication catalog…</p> : null}
+        {searching ? <p className="mt-2 text-sm text-ink-2">Checking the medication catalog…</p> : null}
         {searchError ? <div className="mt-2"><StatusBanner tone="error" role="alert">{searchError}</StatusBanner></div> : null}
         {!searching && !searchError && query.trim().length >= REFERENCE_DRUG_MIN_QUERY_LENGTH && open && results.length === 0 ? (
           <div className="mt-3 rounded-row bg-surface p-4">
             <p className="text-sm font-medium">We couldn’t find a verified catalog match.</p>
-            <p className="mt-1 text-xs leading-5 text-muted">Check the spelling or use the active ingredient printed on the package. We won’t guess a medication identity.</p>
+            <p className="mt-1 text-xs leading-5 text-ink-2">Check the spelling or use the active ingredient printed on the package. We won’t guess a medication identity.</p>
           </div>
         ) : null}
 
@@ -219,7 +219,7 @@ export function MedicationPicker({
                       {drug.term_type || "match"}
                     </span>
                   </div>
-                  <span className="mt-1 block text-xs text-muted">{medicationSearchSubtitle(drug)}</span>
+                  <span className="mt-1 block text-xs text-ink-2">{medicationSearchSubtitle(drug)}</span>
                 </li>
               );
             })}
@@ -228,13 +228,13 @@ export function MedicationPicker({
       </div>
 
       {selected ? (
-        <div className="mt-4 rounded-row bg-mild-surface p-4">
+        <div className="mt-4 rounded-row bg-mild-bg p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Medication selected</p>
           <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="text-base font-semibold">{selected.name}</span>
-            <span className="text-sm text-muted">{termTypeLabel(selected.term_type)}</span>
+            <span className="text-sm text-ink-2">{termTypeLabel(selected.term_type)}</span>
           </div>
-          {selected.rxcui ? <p className="mt-1 text-xs text-muted">Standardized medication identity linked for safety analysis.</p> : null}
+          {selected.rxcui ? <p className="mt-1 text-xs text-ink-2">Standardized medication identity linked for safety analysis.</p> : null}
         </div>
       ) : null}
 
@@ -244,12 +244,12 @@ export function MedicationPicker({
           <input id="start-date" type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} className={fieldOnSunkClass} />
         </div>
         <div>
-          <label className="block text-sm font-medium" htmlFor="dose">Dose <span className="font-normal text-muted">(optional)</span></label>
+          <label className="block text-sm font-medium" htmlFor="dose">Dose <span className="font-normal text-ink-2">(optional)</span></label>
           <input id="dose" value={dose} onChange={(event) => setDose(event.target.value)} placeholder="e.g. 1 tablet" className={fieldOnSunkClass} />
         </div>
       </div>
 
-      <label className="mt-3 block text-sm font-medium" htmlFor="purpose">Purpose <span className="font-normal text-muted">(optional)</span></label>
+      <label className="mt-3 block text-sm font-medium" htmlFor="purpose">Purpose <span className="font-normal text-ink-2">(optional)</span></label>
       <input id="purpose" value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="e.g. Migraine" className={fieldOnSunkClass} />
 
       {submitError ? <div className="mt-3"><StatusBanner tone="error" role="alert">{submitError}</StatusBanner></div> : null}

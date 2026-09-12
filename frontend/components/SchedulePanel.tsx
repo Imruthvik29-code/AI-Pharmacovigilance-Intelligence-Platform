@@ -102,7 +102,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
           <h2 id="schedule-heading" className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em] text-ink">What is due next</h2>
           <p className="mt-1 max-w-2xl text-[0.8125rem] leading-5 text-ink-2">Only future, unmarked doses for active medications appear here.</p>
         </div>
-        <button type="button" onClick={() => void loadDoses()} disabled={loading} className={secondaryButtonClass}>
+        <button type="button" onClick={() => void loadDoses()} disabled={loading} className={`${secondaryButtonClass} self-start`}>
           {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
@@ -113,7 +113,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
 
         {loading ? (
           <div className="space-y-3" aria-label="Loading schedule">
-            {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-row bg-surface-2" />)}
+            {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-card bg-surface-2" />)}
           </div>
         ) : doses.length > 0 ? (
           <div className="space-y-3">
@@ -125,8 +125,8 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
             })}
           </div>
         ) : (
-          <div className="rounded-row bg-surface-2 px-5 py-8 text-center">
-            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-mild-surface text-mild">
+          <div className="rounded-card bg-surface px-5 py-8 text-center shadow-[var(--e-row)]">
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-mild-bg text-mild">
               <CheckIcon className="h-5 w-5" />
             </span>
             <h3 className="mt-3 text-[0.9375rem] font-semibold text-ink">No upcoming doses</h3>
@@ -135,7 +135,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
         )}
 
         {schedulableMedications.length > 0 ? (
-          <div className="mt-6 border-t border-line pt-5">
+          <div className="mt-6 border-t border-hairline pt-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[0.9375rem] font-semibold text-ink">Medication schedules</p>

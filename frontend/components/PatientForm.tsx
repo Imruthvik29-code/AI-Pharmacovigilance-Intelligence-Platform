@@ -55,16 +55,16 @@ export function PatientForm({ onCreated }: { onCreated: (patient: PatientRespons
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium" htmlFor="patient-age">Age <span className="font-normal text-muted">(optional)</span></label>
+          <label className="block text-sm font-medium" htmlFor="patient-age">Age <span className="font-normal text-ink-2">(optional)</span></label>
           <input id="patient-age" type="number" min={0} max={130} value={age} onChange={(event) => setAge(event.target.value)} className={fieldClass} />
         </div>
         <div>
-          <label className="block text-sm font-medium" htmlFor="patient-sex">Sex <span className="font-normal text-muted">(optional)</span></label>
+          <label className="block text-sm font-medium" htmlFor="patient-sex">Sex <span className="font-normal text-ink-2">(optional)</span></label>
           <input id="patient-sex" value={sex} onChange={(event) => setSex(event.target.value)} className={fieldClass} />
         </div>
       </div>
       <div>
-        <label className="block text-sm font-medium" htmlFor="patient-relation">Relation to you <span className="font-normal text-muted">(optional)</span></label>
+        <label className="block text-sm font-medium" htmlFor="patient-relation">Relation to you <span className="font-normal text-ink-2">(optional)</span></label>
         <select id="patient-relation" value={relation} onChange={(event) => setRelation(event.target.value as PatientRelation | "")} className={fieldClass}>
           <option value="">Select relation</option>
           {relations.map((item) => <option key={item}>{item}</option>)}

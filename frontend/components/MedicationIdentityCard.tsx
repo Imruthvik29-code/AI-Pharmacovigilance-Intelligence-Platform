@@ -1,3 +1,5 @@
+import { CapsuleIcon } from "@/components/icons/Icons";
+import { IconChip } from "@/components/ui/IconChip";
 import type { ReferenceDrugSearchResult } from "@/lib/api/types";
 import { isBrandLikeTerm, termTypeLabel } from "@/lib/drugs/termType";
 
@@ -5,17 +7,17 @@ export function MedicationIdentityCard({ drug }: { drug: ReferenceDrugSearchResu
   const brandLike = isBrandLikeTerm(drug.term_type);
 
   return (
-    <div className="rounded-2xl border border-line bg-paper p-4">
+    <div className="rounded-card bg-surface p-4 shadow-[var(--e-row)]">
       <div className="flex items-start gap-3">
-        <div aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-lg shadow-sm">💊</div>
+        <IconChip Icon={CapsuleIcon} surface="var(--medications-bg)" ink="var(--medications-fg)" size="md" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{drug.name}</h3>
-            <span className="rounded-full bg-card px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+            <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-ink-2">
               {termTypeLabel(drug.term_type)}
             </span>
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted">
+          <p className="mt-1.5 text-sm leading-5 text-ink-2">
             {brandLike
               ? "This is a branded medication. Its standardized identity can be used by the safety engine."
               : "This catalog identity can be used by the safety engine."}

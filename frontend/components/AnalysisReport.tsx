@@ -306,7 +306,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
                   <p className="mt-1">{run.llm_recommendations}</p>
                 </div>
               ) : null}
-              <p className="border-t border-line pt-3 text-[0.75rem] leading-5 text-ink-3">
+              <p className="border-t border-hairline pt-3 text-[0.75rem] leading-5 text-ink-3">
                 The language model explains deterministic findings. It does not compute the safety
                 score or invent rules.
               </p>

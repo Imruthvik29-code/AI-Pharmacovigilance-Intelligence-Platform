@@ -47,13 +47,13 @@ export default function SignupPage() {
         <BrandMark />
         <div>
           <p className="text-sm font-semibold tracking-tight">Pharmacovigilance Intelligence</p>
-          <p className="text-xs text-muted">Medication safety analysis</p>
+          <p className="text-xs text-ink-2">Medication safety analysis</p>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-line bg-card p-6 shadow-[0_10px_40px_-24px_rgba(20,32,41,0.35)]">
+      <section className="rounded-2xl border border-hairline bg-surface p-6 shadow-[0_10px_40px_-24px_rgba(20,32,41,0.35)]">
         <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
-        <p className="mt-2 text-sm leading-6 text-muted">
+        <p className="mt-2 text-sm leading-6 text-ink-2">
           Create a workspace to record patients and medications, then generate an explainable
           safety report from curated rules.
         </p>
@@ -91,7 +91,7 @@ export default function SignupPage() {
               onChange={(event) => setPassword(event.target.value)}
               className={fieldOnCardClass}
             />
-            <p className="mt-1 text-xs text-muted">At least 8 characters.</p>
+            <p className="mt-1 text-xs text-ink-2">At least 8 characters.</p>
           </div>
           {error ? (
             <StatusBanner tone="error" role="alert">
@@ -112,7 +112,7 @@ export default function SignupPage() {
           </button>
         </form>
 
-        <p className="mt-5 text-sm text-muted">
+        <p className="mt-5 text-sm text-ink-2">
           Already registered?{" "}
           <Link href="/login" className="font-medium text-accent underline-offset-2 hover:underline">
             Sign in
