@@ -32,6 +32,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 
   const response = await fetch(`${API_PREFIX}${path}`, {
     ...rest,
+    cache: rest.cache ?? (auth ? "no-store" : undefined),
     headers: requestHeaders,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -66,9 +67,15 @@ export async function apiFetchRaw(
 
   const response = await fetch(`${API_PREFIX}${path}`, {
     ...rest,
+    cache: rest.cache ?? (auth ? "no-store" : undefined),
     headers: requestHeaders,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  return { status: response.status, body: await readBody(response) };
+  const responseBody = await readBody(response);
+  if (response.status === 401 && auth) {
+    clearSession();
+  }
+
+  return { status: response.status, body: responseBody };
 }

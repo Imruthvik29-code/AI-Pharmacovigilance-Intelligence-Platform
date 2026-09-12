@@ -118,6 +118,17 @@ Desktop.ini
 backend/scripts/.rxnorm_cache/
 
 # ---------------------------------------------------------------------
+# DISB/CDCI source and generated exports
+# ---------------------------------------------------------------------
+# The licensed DISB package must remain outside Git. These paths are for
+# optional local source/cache material only; the importer streams its data
+# through a temporary export and does not require a checked-in dataset.
+.disb_cache/
+backend/scripts/.disb_cache/
+backend/scripts/disb-data/
+backend/scripts/disb-export/
+
+# ---------------------------------------------------------------------
 # Misc project-local scratch / generated files
 # ---------------------------------------------------------------------
 *.bak

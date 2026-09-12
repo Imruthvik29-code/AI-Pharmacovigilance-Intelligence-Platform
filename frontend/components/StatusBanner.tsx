@@ -1,9 +1,9 @@
 type Tone = "error" | "info" | "success";
 
-const tones: Record<Tone, string> = {
-  error: "border-high/30 bg-[#fdf2f4] text-high",
-  info: "border-line bg-[#eef4f3] text-ink",
-  success: "border-low/25 bg-[#eef7f4] text-low",
+const tones: Record<Tone, { surface: string; ink: string }> = {
+  error: { surface: "var(--severe-bg)", ink: "var(--severe-fg)" },
+  info: { surface: "var(--surface-2)", ink: "var(--ink)" },
+  success: { surface: "var(--mild-bg)", ink: "var(--mild-fg)" },
 };
 
 export function StatusBanner({
@@ -15,8 +15,13 @@ export function StatusBanner({
   children: React.ReactNode;
   role?: "status" | "alert";
 }) {
+  const style = tones[tone];
   return (
-    <div role={role} className={`rounded-lg border px-3 py-2.5 text-sm leading-6 ${tones[tone]}`}>
+    <div
+      role={role}
+      className="rounded-row px-4 py-3 text-[0.875rem] leading-6"
+      style={{ backgroundColor: style.surface, color: style.ink }}
+    >
       {children}
     </div>
   );

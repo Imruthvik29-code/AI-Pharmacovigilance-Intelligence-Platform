@@ -12,7 +12,8 @@ import {
 } from "@/lib/api/types";
 import { localCalendarDate } from "@/lib/dates/localDate";
 import { rememberDrug } from "@/lib/drugs/nameCache";
-import { fieldClass, primaryButtonClass } from "@/lib/ui/classes";
+import { medicationSearchSubtitle, termTypeLabel } from "@/lib/drugs/termType";
+import { fieldOnSunkClass, primaryButtonClass } from "@/lib/ui/classes";
 
 export function MedicationPicker({
   patientId,
@@ -24,6 +25,7 @@ export function MedicationPicker({
   const listId = useId();
   const inputId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const searchRequestRef = useRef(0);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ReferenceDrugSearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -39,6 +41,8 @@ export function MedicationPicker({
 
   useEffect(() => {
     const q = query.trim();
+    const requestId = ++searchRequestRef.current;
+
     if (q.length < REFERENCE_DRUG_MIN_QUERY_LENGTH) {
       setResults([]);
       setSearching(false);
@@ -48,6 +52,7 @@ export function MedicationPicker({
       return;
     }
     if (selected && q === selected.name) {
+      setSearching(false);
       return;
     }
 
@@ -56,15 +61,17 @@ export function MedicationPicker({
       setSearchError(null);
       try {
         const found = await searchReferenceDrugs(q);
+        if (requestId !== searchRequestRef.current) return;
         setResults(found);
         setOpen(true);
         setActiveIndex(found.length > 0 ? 0 : -1);
       } catch (error) {
+        if (requestId !== searchRequestRef.current) return;
         setResults([]);
         setOpen(false);
         setSearchError(error instanceof ApiError ? error.detail : "Catalog search failed.");
       } finally {
-        setSearching(false);
+        if (requestId === searchRequestRef.current) setSearching(false);
       }
     }, 300);
 
@@ -74,15 +81,12 @@ export function MedicationPicker({
   useEffect(() => {
     if (!open || activeIndex < 0 || !results[activeIndex]) return;
     const option = document.getElementById(`${listId}-opt-${results[activeIndex].id}`);
-    if (option && typeof option.scrollIntoView === "function") {
-      option.scrollIntoView({ block: "nearest" });
-    }
+    option?.scrollIntoView?.({ block: "nearest" });
   }, [activeIndex, listId, open, results]);
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
-      if (!open) return;
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      if (open && rootRef.current && !rootRef.current.contains(event.target as Node)) {
         setOpen(false);
         setActiveIndex(-1);
       }
@@ -147,64 +151,56 @@ export function MedicationPicker({
     }
   }
 
-  const activeOptionId =
-    open && activeIndex >= 0 && results[activeIndex]
-      ? `${listId}-opt-${results[activeIndex].id}`
-      : undefined;
+  const activeOptionId = open && activeIndex >= 0 && results[activeIndex]
+    ? `${listId}-opt-${results[activeIndex].id}`
+    : undefined;
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-2xl border border-line bg-card p-5">
-      <h2 className="text-sm font-semibold">Add medication</h2>
-      <p className="mt-1 text-xs text-muted">
-        Search the reference catalog (at least {REFERENCE_DRUG_MIN_QUERY_LENGTH} characters).
-      </p>
+    <form onSubmit={handleSubmit} className="rounded-card bg-surface-2 p-5 sm:p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">Medication identity</p>
+          <h2 className="mt-1 text-lg font-semibold tracking-tight">What medication are you taking?</h2>
+          <p className="mt-1 max-w-xl text-sm text-muted">
+            Search by the name on the strip or bottle. Brand names and ingredients can both be recognized.
+          </p>
+        </div>
+        <span className="hidden rounded-full bg-surface px-3 py-1 text-[0.75rem] font-semibold text-ink-2 sm:inline-flex">Verified catalog</span>
+      </div>
 
-      <div ref={rootRef} className="relative mt-4">
-        <label className="block text-sm font-medium" htmlFor={inputId}>
-          Medication
-        </label>
-        <input
-          id={inputId}
-          type="text"
-          role="combobox"
-          autoComplete="off"
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setSelected(null);
-          }}
-          onKeyDown={onSearchKeyDown}
-          placeholder="Search by drug name"
-          className={fieldClass}
-          aria-expanded={open}
-          aria-haspopup="listbox"
-          aria-controls={open ? listId : undefined}
-          aria-autocomplete="list"
-          aria-activedescendant={activeOptionId}
-        />
+      <div ref={rootRef} className="relative mt-5">
+        <label className="block text-sm font-medium" htmlFor={inputId}>Medicine name</label>
+        <div className="relative mt-2">
+          <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">⌕</span>
+          <input
+            id={inputId}
+            type="text"
+            role="combobox"
+            autoComplete="off"
+            value={query}
+            onChange={(event) => { setQuery(event.target.value); setSelected(null); }}
+            onKeyDown={onSearchKeyDown}
+            placeholder="e.g. Vasograin, aspirin, metformin"
+            className={`${fieldOnSunkClass} pl-9`}
+            aria-expanded={open}
+            aria-haspopup="listbox"
+            aria-controls={open ? listId : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={activeOptionId}
+          />
+        </div>
 
-        {searching ? <p className="mt-2 text-sm text-muted">Searching catalog…</p> : null}
-        {searchError ? (
-          <div className="mt-2">
-            <StatusBanner tone="error" role="alert">
-              {searchError}
-            </StatusBanner>
+        {searching ? <p className="mt-2 text-sm text-muted">Checking the medication catalog…</p> : null}
+        {searchError ? <div className="mt-2"><StatusBanner tone="error" role="alert">{searchError}</StatusBanner></div> : null}
+        {!searching && !searchError && query.trim().length >= REFERENCE_DRUG_MIN_QUERY_LENGTH && open && results.length === 0 ? (
+          <div className="mt-3 rounded-row bg-surface p-4">
+            <p className="text-sm font-medium">We couldn’t find a verified catalog match.</p>
+            <p className="mt-1 text-xs leading-5 text-muted">Check the spelling or use the active ingredient printed on the package. We won’t guess a medication identity.</p>
           </div>
-        ) : null}
-        {!searching &&
-        !searchError &&
-        query.trim().length >= REFERENCE_DRUG_MIN_QUERY_LENGTH &&
-        open &&
-        results.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">No catalog matches.</p>
         ) : null}
 
         {open && results.length > 0 ? (
-          <ul
-            id={listId}
-            role="listbox"
-            className="mt-2 max-h-64 overflow-auto rounded-lg border border-line bg-card"
-          >
+          <ul id={listId} role="listbox" className="mt-2 max-h-72 overflow-auto rounded-row bg-surface p-1 shadow-[var(--e-float)]">
             {results.map((drug, index) => {
               const active = index === activeIndex;
               return (
@@ -214,18 +210,16 @@ export function MedicationPicker({
                   role="option"
                   aria-selected={active}
                   onMouseEnter={() => setActiveIndex(index)}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    selectDrug(drug);
-                  }}
-                  className={`flex min-h-11 cursor-pointer flex-col items-start justify-center gap-0.5 px-3 py-2.5 ${
-                    active ? "bg-[#e7f2f0]" : "hover:bg-paper"
-                  }`}
+                  onMouseDown={(event) => { event.preventDefault(); selectDrug(drug); }}
+                  className={`cursor-pointer rounded-md px-3 py-3 ${active ? "bg-surface-2" : "hover:bg-surface-2/70"}`}
                 >
-                  <span className="text-sm font-medium">{drug.name}</span>
-                  <span className="text-xs text-muted">
-                    {[drug.term_type, drug.source].filter(Boolean).join(" · ") || "Catalog match"}
-                  </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold">{drug.name}</span>
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-ink-2">
+                      {drug.term_type || "match"}
+                    </span>
+                  </div>
+                  <span className="mt-1 block text-xs text-muted">{medicationSearchSubtitle(drug)}</span>
                 </li>
               );
             })}
@@ -234,63 +228,33 @@ export function MedicationPicker({
       </div>
 
       {selected ? (
-        <p className="mt-2 text-sm">
-          Selected <span className="font-medium">{selected.name}</span>
-          {selected.term_type ? <span className="text-muted"> · {selected.term_type}</span> : null}
-        </p>
+        <div className="mt-4 rounded-row bg-mild-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Medication selected</p>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="text-base font-semibold">{selected.name}</span>
+            <span className="text-sm text-muted">{termTypeLabel(selected.term_type)}</span>
+          </div>
+          {selected.rxcui ? <p className="mt-1 text-xs text-muted">Standardized medication identity linked for safety analysis.</p> : null}
+        </div>
       ) : null}
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium" htmlFor="start-date">
-            Start date
-          </label>
-          <input
-            id="start-date"
-            type="date"
-            required
-            value={startDate}
-            onChange={(event) => setStartDate(event.target.value)}
-            className={fieldClass}
-          />
+          <label className="block text-sm font-medium" htmlFor="start-date">Start date</label>
+          <input id="start-date" type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} className={fieldOnSunkClass} />
         </div>
         <div>
-          <label className="block text-sm font-medium" htmlFor="dose">
-            Dose <span className="font-normal text-muted">(optional)</span>
-          </label>
-          <input
-            id="dose"
-            value={dose}
-            onChange={(event) => setDose(event.target.value)}
-            className={fieldClass}
-          />
+          <label className="block text-sm font-medium" htmlFor="dose">Dose <span className="font-normal text-muted">(optional)</span></label>
+          <input id="dose" value={dose} onChange={(event) => setDose(event.target.value)} placeholder="e.g. 1 tablet" className={fieldOnSunkClass} />
         </div>
       </div>
 
-      <label className="mt-3 block text-sm font-medium" htmlFor="purpose">
-        Purpose <span className="font-normal text-muted">(optional)</span>
-      </label>
-      <input
-        id="purpose"
-        value={purpose}
-        onChange={(event) => setPurpose(event.target.value)}
-        className={fieldClass}
-      />
+      <label className="mt-3 block text-sm font-medium" htmlFor="purpose">Purpose <span className="font-normal text-muted">(optional)</span></label>
+      <input id="purpose" value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="e.g. Migraine" className={fieldOnSunkClass} />
 
-      {submitError ? (
-        <div className="mt-3">
-          <StatusBanner tone="error" role="alert">
-            {submitError}
-          </StatusBanner>
-        </div>
-      ) : null}
-
-      <button
-        type="submit"
-        disabled={!selected || submitting}
-        className={`${primaryButtonClass} mt-4`}
-      >
-        {submitting ? "Adding…" : "Add medication"}
+      {submitError ? <div className="mt-3"><StatusBanner tone="error" role="alert">{submitError}</StatusBanner></div> : null}
+      <button type="submit" disabled={!selected || submitting} className={`${primaryButtonClass} mt-5 w-full sm:w-auto`}>
+        {submitting ? "Adding medication…" : "Add medication"}
       </button>
     </form>
   );

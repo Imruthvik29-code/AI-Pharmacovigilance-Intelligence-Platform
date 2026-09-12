@@ -1,3 +1,6 @@
+import { IconChip } from "@/components/ui/IconChip";
+import { AlertIcon, CalendarIcon, CapsuleIcon, PulseIcon, SparkIcon } from "@/components/icons/Icons";
+import { formatDateTime } from "@/lib/patient/summaries";
 import type { TimelineEventResponse } from "@/lib/api/types";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 
@@ -5,58 +8,97 @@ function labelFor(eventType: string): string {
   return eventType.replaceAll("_", " ");
 }
 
-function accentFor(eventType: string): string {
-  if (eventType === "analysis_run") return "border-accent bg-[#eef6f4]";
-  if (eventType === "medication_started" || eventType === "medication_discontinued") {
-    return "border-ink/40 bg-card";
+/** Event-type tint. Restrained: the four clinical tints, nothing new. */
+function toneFor(eventType: string) {
+  if (eventType === "analysis_run") return { Icon: SparkIcon, surface: "var(--safety-surface)", ink: "var(--safety-ink)" };
+  if (eventType.startsWith("medication")) {
+    return { Icon: CapsuleIcon, surface: "var(--medications-surface)", ink: "var(--medications-ink)" };
   }
-  return "border-line bg-card";
+  if (eventType.startsWith("dose")) {
+    return { Icon: CapsuleIcon, surface: "var(--medications-surface)", ink: "var(--medications-ink)" };
+  }
+  if (eventType.startsWith("symptom")) {
+    return { Icon: PulseIcon, surface: "var(--symptoms-surface)", ink: "var(--symptoms-ink)" };
+  }
+  if (eventType.startsWith("condition")) {
+    return { Icon: AlertIcon, surface: "var(--timeline-surface)", ink: "var(--timeline-ink)" };
+  }
+  return { Icon: CalendarIcon, surface: "var(--timeline-surface)", ink: "var(--timeline-ink)" };
 }
 
 export function TimelineList({
   events,
   loading,
   error,
+  showHeading = true,
 }: {
   events: TimelineEventResponse[];
   loading?: boolean;
   error?: string | null;
+  /** Off when the surrounding DetailSheet already names the section. */
+  showHeading?: boolean;
 }) {
   return (
-    <section className="rounded-2xl border border-line bg-card p-5" aria-label="Patient timeline">
-      <h2 className="text-sm font-semibold">Timeline</h2>
-      <p className="mt-1 text-xs text-muted">Automatically recorded as you add medications and run analysis.</p>
-      {loading ? (
-        <div className="mt-4">
-          <LoadingSkeleton label="Loading timeline" lines={3} />
+    <section aria-label="Patient timeline">
+      {showHeading ? (
+        <div className="px-1">
+          <p className="pv-eyebrow">
+            Record
+          </p>
+          <h2 className="pv-section-title mt-0.5">Timeline</h2>
+          <p className="mt-1 text-[0.8125rem] leading-5 text-ink-2">
+            A chronological view of recorded patient activity.
+          </p>
         </div>
       ) : null}
-      {error ? (
-        <p className="mt-4 text-sm text-high" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {!loading && !error && events.length === 0 ? (
-        <p className="mt-4 text-sm text-muted">No events yet. Adding a medication or running analysis will appear here.</p>
-      ) : null}
-      {!loading && events.length > 0 ? (
-        <ol className="mt-4 space-y-2.5">
-          {events.map((event) => (
-            <li
-              key={event.id}
-              className={`rounded-lg border-l-4 px-3 py-2.5 ${accentFor(event.event_type)}`}
-            >
-              <p className="font-mono text-[11px] uppercase tracking-wide text-muted">
-                {labelFor(event.event_type)} · {new Date(event.event_time).toLocaleString()}
-              </p>
-              <p className="mt-0.5 text-sm font-medium">{event.event_title}</p>
-              {event.event_description ? (
-                <p className="text-sm text-muted">{event.event_description}</p>
-              ) : null}
-            </li>
-          ))}
-        </ol>
-      ) : null}
+
+      <div className={`${showHeading ? "mt-3" : ""} space-y-2`}>
+        {loading ? <LoadingSkeleton label="Loading timeline" lines={3} /> : null}
+        {error ? (
+          <p className="rounded-row bg-severe-bg px-4 py-3 text-[0.875rem] text-severe" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {!loading && !error && events.length === 0 ? (
+          <div className="rounded-row bg-surface-2 px-4 py-5">
+            <p className="text-[0.9375rem] font-semibold">No events yet</p>
+            <p className="mt-1 text-[0.875rem] leading-6 text-ink-2">
+              Adding a medication or running analysis will appear here.
+            </p>
+          </div>
+        ) : null}
+
+        {!loading && events.length > 0 ? (
+          <ol className="space-y-2">
+            {events.map((event) => {
+              const tone = toneFor(event.event_type);
+              return (
+                <li key={event.id} className="pv-row items-start">
+                  <IconChip Icon={tone.Icon} surface={tone.surface} ink={tone.ink} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-ink-3">
+                        {labelFor(event.event_type)}
+                      </p>
+                      <time dateTime={event.event_time} className="text-[0.75rem] text-ink-3">
+                        {formatDateTime(event.event_time)}
+                      </time>
+                    </div>
+                    <p className="mt-1 text-[0.9375rem] font-medium tracking-[-0.01em]">
+                      {event.event_title}
+                    </p>
+                    {event.event_description ? (
+                      <p className="mt-0.5 text-[0.8125rem] leading-5 text-ink-2">
+                        {event.event_description}
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        ) : null}
+      </div>
     </section>
   );
 }

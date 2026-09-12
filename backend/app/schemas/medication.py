@@ -63,3 +63,9 @@ class MedicationResponse(MedicationBase):
     patient_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    # Human-facing catalog identity is returned with the medication so the
+    # frontend never depends on a browser-local cache to render a medicine.
+    drug_name: str | None = None
+    drug_generic_name: str | None = None
+    drug_term_type: str | None = None
+    drug_source: str | None = None

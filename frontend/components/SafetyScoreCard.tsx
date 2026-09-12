@@ -1,15 +1,17 @@
+import { ShieldIcon } from "@/components/icons/Icons";
+import { IconChip } from "@/components/ui/IconChip";
 import type { RiskLevel } from "@/lib/api/types";
 
-const riskStyles: Record<RiskLevel, string> = {
-  high: "text-high",
-  moderate: "text-moderate",
-  low: "text-low",
-};
-
-const riskRing: Record<RiskLevel, string> = {
-  high: "border-high/30 bg-[#fdf2f4]",
-  moderate: "border-moderate/30 bg-[#fdf6ec]",
-  low: "border-low/30 bg-[#eef7f4]",
+/**
+ * The deterministic score, presented as one of the detail screen's rows.
+ *
+ * Risk colour lives here — on the finding surface — and never on the patient
+ * identity surface, which stays constant for every patient.
+ */
+const riskTone: Record<RiskLevel, { surface: string; ink: string }> = {
+  high: { surface: "var(--severe-bg)", ink: "var(--severe-fg)" },
+  moderate: { surface: "var(--moderate-bg)", ink: "var(--moderate-fg)" },
+  low: { surface: "var(--mild-bg)", ink: "var(--mild-fg)" },
 };
 
 export function SafetyScoreCard({
@@ -20,30 +22,30 @@ export function SafetyScoreCard({
   riskLevel: RiskLevel | null;
 }) {
   const risk = riskLevel ?? null;
+  const tone = risk ? riskTone[risk] : { surface: "var(--surface-2)", ink: "var(--ink-2)" };
+
   return (
-    <section
-      aria-label="Safety score"
-      className={`rounded-2xl border px-5 py-5 sm:px-8 sm:py-6 ${risk ? riskRing[risk] : "border-line bg-card"}`}
-    >
-      <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
-        Deterministic safety score
-      </p>
-      <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="font-mono text-5xl font-semibold leading-none tracking-tight text-ink sm:text-6xl">
-            {safetyScore === null ? "—" : safetyScore}
-          </p>
-          <p className="mt-2 max-w-sm text-sm text-muted">
-            Out of 100. Produced by rule engines, not by the language model.
+    <section aria-label="Safety score">
+      <div className="pv-row">
+        <IconChip Icon={ShieldIcon} surface={tone.surface} ink={tone.ink} size="md" />
+        <div className="min-w-0 flex-1">
+          <p className="pv-row-title">Safety score</p>
+          <p className="pv-row-meta">
+            {safetyScore === null ? "Not recorded" : `${safetyScore} of 100`}
+            {risk ? " · " : ""}
+            {risk ? <span style={{ color: tone.ink }}>{risk} risk</span> : null}
           </p>
         </div>
-        <div className="sm:text-right">
-          <p className="text-xs uppercase tracking-[0.14em] text-muted">Risk level</p>
-          <p className={`mt-1 text-2xl font-semibold capitalize ${risk ? riskStyles[risk] : "text-ink"}`}>
-            {risk ?? "unavailable"}
-          </p>
-        </div>
+        <p
+          className="flex-none text-[1.75rem] font-bold leading-none tracking-[-0.03em]"
+          style={{ color: safetyScore === null ? "var(--ink-3)" : tone.ink }}
+        >
+          {safetyScore === null ? "—" : safetyScore}
+        </p>
       </div>
+      <p className="mt-2 px-1 text-[0.75rem] leading-5 text-ink-3">
+        Out of 100. Produced by rule engines, not by the language model.
+      </p>
     </section>
   );
 }

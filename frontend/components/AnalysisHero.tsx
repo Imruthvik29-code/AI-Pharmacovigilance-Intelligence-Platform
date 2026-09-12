@@ -33,12 +33,12 @@ export function AnalysisHero({
       {run ? <AnalysisReport run={run} /> : null}
 
       {!running && !run && historyLoaded && !historyError ? (
-        <section className="rounded-2xl border border-dashed border-line bg-card px-5 py-8">
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-accent">
+        <section className="rounded-row bg-surface-2 px-5 py-8">
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">
             Analysis report
           </p>
-          <h2 className="mt-2 text-lg font-semibold">No analysis yet</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
+          <h2 className="mt-2 text-[1.0625rem] font-semibold tracking-[-0.01em]">No analysis yet</h2>
+          <p className="mt-2 max-w-xl text-[0.875rem] leading-6 text-ink-2">
             Add medications, then run analysis to generate a safety report from this patient’s
             current record.
           </p>
