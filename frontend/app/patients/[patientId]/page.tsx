@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnalysisHero } from "@/components/AnalysisHero";
-import { AppShell } from "@/components/AppShell";
 import { AuthGate } from "@/components/AuthGate";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { MedicationList } from "@/components/MedicationList";
@@ -12,12 +11,11 @@ import { SchedulePanel } from "@/components/SchedulePanel";
 import { StatusBanner } from "@/components/StatusBanner";
 import { SymptomPanel } from "@/components/SymptomPanel";
 import { TimelineList } from "@/components/TimelineList";
-import { CategoryTabs } from "@/components/patient/CategoryTabs";
-import { DetailSheet } from "@/components/patient/DetailSheet";
+import { DetailScreen } from "@/components/patient/DetailScreen";
+import { PatientCardStack } from "@/components/patient/PatientCardStack";
 import { PatientHero } from "@/components/patient/PatientHero";
-import { PatientWorkspace } from "@/components/patient/PatientWorkspace";
 import { isCategoryId, type CategoryId } from "@/components/patient/categories";
-import { PillButton } from "@/components/ui/PillButton";
+import { PrimaryCTA } from "@/components/ui/PrimaryCTA";
 import { listAnalysisRuns, runAnalysis } from "@/lib/api/analysis";
 import { ApiError } from "@/lib/api/errors";
 import { listMedications } from "@/lib/api/medications";
@@ -35,6 +33,26 @@ import type {
   TimelineEventResponse,
 } from "@/lib/api/types";
 
+const DETAIL_COPY: Record<CategoryId, { title: string; description: string }> = {
+  safety: {
+    title: "Safety",
+    description:
+      "Deterministic analysis of interactions, adverse drug reactions and adherence for this record, explained in plain language.",
+  },
+  medications: {
+    title: "Medications",
+    description: "Prescribed courses, the dose schedule and recorded adherence activity.",
+  },
+  symptoms: {
+    title: "Symptoms",
+    description: "Reported symptoms, their recorded severity and any linked medication.",
+  },
+  timeline: {
+    title: "Timeline",
+    description: "Every recorded event for this patient, most recent first.",
+  },
+};
+
 export default function PatientPageRoute() {
   return (
     <Suspense fallback={null}>
@@ -51,7 +69,7 @@ function PatientPage() {
   const patientId = params.patientId;
 
   const rawCategory = searchParams.get("category");
-  /** Present + valid → detail view. Absent or unknown → overview. */
+  /** Present + valid → detail screen. Absent or unknown → overview. */
   const openCategory: CategoryId | null = isCategoryId(rawCategory) ? rawCategory : null;
 
   const [previewCategory, setPreviewCategory] = useState<CategoryId>("safety");
@@ -177,7 +195,7 @@ function PatientPage() {
     };
   }, [patientId, loadAttempt, refreshSecondary]);
 
-  // Returning from a detail keeps that category previewed on the overview.
+  // Returning from a detail leaves that category in front on the overview.
   useEffect(() => {
     if (openCategory) setPreviewCategory(openCategory);
   }, [openCategory]);
@@ -210,21 +228,20 @@ function PatientPage() {
     router.push(pathname);
   }
 
-  const workspaceData = { analysis, medications, symptoms, timeline };
   const activeCount = activeMedicationCount(medications);
   const unresolvedSymptoms = unresolvedSymptomCount(symptoms);
 
   return (
     <AuthGate>
-      <AppShell bleed>
+      <div className="pv-canvas flex min-h-screen flex-col">
         {loading ? (
-          <div className="px-4 pt-6 sm:px-6">
+          <div className="px-4 pt-8 sm:px-6">
             <LoadingSkeleton label="Loading patient" lines={4} />
           </div>
         ) : null}
 
         {pageError ? (
-          <div className="space-y-3 px-4 pt-6 sm:px-6">
+          <div className="space-y-3 px-4 pt-8 sm:px-6">
             <StatusBanner tone="error" role="alert">
               {pageError}
             </StatusBanner>
@@ -238,139 +255,124 @@ function PatientPage() {
           </div>
         ) : null}
 
-        {patient ? (
-          <>
-            <PatientHero
-              patient={patient}
-              variant={openCategory ? "compact" : "full"}
-              back={
-                openCategory
-                  ? { label: "Back to overview", onClick: backToOverview }
-                  : { label: "Back to patients", href: "/dashboard" }
-              }
-            />
-
+        {patient && openCategory ? (
+          <DetailScreen
+            categoryId={openCategory}
+            patient={patient}
+            title={DETAIL_COPY[openCategory].title}
+            description={DETAIL_COPY[openCategory].description}
+            onBack={backToOverview}
+            footer={
+              openCategory === "safety" ? (
+                <PrimaryCTA
+                  onClick={() => void handleRunAnalysis()}
+                  disabled={running}
+                  busy={running}
+                >
+                  {running ? "Running analysis…" : "Run analysis"}
+                </PrimaryCTA>
+              ) : null
+            }
+          >
             {analysisError ? (
-              <div className="mt-4 px-4 sm:px-6">
-                <StatusBanner tone="error" role="alert">
-                  {analysisError}
-                </StatusBanner>
-              </div>
+              <StatusBanner tone="error" role="alert">
+                {analysisError}
+              </StatusBanner>
             ) : null}
 
-            {openCategory ? (
-              <div className="px-detail space-y-4">
-                <CategoryTabs activeId={openCategory} onSelect={openDetail} />
+            {openCategory === "safety" ? (
+              <AnalysisHero
+                run={analysis}
+                historyError={analysisHistoryError}
+                historyLoaded={analysisHistoryLoaded}
+                running={running}
+              />
+            ) : null}
 
-                {openCategory === "safety" ? (
-                  <DetailSheet
-                    categoryId="safety"
-                    title="Safety analysis"
-                    meta="Deterministic findings from the interaction, ADR and adherence engines, explained in plain language."
-                    footer={
-                      <PillButton
-                        onClick={() => void handleRunAnalysis()}
-                        disabled={running}
-                        busy={running}
-                        width="block"
-                      >
-                        {running ? "Running analysis…" : "Run analysis"}
-                      </PillButton>
-                    }
+            {openCategory === "medications" ? (
+              <>
+                <MedicationList medications={medications} error={medError} showHeading={false} />
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPicker((open) => !open)}
+                    className={`${secondaryButtonClass} w-full justify-center sm:w-auto`}
                   >
-                    <AnalysisHero
-                      run={analysis}
-                      historyError={analysisHistoryError}
-                      historyLoaded={analysisHistoryLoaded}
-                      running={running}
-                    />
-                  </DetailSheet>
-                ) : null}
-
-                {openCategory === "medications" ? (
-                  <DetailSheet
-                    categoryId="medications"
-                    title="Medications"
-                    meta={`${activeCount} active of ${medications.length} recorded, with the dose schedule and adherence activity.`}
-                  >
-                    <MedicationList medications={medications} error={medError} showHeading={false} />
-
-                    <div className="border-t border-hairline pt-5">
-                      <button
-                        type="button"
-                        onClick={() => setShowPicker((open) => !open)}
-                        className={`${secondaryButtonClass} w-full justify-center sm:w-auto`}
-                      >
-                        {showPicker ? "Hide medication form" : "Add medication"}
-                      </button>
-                      {showPicker ? (
-                        <div className="mt-4">
-                          <MedicationPicker
-                            patientId={patientId}
-                            onCreated={(medication) => {
-                              setMedications((current) => [...current, medication]);
-                              setShowPicker(false);
-                              void refreshSecondary();
-                            }}
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="border-t border-hairline pt-5">
-                      <SchedulePanel
+                    {showPicker ? "Hide medication form" : "Add medication"}
+                  </button>
+                  {showPicker ? (
+                    <div className="mt-4">
+                      <MedicationPicker
                         patientId={patientId}
-                        medications={medications}
-                        onTimelineRefresh={() => void refreshSecondary()}
+                        onCreated={(medication) => {
+                          setMedications((current) => [...current, medication]);
+                          setShowPicker(false);
+                          void refreshSecondary();
+                        }}
                       />
                     </div>
-                  </DetailSheet>
-                ) : null}
+                  ) : null}
+                </div>
+                <SchedulePanel
+                  patientId={patientId}
+                  medications={medications}
+                  onTimelineRefresh={() => void refreshSecondary()}
+                />
+                <p className="pv-row-meta px-0.5">
+                  {activeCount} active of {medications.length} recorded
+                </p>
+              </>
+            ) : null}
 
-                {openCategory === "symptoms" ? (
-                  <DetailSheet
-                    categoryId="symptoms"
-                    title="Symptoms"
-                    meta={`${unresolvedSymptoms} unresolved of ${symptoms.length} reported.`}
-                  >
-                    <SymptomPanel
-                      patientId={patientId}
-                      medications={medications}
-                      symptoms={symptoms}
-                      loading={symptomsLoading}
-                      error={symptomsError}
-                      onCreated={(symptom) => {
-                        setSymptoms((current) => [...current, symptom]);
-                        void refreshSecondary();
-                      }}
-                      showHeading={false}
-                    />
-                  </DetailSheet>
-                ) : null}
+            {openCategory === "symptoms" ? (
+              <>
+                <SymptomPanel
+                  patientId={patientId}
+                  medications={medications}
+                  symptoms={symptoms}
+                  loading={symptomsLoading}
+                  error={symptomsError}
+                  onCreated={(symptom) => {
+                    setSymptoms((current) => [...current, symptom]);
+                    void refreshSecondary();
+                  }}
+                  showHeading={false}
+                />
+                <p className="pv-row-meta px-0.5">
+                  {unresolvedSymptoms} unresolved of {symptoms.length} reported
+                </p>
+              </>
+            ) : null}
 
-                {openCategory === "timeline" ? (
-                  <DetailSheet
-                    categoryId="timeline"
-                    title="Patient timeline"
-                    meta={`${timeline.length} recorded ${timeline.length === 1 ? "event" : "events"}, most recent first.`}
-                  >
-                    <TimelineList events={timeline} error={timelineError} showHeading={false} />
-                  </DetailSheet>
-                ) : null}
-              </div>
-            ) : (
-              <PatientWorkspace
+            {openCategory === "timeline" ? (
+              <TimelineList events={timeline} error={timelineError} showHeading={false} />
+            ) : null}
+          </DetailScreen>
+        ) : null}
+
+        {patient && !openCategory ? (
+          <>
+            <PatientHero patient={patient} backHref="/dashboard" backLabel="Back to patients" />
+            <div className="pv-sheet flex-1">
+              {analysisError ? (
+                <div className="mb-4 px-4 sm:px-6">
+                  <StatusBanner tone="error" role="alert">
+                    {analysisError}
+                  </StatusBanner>
+                </div>
+              ) : null}
+              <PatientCardStack
                 activeId={previewCategory}
                 onSelect={setPreviewCategory}
                 onOpen={openDetail}
                 onRunAnalysis={() => void handleRunAnalysis()}
                 analysisRunning={running}
-                data={workspaceData}
+                data={{ analysis, medications, symptoms, timeline }}
               />
-            )}
+            </div>
           </>
         ) : null}
-      </AppShell>
+      </div>
     </AuthGate>
   );
 }

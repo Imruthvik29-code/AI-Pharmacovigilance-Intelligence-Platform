@@ -21,10 +21,6 @@ vi.mock("@/components/AuthGate", () => ({
   AuthGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("@/components/AppShell", () => ({
-  AppShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
-}));
-
 vi.mock("@/components/LoadingSkeleton", () => ({
   LoadingSkeleton: ({ label }: { label: string }) => <div role="status">{label}</div>,
 }));

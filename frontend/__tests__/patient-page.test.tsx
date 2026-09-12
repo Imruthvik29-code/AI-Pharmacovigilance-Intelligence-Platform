@@ -24,7 +24,6 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/hooks/usePageTitle", () => ({ usePageTitle: vi.fn() }));
 vi.mock("@/components/AuthGate", () => ({ AuthGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
-vi.mock("@/components/AppShell", () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
 vi.mock("@/components/LoadingSkeleton", () => ({ LoadingSkeleton: ({ label }: { label: string }) => <div>{label}</div> }));
 vi.mock("@/components/StatusBanner", () => ({ StatusBanner: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("@/components/AnalysisHero", () => ({ AnalysisHero: ({ run }: { run: AnalysisRunResponse | null }) => <section>{run ? `Latest analysis: ${run.id}` : "No analysis yet"}</section> }));
