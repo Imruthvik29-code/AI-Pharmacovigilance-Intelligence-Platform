@@ -71,11 +71,11 @@ export function PatientWorkspaceCards({ analysis, medications, symptoms, timelin
         <div className="workspace-primary-copy">{briefFor(section.id, analysis, medications, symptoms, timeline)}</div>
         {hidden ? null : section.id === "safety" && !analysis ? (
           <button type="button" className="workspace-primary-action" onClick={() => onRunAnalysis?.()} disabled={!onRunAnalysis || analysisRunning}>
-            {analysisRunning ? "Running analysis…" : "Run analysis"}<span aria-hidden="true">→</span>
+            {analysisRunning ? "Running analysis…" : "Run analysis"}<span className="workspace-action-badge" aria-hidden="true">→</span>
           </button>
         ) : (
-          <button type="button" className="workspace-primary-action" onClick={() => onViewDetails?.(section.id)}>
-            View {section.label.toLowerCase()} details <span aria-hidden="true">→</span>
+          <button type="button" aria-label={`View ${section.label.toLowerCase()} details`} className="workspace-primary-action" onClick={() => onViewDetails?.(section.id)}>
+            View details <span className="workspace-action-badge" aria-hidden="true">→</span>
           </button>
         )}
       </article>

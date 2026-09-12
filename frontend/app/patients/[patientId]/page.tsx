@@ -175,7 +175,7 @@ export default function PatientPage() {
 
         {patient ? (
           <>
-            <header className="patient-hero">
+            <header className={`patient-hero ${detailSection ? "is-detail" : ""}`}>
               <PatientAvatar patient={patient} size="lg" />
               <div className="patient-hero-copy">
                 <p className="patient-hero-kicker">Patient record</p>
@@ -186,7 +186,7 @@ export default function PatientPage() {
               {!detailSection ? <p className="patient-hero-note">A focused record for treatment, symptoms, and safety.</p> : null}
             </header>
             {!detailSection ? <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} onRunAnalysis={() => void handleRunAnalysis()} analysisRunning={running} /> : null}
-            {detailSection ? <div className="mt-7 flex items-center justify-between"><button type="button" onClick={() => setDetailSection(null)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 text-sm font-medium">← Overview</button><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Details</p></div> : null}
+            {detailSection ? <div className="detail-toolbar"><button type="button" onClick={() => setDetailSection(null)} className="detail-back"><span aria-hidden="true">←</span> Overview</button><p>{detailSection}</p></div> : null}
 
             {analysisError ? <div className="mt-4"><StatusBanner tone="error" role="alert">{analysisError}</StatusBanner></div> : null}
 
