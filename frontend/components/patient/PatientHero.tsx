@@ -34,16 +34,13 @@ export function PatientHero({
             <ArrowLeftIcon className="h-5 w-5" />
           </span>
         </Link>
-        <span
-          aria-label={`${patient.name} initials`}
-          className="pv-initials h-11 w-11 text-sm sm:h-12 sm:w-12 sm:text-base"
-        >
-          {patientInitials(patient.name)}
-        </span>
       </div>
 
-      <div className="mt-auto pt-8">
-        <h1 className="pv-hero-name">{patient.name}</h1>
+      <div className="mt-auto pt-6">
+        <span aria-label={`${patient.name} initials`} className="pv-hero-mark">
+          {patientInitials(patient.name)}
+        </span>
+        <h1 className="pv-hero-name mt-4">{patient.name}</h1>
         <p className="pv-hero-meta">{demographicLine(patient)}</p>
       </div>
     </header>

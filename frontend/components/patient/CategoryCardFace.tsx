@@ -41,7 +41,7 @@ export function CategoryCardFace({
       <h2 className="pv-card-title mt-3 lg:mt-4">{category.label}</h2>
       <p className="pv-card-desc line-clamp-3 sm:line-clamp-4">{category.description}</p>
 
-      <ul className="mt-3.5 space-y-2 sm:mt-4 sm:space-y-2.5 lg:mt-5 lg:space-y-3">
+      <ul className="mt-auto space-y-2 pt-4 sm:space-y-2.5 lg:space-y-3">
         {rows.map((row) => (
           <li key={row.key} className="flex items-start gap-2">
             <span className="mt-px flex-none" style={{ color: row.ink }} aria-hidden="true">
@@ -61,7 +61,7 @@ export function CategoryCardFace({
         ))}
       </ul>
 
-      <div className="mt-auto pt-3.5">
+      <div className="pt-4">
         {offerRun ? (
           <PrimaryCTA
             onClick={onRunAnalysis}

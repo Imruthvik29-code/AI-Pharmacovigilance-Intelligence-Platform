@@ -181,7 +181,7 @@ export default function DashboardPage() {
                 {patients.length} {patients.length === 1 ? "record" : "records"}
               </span>
             </div>
-            <ul className="grid gap-3 min-[420px]:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(11.5rem,1fr))]">
               {rest.map((patient) => (
                 <li key={patient.id}>
                   <button
