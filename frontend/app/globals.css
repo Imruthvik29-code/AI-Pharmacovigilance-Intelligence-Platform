@@ -19,9 +19,9 @@
 
   /* Identity surface: abstract stand-in for the reference photograph, keeping
      its tonal composition (warm light upper-right, deep mass lower-left). */
-  --identity-a: #2a4750;
-  --identity-b: #1b2e34;
-  --identity-c: #101a1e;
+  --identity-a: #3c6069;
+  --identity-b: #1d333a;
+  --identity-c: #0a1316;
 
   /* Text */
   --ink: #15181c;
@@ -192,11 +192,12 @@ textarea {
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(212deg, rgb(255 213 168 / 0.4) 0%, rgb(255 213 168 / 0.1) 22%, transparent 44%),
-      linear-gradient(196deg, transparent 26%, rgb(150 205 196 / 0.1) 46%, transparent 64%),
-      linear-gradient(0deg, rgb(10 18 21 / 0.5) 0%, transparent 40%),
-      radial-gradient(150% 95% at 88% -6%, rgb(255 226 192 / 0.24), transparent 58%),
-      radial-gradient(120% 90% at 4% 104%, rgb(6 13 16 / 0.62), transparent 66%);
+      radial-gradient(88% 52% at 84% -14%, rgb(255 226 190 / 0.46), transparent 72%),
+      linear-gradient(208deg, rgb(255 216 172 / 0.34) 0%, rgb(255 216 172 / 0.06) 26%, transparent 46%),
+      linear-gradient(194deg, transparent 24%, rgb(163 214 205 / 0.12) 44%, transparent 62%),
+      radial-gradient(150% 66% at 100% -6%, rgb(255 233 208 / 0.16), transparent 62%),
+      radial-gradient(110% 78% at 2% 108%, rgb(4 10 12 / 0.78), transparent 62%),
+      linear-gradient(0deg, rgb(6 12 15 / 0.62) 0%, transparent 46%);
     pointer-events: none;
   }
 
@@ -289,7 +290,7 @@ textarea {
     --pad-l: 1rem;
     --pad-r: 0.625rem;
     --tab-w: 2.75rem;
-    --tab-gap: 0.1875rem;
+    --tab-gap: 0.375rem;
     --rail-w: calc(3 * var(--tab-w) + 2 * var(--tab-gap));
     --overlap: 0.5rem;
     --card-h: 24rem;
@@ -573,7 +574,7 @@ textarea {
     --pad-l: 1.5rem;
     --pad-r: 0.875rem;
     --tab-w: 3.125rem;
-    --tab-gap: 0.25rem;
+    --tab-gap: 0.4375rem;
     --card-h: 25.5rem;
   }
 
@@ -622,7 +623,7 @@ textarea {
     --pad-l: 2rem;
     --pad-r: 1.5rem;
     --tab-w: 3.25rem;
-    --tab-gap: 0.3125rem;
+    --tab-gap: 0.5rem;
     --overlap: 0.625rem;
     --card-h: 25.5rem;
   }

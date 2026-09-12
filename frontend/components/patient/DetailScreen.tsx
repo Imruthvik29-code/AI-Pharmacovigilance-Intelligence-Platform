@@ -62,16 +62,26 @@ export function DetailScreen({
       </div>
 
       <section className="pv-detail pt-7 lg:pt-10" aria-labelledby="detail-heading">
-        <IconChip Icon={category.Icon} surface={category.surface} ink={category.ink} size="lg" />
-        <h1
-          id="detail-heading"
-          ref={headingRef}
-          tabIndex={-1}
-          className="pv-detail-title pv-quiet-focus mt-3.5"
-        >
-          {title}
-        </h1>
-        <p className="pv-detail-desc max-w-xl">{description}</p>
+        <div className="flex items-start gap-3.5">
+          <IconChip
+            Icon={category.Icon}
+            surface={category.surface}
+            ink={category.ink}
+            size="lg"
+            className="mt-0.5"
+          />
+          <div className="min-w-0">
+            <h1
+              id="detail-heading"
+              ref={headingRef}
+              tabIndex={-1}
+              className="pv-detail-title pv-quiet-focus"
+            >
+              {title}
+            </h1>
+            <p className="pv-detail-desc">{description}</p>
+          </div>
+        </div>
 
         <div className="mt-5 space-y-6">{children}</div>
 

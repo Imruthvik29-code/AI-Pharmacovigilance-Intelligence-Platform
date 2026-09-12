@@ -2,7 +2,15 @@ import { Disclaimer } from "@/components/Disclaimer";
 import { SafetyScoreCard } from "@/components/SafetyScoreCard";
 import { IconChip } from "@/components/ui/IconChip";
 import { SeverityPill } from "@/components/ui/SeverityPill";
-import { AlertIcon, CheckIcon, DocumentIcon, PulseIcon, SparkIcon } from "@/components/icons/Icons";
+import {
+  AlertIcon,
+  CheckIcon,
+  ClockIcon,
+  DocumentIcon,
+  PulseIcon,
+  SparkIcon,
+} from "@/components/icons/Icons";
+import { StatRow } from "@/components/ui/StatRow";
 import { parseDeterministicResult } from "@/lib/analysis/deterministic";
 import {
   evidenceSources,
@@ -18,6 +26,11 @@ const SEVERITY_TONE = {
   moderate: { surface: "var(--moderate-bg)", ink: "var(--moderate-fg)" },
   mild: { surface: "var(--mild-bg)", ink: "var(--mild-fg)" },
 } as const;
+
+/** "1 finding" / "2 findings" — reported, never computed. */
+function countLabel(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
 
 function EmptyNote({ children }: { children: React.ReactNode }) {
   return (
@@ -95,31 +108,22 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
 
       <SafetyScoreCard safetyScore={run.safety_score} riskLevel={run.risk_level} />
 
-      <div
-        className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[0.8125rem] text-ink-2"
-        aria-label="Finding counts"
-      >
-        <span>
-          Interactions <strong className="font-semibold text-ink">{interactionCount}</strong>
-        </span>
-        <span aria-hidden="true" className="text-ink-3">
-          ·
-        </span>
-        <span>
-          ADRs <strong className="font-semibold text-ink">{adrCount}</strong>
-        </span>
-        <span aria-hidden="true" className="text-ink-3">
-          ·
-        </span>
-        <span>
-          Adherence records <strong className="font-semibold text-ink">{adherenceCount}</strong>
-        </span>
-        <span className="w-full text-[0.75rem] text-ink-3">
-          Last analysis {formatDateTime(run.created_at)} · version {run.analysis_version}
-        </span>
-      </div>
+      <StatRow
+        Icon={ClockIcon}
+        surface="var(--surface-2)"
+        ink="var(--ink-2)"
+        title="Last analysis"
+        meta={formatDateTime(run.created_at)}
+        trailing={
+          <span className="pv-row-meta flex-none">version {run.analysis_version}</span>
+        }
+      />
 
-      <Block eyebrow="Deterministic engine" title="Drug interactions">
+      <Block
+        eyebrow="Deterministic engine"
+        title="Drug interactions"
+        meta={countLabel(interactionCount, "finding")}
+      >
         {result && result.interaction_findings.length > 0 ? (
           <ul className="space-y-2">
             {result.interaction_findings.map((finding) => (
@@ -157,7 +161,11 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
         )}
       </Block>
 
-      <Block eyebrow="Deterministic engine" title="Adverse drug reactions">
+      <Block
+        eyebrow="Deterministic engine"
+        title="Adverse drug reactions"
+        meta={countLabel(adrCount, "finding")}
+      >
         {result && result.adr_findings.length > 0 ? (
           <ul className="space-y-2">
             {result.adr_findings.map((finding) => (
@@ -216,7 +224,11 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
       </Block>
 
       {result && result.adherence_findings.length > 0 ? (
-        <Block eyebrow="Observed history" title="Adherence">
+        <Block
+          eyebrow="Observed history"
+          title="Adherence"
+          meta={countLabel(adherenceCount, "record")}
+        >
           <ul className="space-y-2">
             {result.adherence_findings.map((finding) => (
               <li key={finding.medication_id} className="pv-row">
