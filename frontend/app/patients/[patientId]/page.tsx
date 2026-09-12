@@ -161,7 +161,7 @@ export default function PatientPage() {
   return (
     <AuthGate>
       <AppShell>
-        <Link href="/dashboard" className="inline-flex items-center gap-1 text-xs font-medium text-muted transition-colors hover:text-accent">
+        <Link href="/dashboard" className="patient-back-link">
           <span aria-hidden="true">←</span> Patients
         </Link>
 
@@ -175,15 +175,18 @@ export default function PatientPage() {
 
         {patient ? (
           <>
-            <header className="mt-5 text-center">
-              <div className="flex justify-center"><PatientAvatar patient={patient} size="lg" /></div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{patient.name}</h1>
-              <p className="mt-1 text-sm text-muted">{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
-              {patient.relation ? <p className="mt-1 text-sm text-muted">{patient.relation === "Self" ? "My profile" : patient.relation}</p> : null}
-              {!detailSection ? <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.2em] text-accent">Patient overview</p> : null}
+            <header className={`patient-hero ${detailSection ? "is-detail" : ""}`}>
+              <PatientAvatar patient={patient} size="lg" />
+              <div className="patient-hero-copy">
+                <p className="patient-hero-kicker">Patient record</p>
+                <h1>{patient.name}</h1>
+                <p>{[patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean).join(" · ") || "No demographics recorded"}</p>
+                {patient.relation ? <span>{patient.relation === "Self" ? "My profile" : patient.relation}</span> : null}
+              </div>
+              {!detailSection ? <p className="patient-hero-note">A focused record for treatment, symptoms, and safety.</p> : null}
             </header>
             {!detailSection ? <PatientWorkspaceCards analysis={analysis} medications={medications} symptoms={symptoms} timeline={timeline} onViewDetails={handleViewDetails} onRunAnalysis={() => void handleRunAnalysis()} analysisRunning={running} /> : null}
-            {detailSection ? <div className="mt-7 flex items-center justify-between"><button type="button" onClick={() => setDetailSection(null)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 text-sm font-medium">← Overview</button><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">Details</p></div> : null}
+            {detailSection ? <div className="detail-toolbar"><button type="button" onClick={() => setDetailSection(null)} className="detail-back"><span aria-hidden="true">←</span> Overview</button><p>{detailSection}</p></div> : null}
 
             {analysisError ? <div className="mt-4"><StatusBanner tone="error" role="alert">{analysisError}</StatusBanner></div> : null}
 
