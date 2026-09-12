@@ -572,6 +572,56 @@ textarea {
   }
 
   /* ============================================================== Roster */
+  /* The directory owns its shell, so the patient screens' canvas is untouched. */
+  .pv-directory {
+    padding: 2rem 1rem 4rem;
+  }
+
+  /* A patient entry: identity first, supporting detail compact, one target. */
+  .pv-roster-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 1rem;
+    min-height: 5.5rem;
+    border-radius: var(--r-card);
+    background: var(--surface);
+    padding: 1rem 1.125rem;
+    text-align: left;
+    box-shadow: var(--e-row);
+    transition: transform 180ms var(--stack-ease), box-shadow 180ms var(--stack-ease);
+  }
+
+  .pv-roster-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--e-float);
+  }
+
+  .pv-roster-name {
+    display: block;
+    font-size: 1.0625rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  /* Relation, in the supported vocabulary, kept deliberately quiet. */
+  .pv-relation {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: var(--surface-2);
+    padding: 0.1875rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  .pv-relation-on-dark {
+    background: rgb(255 255 255 / 0.18);
+    color: var(--on-dark);
+  }
+
   /* The lead record is presented as a layered card in the overview's own
      language: identity surface in front, category tints standing behind its
      right edge. Same data, same destination - only the composition differs. */
@@ -593,7 +643,7 @@ textarea {
   .pv-lead-peek {
     width: 2.25rem;
     border-radius: var(--r-card);
-    box-shadow: 0 6px 16px -6px rgb(21 24 28 / 0.28);
+    box-shadow: 0 8px 20px -8px rgb(21 24 28 / 0.3);
   }
 
   .pv-lead {
@@ -691,24 +741,6 @@ textarea {
     letter-spacing: -0.01em;
   }
 
-  .pv-roster-card {
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: 0.875rem;
-    min-height: 5.25rem;
-    border-radius: var(--r-card);
-    background: var(--surface);
-    padding: 1rem 1.125rem;
-    text-align: left;
-    box-shadow: var(--e-row);
-    transition: transform 180ms var(--stack-ease), box-shadow 180ms var(--stack-ease);
-  }
-
-  .pv-roster-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 32px -14px rgb(21 24 28 / 0.3);
-  }
 }
 
 /* ===================================================== 440px and wider */
@@ -759,6 +791,10 @@ textarea {
   .pv-topbar,
   .pv-detail {
     padding-inline: 1.5rem;
+  }
+
+  .pv-directory {
+    padding: 2.25rem 1.5rem 4.5rem;
   }
 
   .pv-lead {
@@ -840,8 +876,34 @@ textarea {
     font-size: 2rem;
   }
 
+  .pv-directory {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 2.75rem 2.5rem 5rem;
+  }
+
+  /* Lead identity holds the left column; the roster fills the right. */
+  .pv-directory-body {
+    display: grid;
+    grid-template-columns: minmax(0, 25rem) minmax(0, 1fr);
+    gap: 2.5rem;
+    align-items: start;
+  }
+
   .pv-lead-stage {
-    max-width: 30rem;
+    max-width: none;
+  }
+
+  /* Shorter inset at desktop so the peeks read as cards behind the lead. */
+  .pv-lead-peeks {
+    inset: 2.75rem 0 2.75rem auto;
+  }
+
+  /* Two across fills the roster column instead of one very wide row. */
+  .pv-roster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 0.875rem;
   }
 
   .pv-lead {
@@ -856,15 +918,15 @@ textarea {
   .pv-dot,
   .pv-cta,
   .pv-round,
-  .pv-roster-card,
   .pv-lead,
+  .pv-roster-item,
   .pv-chip-card {
     transition-duration: 1ms !important;
   }
 
   .pv-cta:hover:not(:disabled),
-  .pv-roster-card:hover,
   .pv-lead:hover,
+  .pv-roster-item:hover,
   .pv-chip-card:hover {
     transform: none;
   }
