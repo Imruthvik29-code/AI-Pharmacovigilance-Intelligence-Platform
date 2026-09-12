@@ -156,7 +156,7 @@ export function MedicationPicker({
     : undefined;
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg bg-surface-sunk p-5 sm:p-6">
+    <form onSubmit={handleSubmit} className="rounded-card bg-surface-2 p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">Medication identity</p>
@@ -193,14 +193,14 @@ export function MedicationPicker({
         {searching ? <p className="mt-2 text-sm text-muted">Checking the medication catalog…</p> : null}
         {searchError ? <div className="mt-2"><StatusBanner tone="error" role="alert">{searchError}</StatusBanner></div> : null}
         {!searching && !searchError && query.trim().length >= REFERENCE_DRUG_MIN_QUERY_LENGTH && open && results.length === 0 ? (
-          <div className="mt-3 rounded-md bg-surface p-4">
+          <div className="mt-3 rounded-row bg-surface p-4">
             <p className="text-sm font-medium">We couldn’t find a verified catalog match.</p>
             <p className="mt-1 text-xs leading-5 text-muted">Check the spelling or use the active ingredient printed on the package. We won’t guess a medication identity.</p>
           </div>
         ) : null}
 
         {open && results.length > 0 ? (
-          <ul id={listId} role="listbox" className="mt-2 max-h-72 overflow-auto rounded-md bg-surface p-1 shadow-[var(--e2)]">
+          <ul id={listId} role="listbox" className="mt-2 max-h-72 overflow-auto rounded-row bg-surface p-1 shadow-[var(--e-float)]">
             {results.map((drug, index) => {
               const active = index === activeIndex;
               return (
@@ -211,11 +211,11 @@ export function MedicationPicker({
                   aria-selected={active}
                   onMouseEnter={() => setActiveIndex(index)}
                   onMouseDown={(event) => { event.preventDefault(); selectDrug(drug); }}
-                  className={`cursor-pointer rounded-md px-3 py-3 ${active ? "bg-surface-sunk" : "hover:bg-surface-sunk/70"}`}
+                  className={`cursor-pointer rounded-md px-3 py-3 ${active ? "bg-surface-2" : "hover:bg-surface-2/70"}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold">{drug.name}</span>
-                    <span className="rounded-full bg-surface-sunk px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-ink-2">
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-ink-2">
                       {drug.term_type || "match"}
                     </span>
                   </div>
@@ -228,7 +228,7 @@ export function MedicationPicker({
       </div>
 
       {selected ? (
-        <div className="mt-4 rounded-md bg-mild-surface p-4">
+        <div className="mt-4 rounded-row bg-mild-surface p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Medication selected</p>
           <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="text-base font-semibold">{selected.name}</span>

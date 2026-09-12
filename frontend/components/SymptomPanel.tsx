@@ -83,14 +83,14 @@ export function SymptomPanel({
     <section aria-label="Symptoms">
       {showHeading ? (
         <div className="px-1">
-          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">Patient report</p>
-          <h2 className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em]">Symptoms</h2>
+          <p className="pv-eyebrow">Patient report</p>
+          <h2 className="pv-section-title mt-0.5">Symptoms</h2>
           <p className="mt-1 text-[0.8125rem] leading-5 text-ink-2">Record a new symptom and, when known, the medication it may relate to.</p>
         </div>
       ) : null}
 
       <div className={`${showHeading ? "mt-3" : ""} grid gap-4 lg:grid-cols-[0.9fr_1.1fr]`}>
-        <form onSubmit={handleSubmit} className="rounded-md bg-surface-sunk p-4">
+        <form onSubmit={handleSubmit} className="rounded-row bg-surface-2 p-4">
           <div>
             <label className="block text-[0.875rem] font-semibold" htmlFor={descriptionId}>What are you experiencing?</label>
             <textarea
@@ -143,9 +143,9 @@ export function SymptomPanel({
 
         <div>
           {loading ? <p className="text-[0.875rem] text-ink-2">Loading symptom history…</p> : null}
-          {error ? <p className="rounded-md bg-severe-surface px-4 py-3 text-[0.875rem] text-severe" role="alert">{error}</p> : null}
+          {error ? <p className="rounded-row bg-severe-bg px-4 py-3 text-[0.875rem] text-severe" role="alert">{error}</p> : null}
           {!loading && !error && symptoms.length === 0 ? (
-            <div className="rounded-md bg-surface-sunk px-4 py-6">
+            <div className="rounded-row bg-surface-2 px-4 py-6">
               <p className="text-[0.9375rem] font-semibold">No symptoms recorded</p>
               <p className="mt-1 text-[0.875rem] leading-6 text-ink-2">Reported symptoms will stay in the patient record and appear in the timeline.</p>
             </div>
@@ -153,7 +153,7 @@ export function SymptomPanel({
           {!loading && !error && symptoms.length > 0 ? (
             <div className="space-y-2">
               {[...symptoms].reverse().map((symptom) => (
-                <article key={symptom.id} className="px-row items-start">
+                <article key={symptom.id} className="pv-row items-start">
                   <IconChip Icon={PulseIcon} surface="var(--symptoms-surface)" ink="var(--symptoms-ink)" size="sm" />
                   <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-start justify-between gap-2">

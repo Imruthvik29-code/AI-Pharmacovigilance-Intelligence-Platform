@@ -33,7 +33,7 @@ export function AnalysisHero({
       {run ? <AnalysisReport run={run} /> : null}
 
       {!running && !run && historyLoaded && !historyError ? (
-        <section className="rounded-md bg-surface-sunk px-5 py-8">
+        <section className="rounded-row bg-surface-2 px-5 py-8">
           <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">
             Analysis report
           </p>

@@ -42,10 +42,10 @@ export function TimelineList({
     <section aria-label="Patient timeline">
       {showHeading ? (
         <div className="px-1">
-          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">
+          <p className="pv-eyebrow">
             Record
           </p>
-          <h2 className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em]">Timeline</h2>
+          <h2 className="pv-section-title mt-0.5">Timeline</h2>
           <p className="mt-1 text-[0.8125rem] leading-5 text-ink-2">
             A chronological view of recorded patient activity.
           </p>
@@ -55,12 +55,12 @@ export function TimelineList({
       <div className={`${showHeading ? "mt-3" : ""} space-y-2`}>
         {loading ? <LoadingSkeleton label="Loading timeline" lines={3} /> : null}
         {error ? (
-          <p className="rounded-md bg-severe-surface px-4 py-3 text-[0.875rem] text-severe" role="alert">
+          <p className="rounded-row bg-severe-bg px-4 py-3 text-[0.875rem] text-severe" role="alert">
             {error}
           </p>
         ) : null}
         {!loading && !error && events.length === 0 ? (
-          <div className="rounded-md bg-surface-sunk px-4 py-5">
+          <div className="rounded-row bg-surface-2 px-4 py-5">
             <p className="text-[0.9375rem] font-semibold">No events yet</p>
             <p className="mt-1 text-[0.875rem] leading-6 text-ink-2">
               Adding a medication or running analysis will appear here.
@@ -73,7 +73,7 @@ export function TimelineList({
             {events.map((event) => {
               const tone = toneFor(event.event_type);
               return (
-                <li key={event.id} className="px-row items-start">
+                <li key={event.id} className="pv-row items-start">
                   <IconChip Icon={tone.Icon} surface={tone.surface} ink={tone.ink} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">

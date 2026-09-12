@@ -14,14 +14,14 @@ import {
 import type { AnalysisRunResponse } from "@/lib/api/types";
 
 const SEVERITY_TONE = {
-  severe: { surface: "var(--severe-surface)", ink: "var(--severe-ink)" },
-  moderate: { surface: "var(--moderate-surface)", ink: "var(--moderate-ink)" },
-  mild: { surface: "var(--mild-surface)", ink: "var(--mild-ink)" },
+  severe: { surface: "var(--severe-bg)", ink: "var(--severe-fg)" },
+  moderate: { surface: "var(--moderate-bg)", ink: "var(--moderate-fg)" },
+  mild: { surface: "var(--mild-bg)", ink: "var(--mild-fg)" },
 } as const;
 
 function EmptyNote({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-md bg-surface-sunk px-4 py-3.5 text-[0.8125rem] leading-5 text-ink-2">
+    <p className="rounded-row bg-surface-2 px-4 py-3.5 text-[0.8125rem] leading-5 text-ink-2">
       {children}
     </p>
   );
@@ -40,14 +40,10 @@ function Block({
 }) {
   return (
     <section>
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 px-1">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 px-0.5">
         <div>
-          {eyebrow ? (
-            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">
-              {eyebrow}
-            </p>
-          ) : null}
-          <h3 className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em]">{title}</h3>
+          {eyebrow ? <p className="pv-eyebrow">{eyebrow}</p> : null}
+          <h3 className="pv-section-title mt-0.5">{title}</h3>
         </div>
         {meta ? <div className="text-[0.75rem] text-ink-3">{meta}</div> : null}
       </div>
@@ -78,9 +74,9 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
         >
           <IconChip
             Icon={breakdown.total > 0 ? AlertIcon : CheckIcon}
-            surface="rgb(255 255 255 / 0.66)"
+            surface="rgb(255 255 255 / 0.72)"
             ink={alertTone.ink}
-            size="sm"
+            size="md"
           />
           <div className="min-w-0">
             <p className="text-[0.9375rem] font-semibold" style={{ color: alertTone.ink }}>
@@ -119,7 +115,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
           Adherence records <strong className="font-semibold text-ink">{adherenceCount}</strong>
         </span>
         <span className="w-full text-[0.75rem] text-ink-3">
-          Version {run.analysis_version} · {formatDateTime(run.created_at)}
+          Last analysis {formatDateTime(run.created_at)} · version {run.analysis_version}
         </span>
       </div>
 
@@ -127,7 +123,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
         {result && result.interaction_findings.length > 0 ? (
           <ul className="space-y-2">
             {result.interaction_findings.map((finding) => (
-              <li key={finding.interaction_rule_id} className="px-row items-start">
+              <li key={finding.interaction_rule_id} className="pv-row items-start">
                 <IconChip
                   Icon={AlertIcon}
                   surface={SEVERITY_TONE[finding.severity].surface}
@@ -165,7 +161,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
         {result && result.adr_findings.length > 0 ? (
           <ul className="space-y-2">
             {result.adr_findings.map((finding) => (
-              <li key={finding.adr_rule_id} className="px-row items-start">
+              <li key={finding.adr_rule_id} className="pv-row items-start">
                 <IconChip
                   Icon={PulseIcon}
                   surface={SEVERITY_TONE[finding.severity].surface}
@@ -197,7 +193,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
         {result && result.penalties.length > 0 ? (
           <ul className="space-y-2">
             {result.penalties.map((penalty, index) => (
-              <li key={`${penalty.category}-${index}`} className="px-row">
+              <li key={`${penalty.category}-${index}`} className="pv-row">
                 <div className="min-w-0 flex-1">
                   <p className="text-[0.9375rem] font-medium">{penalty.description}</p>
                   <p className="mt-0.5 text-[0.75rem] uppercase tracking-[0.1em] text-ink-3">
@@ -223,7 +219,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
         <Block eyebrow="Observed history" title="Adherence">
           <ul className="space-y-2">
             {result.adherence_findings.map((finding) => (
-              <li key={finding.medication_id} className="px-row">
+              <li key={finding.medication_id} className="pv-row">
                 <span className="min-w-0 flex-1 text-[0.875rem]">
                   <span className="font-semibold">{finding.drug_name}</span>
                   <span className="text-ink-2">
@@ -242,10 +238,10 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
 
       {sources.length > 0 ? (
         <Block eyebrow="Provenance" title="Evidence sources">
-          <div className="px-row">
+          <div className="pv-row">
             <IconChip
               Icon={DocumentIcon}
-              surface="var(--surface-sunk)"
+              surface="var(--surface-2)"
               ink="var(--ink-2)"
               size="sm"
             />
@@ -267,7 +263,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
           ) : null
         }
       >
-        <div className="px-row flex-col items-start gap-3">
+        <div className="pv-row flex-col items-start gap-3">
           <p className="text-[0.75rem] leading-5 text-ink-3">
             Generated from the recorded deterministic findings.
           </p>
@@ -276,8 +272,8 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
               <p className="flex gap-2.5">
                 <IconChip
                   Icon={SparkIcon}
-                  surface="var(--mild-surface)"
-                  ink="var(--mild-ink)"
+                  surface="var(--mild-bg)"
+                  ink="var(--mild-fg)"
                   size="sm"
                 />
                 <span>{run.llm_summary}</span>
@@ -298,7 +294,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
                   <p className="mt-1">{run.llm_recommendations}</p>
                 </div>
               ) : null}
-              <p className="border-t border-hairline pt-3 text-[0.75rem] leading-5 text-ink-3">
+              <p className="border-t border-line pt-3 text-[0.75rem] leading-5 text-ink-3">
                 The language model explains deterministic findings. It does not compute the safety
                 score or invent rules.
               </p>

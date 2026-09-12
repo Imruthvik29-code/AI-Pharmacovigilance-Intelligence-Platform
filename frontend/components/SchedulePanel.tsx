@@ -113,7 +113,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
 
         {loading ? (
           <div className="space-y-3" aria-label="Loading schedule">
-            {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-md bg-surface-sunk" />)}
+            {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-row bg-surface-2" />)}
           </div>
         ) : doses.length > 0 ? (
           <div className="space-y-3">
@@ -125,7 +125,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
             })}
           </div>
         ) : (
-          <div className="rounded-md bg-surface-sunk px-5 py-8 text-center">
+          <div className="rounded-row bg-surface-2 px-5 py-8 text-center">
             <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-mild-surface text-mild">
               <CheckIcon className="h-5 w-5" />
             </span>
@@ -135,7 +135,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
         )}
 
         {schedulableMedications.length > 0 ? (
-          <div className="mt-6 border-t border-hairline pt-5">
+          <div className="mt-6 border-t border-line pt-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[0.9375rem] font-semibold text-ink">Medication schedules</p>
@@ -146,7 +146,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
               {schedulableMedications.map((medication) => {
                 const drugLabel = displayDrugName(medication.drug_id);
                 return (
-                  <div key={medication.id} className="flex flex-col items-start gap-3 rounded-md bg-surface-sunk px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div key={medication.id} className="flex flex-col items-start gap-3 rounded-row bg-surface-2 px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 max-w-full">
                       <p className="truncate text-[0.875rem] font-semibold text-ink">{drugLabel.name}</p>
                       <p className="mt-0.5 text-[0.75rem] text-ink-3">{medication.dose ?? "Dose not recorded"}</p>
@@ -173,7 +173,7 @@ function DoseRow({ dose, medication, busy, onMark }: { dose: UpcomingDoseRespons
   const medicationLabel = dose.drug_name || displayDrugName(medication?.drug_id ?? "").name;
 
   return (
-    <div className="rounded-md bg-surface px-4 py-4 shadow-[var(--e1)] sm:px-5">
+    <div className="rounded-row bg-surface px-4 py-4 shadow-[var(--e-row)] sm:px-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <IconChip Icon={ClockIcon} surface="var(--medications-surface)" ink="var(--medications-ink)" size="sm" className="mt-0.5" />

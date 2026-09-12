@@ -24,10 +24,10 @@ export function MedicationList({
       {showHeading ? (
         <div className="flex items-end justify-between gap-4 px-1">
           <div>
-            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">
+            <p className="pv-eyebrow">
               Treatment
             </p>
-            <h2 className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em]">Medications</h2>
+            <h2 className="pv-section-title mt-0.5">Medications</h2>
           </div>
           <span className="text-[0.75rem] text-ink-3">
             {medications.length} {medications.length === 1 ? "item" : "items"}
@@ -38,12 +38,12 @@ export function MedicationList({
       <div className={`${showHeading ? "mt-3" : ""} space-y-2`}>
         {loading ? <LoadingSkeleton label="Loading medications" lines={3} /> : null}
         {error ? (
-          <p className="rounded-md bg-severe-surface px-4 py-3 text-[0.875rem] text-severe" role="alert">
+          <p className="rounded-row bg-severe-bg px-4 py-3 text-[0.875rem] text-severe" role="alert">
             {error}
           </p>
         ) : null}
         {!loading && !error && medications.length === 0 ? (
-          <div className="rounded-md bg-surface-sunk px-4 py-5">
+          <div className="rounded-row bg-surface-2 px-4 py-5">
             <p className="text-[0.9375rem] font-semibold">No medications recorded</p>
             <p className="mt-1 text-[0.875rem] leading-6 text-ink-2">
               Search the catalog to add an active course to this patient.
@@ -67,7 +67,7 @@ export function MedicationList({
               const identityVerified = Boolean(medication.drug_name);
 
               return (
-                <article key={medication.id} className="px-row items-start">
+                <article key={medication.id} className="pv-row items-start">
                   <IconChip
                     Icon={CapsuleIcon}
                     surface="var(--medications-surface)"
@@ -88,7 +88,7 @@ export function MedicationList({
                           </span>
                         ) : null}
                       </div>
-                      <span className="shrink-0 rounded-full bg-surface-sunk px-2.5 py-0.5 text-[0.6875rem] font-semibold capitalize text-ink-2">
+                      <span className="shrink-0 rounded-full bg-surface-2 px-2.5 py-0.5 text-[0.6875rem] font-semibold capitalize text-ink-2">
                         {medication.status}
                       </span>
                     </div>
