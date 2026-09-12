@@ -571,60 +571,63 @@ textarea {
     color: var(--ink-2);
   }
 
-  /* ============================================================== Roster */
-  /* The directory owns its shell, so the patient screens' canvas is untouched. */
+  /* =========================================================== Directory */
+  /* The directory owns its shell, so the patient screens' canvas is untouched.
+     One stacking metric drives the whole composition: the lead card and the
+     layers behind it are cut from the same box, so they read as a physical
+     stack rather than as a card with decoration beside it. */
   .pv-directory {
-    padding: 2rem 1rem 4rem;
+    --step-x: 1.125rem;
+    --step-y: 0.875rem;
+    --layers: 2;
+    padding: 1.75rem 1rem 3rem;
   }
 
-  /* A patient entry: identity first, supporting detail compact, one target. */
-  .pv-roster-item {
+  /* Masthead: the title carries the screen, the account line sits above it as
+     an eyebrow, and the two actions cluster instead of scattering. */
+  .pv-directory-head {
     display: flex;
-    width: 100%;
-    align-items: center;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 1rem;
-    min-height: 5.5rem;
-    border-radius: var(--r-card);
-    background: var(--surface);
-    padding: 1rem 1.125rem;
-    text-align: left;
-    box-shadow: var(--e-row);
-    transition: transform 180ms var(--stack-ease), box-shadow 180ms var(--stack-ease);
   }
 
-  .pv-roster-item:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--e-float);
-  }
-
-  .pv-roster-name {
-    display: block;
-    font-size: 1.0625rem;
-    font-weight: 700;
-    letter-spacing: -0.015em;
-  }
-
-  /* Relation, in the supported vocabulary, kept deliberately quiet. */
-  .pv-relation {
-    display: inline-flex;
-    align-items: center;
-    border-radius: 999px;
-    background: var(--surface-2);
-    padding: 0.1875rem 0.625rem;
-    font-size: 0.6875rem;
+  .pv-directory-eyebrow {
+    margin: 0 0 0.375rem;
+    font-size: 0.75rem;
     font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .pv-directory-title {
+    margin: 0;
+    font-size: clamp(2.375rem, 11vw, 3rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+
+  .pv-directory-sub {
+    margin: 0.75rem 0 0;
+    font-size: 0.9375rem;
+    font-weight: 500;
     color: var(--ink-2);
-    white-space: nowrap;
   }
 
-  .pv-relation-on-dark {
-    background: rgb(255 255 255 / 0.18);
-    color: var(--on-dark);
+  .pv-directory-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
   }
 
-  /* The lead record is presented as a layered card in the overview's own
-     language: identity surface in front, category tints standing behind its
-     right edge. Same data, same destination - only the composition differs. */
+  /* ================================================================ Stack */
+  /* The lead record is the screen's dominant object: a portrait identity card
+     with two category-tinted cards standing behind it, each offset right and
+     inset vertically by one step so their rounded edges show as layers. */
   .pv-lead-stage {
     position: relative;
     isolation: isolate;
@@ -632,30 +635,36 @@ textarea {
 
   .pv-lead-peeks {
     position: absolute;
-    inset: 1.25rem 0 1.25rem auto;
-    display: flex;
-    gap: 0.375rem;
-    right: 0;
+    inset: 0;
     z-index: 0;
     pointer-events: none;
   }
 
+  /* Same box as the lead, pushed one or two steps back into the stack. The
+     category ink is mixed towards white rather than using the pale category
+     surface, which would sit too close to the canvas to read as an edge. */
   .pv-lead-peek {
-    width: 2.25rem;
+    position: absolute;
+    top: calc(var(--i) * var(--step-y));
+    bottom: calc(var(--i) * var(--step-y));
+    left: calc(var(--i) * var(--step-x));
+    width: calc(100% - var(--layers) * var(--step-x));
     border-radius: var(--r-card);
-    box-shadow: 0 8px 20px -8px rgb(21 24 28 / 0.3);
+    background: color-mix(in srgb, var(--tint) 26%, #fff);
+    box-shadow: 0 14px 30px -14px rgb(21 24 28 / 0.42);
   }
 
   .pv-lead {
     position: relative;
     z-index: 1;
     display: flex;
-    width: calc(100% - 4rem);
+    width: calc(100% - var(--layers) * var(--step-x));
     flex-direction: column;
     overflow: hidden;
-    min-height: 16rem;
+    aspect-ratio: 5 / 6;
+    min-height: clamp(21rem, 46svh, 29rem);
     border-radius: var(--r-card);
-    padding: 1.25rem;
+    padding: 1.375rem;
     text-align: left;
     color: var(--on-dark);
     background: linear-gradient(163deg, var(--identity-a) 0%, var(--identity-b) 46%, var(--identity-c) 100%);
@@ -685,15 +694,15 @@ textarea {
 
   .pv-lead-name {
     margin: 0;
-    font-size: 1.625rem;
+    font-size: clamp(1.875rem, 7.5vw, 2.375rem);
     font-weight: 700;
-    line-height: 1.12;
-    letter-spacing: -0.02em;
+    line-height: 1.08;
+    letter-spacing: -0.028em;
   }
 
   .pv-lead-meta {
-    margin: 0.3rem 0 0;
-    font-size: 0.9375rem;
+    margin: 0.375rem 0 0;
+    font-size: 1rem;
     font-weight: 500;
     color: var(--on-dark-2);
   }
@@ -710,23 +719,91 @@ textarea {
     color: #fff;
   }
 
-  .pv-chip-card {
+  /* =============================================================== Roster */
+  /* The remaining records are tiles cut from the lead's card, not list rows:
+     same radius and surface, identity above the name, no row chevron. */
+  .pv-roster-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .pv-roster-item {
     display: flex;
     width: 100%;
-    align-items: center;
+    height: 100%;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 0.75rem;
-    min-height: 4.25rem;
-    border-radius: var(--r-row);
+    min-height: 9.5rem;
+    border-radius: var(--r-card);
     background: var(--surface);
-    padding: 0.75rem 0.875rem;
+    padding: 1.125rem 1.125rem 1.25rem;
     text-align: left;
     box-shadow: var(--e-row);
     transition: transform 180ms var(--stack-ease), box-shadow 180ms var(--stack-ease);
   }
 
-  .pv-chip-card:hover {
+  .pv-roster-item:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 26px -12px rgb(21 24 28 / 0.3);
+    box-shadow: var(--e-float);
+  }
+
+  .pv-roster-name {
+    display: block;
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+  }
+
+  .pv-roster-meta {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--ink-3);
+  }
+
+  /* Relation, in the supported vocabulary, kept deliberately quiet. */
+  .pv-relation {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: var(--surface-2);
+    padding: 0.25rem 0.6875rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  .pv-relation-on-dark {
+    background: rgb(255 255 255 / 0.18);
+    color: var(--on-dark);
+  }
+
+  .pv-roster-item .pv-relation {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* The only record has no roster under it, so the card takes the room back
+     rather than leaving the canvas empty below it. */
+  .pv-directory-solo .pv-lead {
+    min-height: clamp(24rem, 58svh, 34rem);
+  }
+
+  .pv-directory-note {
+    margin: 1.75rem 0 0;
+    max-width: 24rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--ink-3);
   }
 
   .pv-identity-chip {
@@ -794,16 +871,22 @@ textarea {
   }
 
   .pv-directory {
-    padding: 2.25rem 1.5rem 4.5rem;
+    --step-x: 1.375rem;
+    --step-y: 1rem;
+    padding: 2.25rem 1.5rem 3.5rem;
   }
 
   .pv-lead {
-    min-height: 20rem;
-    padding: 1.5rem;
+    padding: 1.75rem;
   }
 
-  .pv-lead-name {
-    font-size: 1.875rem;
+  .pv-roster-grid {
+    gap: 0.875rem;
+  }
+
+  .pv-roster-item {
+    min-height: 12rem;
+    padding: 1.375rem 1.375rem 1.5rem;
   }
 }
 
@@ -876,39 +959,37 @@ textarea {
     font-size: 2rem;
   }
 
+  /* The reference is a phone design, so desktop keeps the same vertical
+     composition in a centred canvas instead of reflowing into two columns:
+     same masthead, same dominant stack, same tiles - only larger. */
   .pv-directory {
-    max-width: 72rem;
+    --step-x: 1.625rem;
+    --step-y: 1.25rem;
+    max-width: 44rem;
     margin: 0 auto;
-    padding: 2.75rem 2.5rem 5rem;
+    padding: 3rem 2rem 4.5rem;
   }
 
-  /* Lead identity holds the left column; the roster fills the right. */
   .pv-directory-body {
-    display: grid;
-    grid-template-columns: minmax(0, 25rem) minmax(0, 1fr);
-    gap: 2.5rem;
-    align-items: start;
+    display: block;
   }
 
-  .pv-lead-stage {
-    max-width: none;
-  }
-
-  /* Shorter inset at desktop so the peeks read as cards behind the lead. */
-  .pv-lead-peeks {
-    inset: 2.75rem 0 2.75rem auto;
-  }
-
-  /* Two across fills the roster column instead of one very wide row. */
-  .pv-roster-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-    gap: 0.875rem;
-  }
-
+  /* Wider canvas would make a 5:6 card absurdly tall, so the lead relaxes
+     towards square while staying the dominant object on the screen. */
   .pv-lead {
-    min-height: 19rem;
-    padding: 1.75rem;
+    aspect-ratio: 6 / 5;
+    min-height: 24rem;
+    max-height: 30rem;
+    padding: 2rem;
+  }
+
+  .pv-roster-grid {
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1rem;
+  }
+
+  .pv-roster-item {
+    min-height: 12.5rem;
   }
 }
 
@@ -919,15 +1000,13 @@ textarea {
   .pv-cta,
   .pv-round,
   .pv-lead,
-  .pv-roster-item,
-  .pv-chip-card {
+  .pv-roster-item {
     transition-duration: 1ms !important;
   }
 
   .pv-cta:hover:not(:disabled),
   .pv-lead:hover,
-  .pv-roster-item:hover,
-  .pv-chip-card:hover {
+  .pv-roster-item:hover {
     transform: none;
   }
 }
