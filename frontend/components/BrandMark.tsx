@@ -3,7 +3,7 @@ export function BrandMark({ size = "md" }: { size?: "sm" | "md" }) {
   return (
     <span
       aria-hidden
-      className={`inline-flex ${mark} items-center justify-center rounded-md bg-identity font-semibold tracking-wide text-white`}
+      className={`inline-flex ${mark} items-center justify-center rounded-row bg-identity font-semibold tracking-wide text-white`}
     >
       PV
     </span>

@@ -8,22 +8,22 @@
  */
 
 export const fieldClass =
-  "mt-1 w-full min-h-11 rounded-md bg-surface-sunk px-3.5 py-2.5 text-ink placeholder:text-ink-3";
+  "mt-1 w-full min-h-11 rounded-row bg-surface-2 px-3.5 py-2.5 text-ink placeholder:text-ink-3";
 
 export const fieldOnCardClass =
-  "mt-1 w-full min-h-11 rounded-md bg-surface-sunk px-3.5 py-2.5 text-ink placeholder:text-ink-3";
+  "mt-1 w-full min-h-11 rounded-row bg-surface-2 px-3.5 py-2.5 text-ink placeholder:text-ink-3";
 
 /** For fields sitting on a sunk panel, where a sunk field would disappear. */
 export const fieldOnSunkClass =
-  "mt-1 w-full min-h-11 rounded-md bg-surface px-3.5 py-2.5 text-ink placeholder:text-ink-3";
+  "mt-1 w-full min-h-11 rounded-row bg-surface px-3.5 py-2.5 text-ink placeholder:text-ink-3";
 
 export const primaryButtonClass =
-  "on-dark inline-flex min-h-11 items-center justify-center rounded-full bg-identity-deep px-5 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60";
+  "on-dark inline-flex min-h-11 items-center justify-center rounded-full bg-cta px-5 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60";
 
 export const secondaryButtonClass =
-  "inline-flex min-h-11 items-center justify-center rounded-full bg-surface px-5 py-2.5 text-sm font-semibold text-ink shadow-[var(--e1)] transition hover:shadow-[var(--e2)] disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center rounded-full bg-surface px-5 py-2.5 text-sm font-semibold text-ink shadow-[var(--e-row)] transition hover:shadow-[var(--e-float)] disabled:cursor-not-allowed disabled:opacity-60";
 
 export const ghostButtonClass =
   "inline-flex min-h-11 items-center justify-center rounded-full px-3.5 py-2 text-sm font-medium text-ink-2 transition hover:bg-surface hover:text-ink";
 
-export const cardClass = "rounded-lg bg-surface shadow-[var(--e2)]";
+export const cardClass = "rounded-card bg-surface shadow-[var(--e-float)]";

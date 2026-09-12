@@ -3,7 +3,7 @@ import type { ComponentType } from "react";
 const SIZES = {
   sm: "h-9 w-9 text-[0.8rem]",
   md: "h-11 w-11 text-[0.95rem]",
-  lg: "h-14 w-14 text-[1.15rem]",
+  lg: "h-12 w-12 text-[1.05rem]",
 } as const;
 
 /**
@@ -30,7 +30,7 @@ export function IconChip({
       className={`inline-flex flex-none items-center justify-center rounded-full ${SIZES[size]} ${className ?? ""}`}
       style={{ backgroundColor: surface, color: ink }}
     >
-      <Icon className={size === "lg" ? "h-7 w-7" : size === "sm" ? "h-[1.05rem] w-[1.05rem]" : "h-5 w-5"} />
+      <Icon className={size === "lg" ? "h-6 w-6" : size === "sm" ? "h-[1.05rem] w-[1.05rem]" : "h-5 w-5"} />
     </span>
   );
 }

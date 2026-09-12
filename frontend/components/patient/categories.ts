@@ -27,8 +27,8 @@ export const CATEGORIES: readonly Category[] = [
     number: "01",
     description: "Interaction, ADR and adherence findings for this record.",
     Icon: ShieldIcon,
-    surface: "var(--safety-surface)",
-    ink: "var(--safety-ink)",
+    surface: "var(--safety-bg)",
+    ink: "var(--safety-fg)",
   },
   {
     id: "medications",
@@ -36,8 +36,8 @@ export const CATEGORIES: readonly Category[] = [
     number: "02",
     description: "Prescribed courses, dosing schedule and adherence.",
     Icon: CapsuleIcon,
-    surface: "var(--medications-surface)",
-    ink: "var(--medications-ink)",
+    surface: "var(--medications-bg)",
+    ink: "var(--medications-fg)",
   },
   {
     id: "symptoms",
@@ -45,8 +45,8 @@ export const CATEGORIES: readonly Category[] = [
     number: "03",
     description: "Reported symptoms, severity and linked medication.",
     Icon: PulseIcon,
-    surface: "var(--symptoms-surface)",
-    ink: "var(--symptoms-ink)",
+    surface: "var(--symptoms-bg)",
+    ink: "var(--symptoms-fg)",
   },
   {
     id: "timeline",
@@ -54,8 +54,8 @@ export const CATEGORIES: readonly Category[] = [
     number: "04",
     description: "Every recorded event, most recent first.",
     Icon: CalendarIcon,
-    surface: "var(--timeline-surface)",
-    ink: "var(--timeline-ink)",
+    surface: "var(--timeline-bg)",
+    ink: "var(--timeline-fg)",
   },
 ] as const;
 

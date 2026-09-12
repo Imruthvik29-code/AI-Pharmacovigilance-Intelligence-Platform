@@ -1,9 +1,9 @@
 type Tone = "error" | "info" | "success";
 
 const tones: Record<Tone, { surface: string; ink: string }> = {
-  error: { surface: "var(--severe-surface)", ink: "var(--severe-ink)" },
-  info: { surface: "var(--surface-sunk)", ink: "var(--ink)" },
-  success: { surface: "var(--mild-surface)", ink: "var(--mild-ink)" },
+  error: { surface: "var(--severe-bg)", ink: "var(--severe-fg)" },
+  info: { surface: "var(--surface-2)", ink: "var(--ink)" },
+  success: { surface: "var(--mild-bg)", ink: "var(--mild-fg)" },
 };
 
 export function StatusBanner({
@@ -19,7 +19,7 @@ export function StatusBanner({
   return (
     <div
       role={role}
-      className="rounded-md px-4 py-3 text-[0.875rem] leading-6"
+      className="rounded-row px-4 py-3 text-[0.875rem] leading-6"
       style={{ backgroundColor: style.surface, color: style.ink }}
     >
       {children}

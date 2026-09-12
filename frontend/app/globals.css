@@ -1,71 +1,87 @@
 @import "tailwindcss";
 
 /*
- * Single token layer for the patient visual system.
- * Cool neutral canvas, one dark identity surface, borderless surfaces with
- * soft elevation, restrained category tints. Legacy token names (paper/card/
- * line/muted) are kept and remapped so existing Tailwind utilities inherit the
- * cool system without per-component edits.
+ * Visual system reconstructed from the reference screenshots.
+ *
+ * Geometry is recorded against a 390pt phone, read off the reference mockups
+ * (phone screen = 464px wide in the source image, scale 1.19):
+ *   hero height 311 | card 221x361 @ r20 | ribbon 33 wide x 334 tall
+ *   back control 44 | CTA height 64 @ r-full | CTA badge 48
+ * Touch-target minimums push the ribbon to 44 and the card to ~234; every
+ * other proportion is reproduced.
  */
 :root {
   /* Ground + surfaces */
-  --canvas: #eef1f3;
+  --canvas: #eff1f3;
+  --sheet: #f8f9fa;
   --surface: #ffffff;
-  --surface-sunk: #e7edef;
-  --identity: #17282c;
-  --identity-deep: #12191d;
+  --surface-2: #f1f3f5;
+
+  /* Identity surface: abstract stand-in for the reference photograph, keeping
+     its tonal composition (warm light upper-right, deep mass lower-left). */
+  --identity-a: #2a4750;
+  --identity-b: #1b2e34;
+  --identity-c: #101a1e;
 
   /* Text */
-  --ink: #12191d;
-  --ink-2: #46555c;
-  --ink-3: #5d6b73;
-  --on-identity: #ffffff;
-  --on-identity-2: rgb(255 255 255 / 0.68);
-  --on-identity-3: rgb(255 255 255 / 0.5);
+  --ink: #15181c;
+  --ink-2: #5b6470;
+  --ink-3: #8a929c;
+  --on-dark: #ffffff;
+  --on-dark-2: rgb(255 255 255 / 0.82);
+  --on-dark-3: rgb(255 255 255 / 0.6);
 
-  /* Lines + focus */
-  --hairline: rgb(18 25 29 / 0.09);
-  --accent: #0d6b63;
-  --accent-ink: #084843;
-  --focus-light: #0d6b63;
-  --focus-dark: #7fd8c8;
+  /* Controls */
+  --cta: #16191d;
+  --cta-hover: #23282e;
+  --accent: #0e8f6f;
 
-  /* Category tints */
-  --safety-surface: #f9dede;
-  --safety-ink: #9b2c2c;
-  --medications-surface: #dcf1e5;
-  --medications-ink: #06614e;
-  --symptoms-surface: #ebe4f7;
-  --symptoms-ink: #5b3f8c;
-  --timeline-surface: #dceaf7;
-  --timeline-ink: #1d5c82;
+  /* Category identities */
+  --safety-bg: #fbe4e6;
+  --safety-fg: #c23b3b;
+  --medications-bg: #dcf2e5;
+  --medications-fg: #0e7a5c;
+  --symptoms-bg: #ede6f8;
+  --symptoms-fg: #6b4fa3;
+  --timeline-bg: #ddebf9;
+  --timeline-fg: #2b6ca3;
 
   /* Severity */
-  --severe-surface: #fdecef;
-  --severe-ink: #9f1239;
-  --moderate-surface: #fdf3e3;
-  --moderate-ink: #a15c07;
-  --mild-surface: #e7f4f1;
-  --mild-ink: #0f766e;
+  --severe-bg: #fde7ea;
+  --severe-fg: #c2303f;
+  --moderate-bg: #fcecd6;
+  --moderate-fg: #b0730f;
+  --mild-bg: #ddf2e5;
+  --mild-fg: #12805c;
 
-  /* Legacy aliases, remapped onto the cool system */
-  --paper: #e7edef;
+  /* Legacy aliases so untouched utilities inherit the reconstructed palette */
+  --paper: #f1f3f5;
   --card: #ffffff;
-  --line: rgb(18 25 29 / 0.1);
-  --muted: #46555c;
-  --high: #9f1239;
-  --severe: #9f1239;
-  --low: #0f766e;
+  --line: rgb(21 24 28 / 0.08);
+  --muted: #5b6470;
+  --accent-ink: #0a6e55;
+  --high: #c2303f;
+  --severe: #c2303f;
+  --low: #12805c;
+
+  /* Focus */
+  --focus-light: #0e8f6f;
+  --focus-dark: #7fd8c8;
 
   /* Geometry */
-  --r-sm: 0.75rem;
-  --r-md: 1.25rem;
-  --r-lg: 1.75rem;
-  --r-xl: 2.25rem;
-  --r-pill: 999px;
-  --e1: 0 1px 2px rgb(18 25 29 / 0.05);
-  --e2: 0 10px 28px rgb(18 25 29 / 0.07);
-  --e3: 0 22px 55px rgb(18 25 29 / 0.13);
+  --r-row: 1.25rem;
+  --r-card: 1.5rem;
+  --r-sheet: 1.75rem;
+  --r-hero: 2rem;
+
+  --e-row: 0 1px 2px rgb(21 24 28 / 0.04);
+  --e-card: 0 18px 40px -12px rgb(21 24 28 / 0.22), 0 2px 8px rgb(21 24 28 / 0.05);
+  --e-float: 0 6px 18px rgb(21 24 28 / 0.14);
+  --e-cta: 0 10px 24px -8px rgb(21 24 28 / 0.45);
+
+  /* Stack motion */
+  --stack-ms: 420ms;
+  --stack-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 
   --font-sans: "Segoe UI", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
@@ -73,40 +89,39 @@
 
 @theme inline {
   --color-canvas: var(--canvas);
+  --color-sheet: var(--sheet);
   --color-surface: var(--surface);
-  --color-surface-sunk: var(--surface-sunk);
-  --color-identity: var(--identity);
-  --color-identity-deep: var(--identity-deep);
+  --color-surface-2: var(--surface-2);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
-  --color-hairline: var(--hairline);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
-  --color-safety: var(--safety-surface);
-  --color-safety-ink: var(--safety-ink);
-  --color-medications: var(--medications-surface);
-  --color-medications-ink: var(--medications-ink);
-  --color-symptoms: var(--symptoms-surface);
-  --color-symptoms-ink: var(--symptoms-ink);
-  --color-timeline: var(--timeline-surface);
-  --color-timeline-ink: var(--timeline-ink);
-  --color-severe: var(--severe-ink);
-  --color-severe-surface: var(--severe-surface);
-  --color-moderate: var(--moderate-ink);
-  --color-moderate-surface: var(--moderate-surface);
-  --color-mild: var(--mild-ink);
-  --color-mild-surface: var(--mild-surface);
+  --color-cta: var(--cta);
+  --color-hairline: var(--line);
+  --color-safety: var(--safety-bg);
+  --color-safety-fg: var(--safety-fg);
+  --color-medications: var(--medications-bg);
+  --color-medications-fg: var(--medications-fg);
+  --color-symptoms: var(--symptoms-bg);
+  --color-symptoms-fg: var(--symptoms-fg);
+  --color-timeline: var(--timeline-bg);
+  --color-timeline-fg: var(--timeline-fg);
+  --color-severe: var(--severe-fg);
+  --color-severe-bg: var(--severe-bg);
+  --color-moderate: var(--moderate-fg);
+  --color-moderate-bg: var(--moderate-bg);
+  --color-mild: var(--mild-fg);
+  --color-mild-bg: var(--mild-bg);
   --color-high: var(--high);
   --color-low: var(--low);
   --color-paper: var(--paper);
   --color-card: var(--card);
   --color-line: var(--line);
   --color-muted: var(--muted);
-  --radius-sm: var(--r-sm);
-  --radius-md: var(--r-md);
-  --radius-lg: var(--r-lg);
-  --radius-xl: var(--r-xl);
+  --radius-row: var(--r-row);
+  --radius-card: var(--r-card);
+  --radius-sheet: var(--r-sheet);
   --font-sans: "Segoe UI", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
 }
@@ -121,6 +136,7 @@ body {
 body {
   font-family: var(--font-sans);
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -131,7 +147,7 @@ textarea {
 }
 
 ::selection {
-  background: #cde7e3;
+  background: #cdeae1;
 }
 
 :focus {
@@ -143,21 +159,14 @@ textarea {
   outline-offset: 2px;
 }
 
-/* Focus ring on dark surfaces needs its own colour to clear 3:1. */
 .on-dark :focus-visible,
 .on-dark:focus-visible {
   outline-color: var(--focus-dark);
 }
 
-/* The active tab is a dark surface inside a light strip, so it needs the
-   dark-surface ring even though its container is light. */
-.px-tab-active:focus-visible {
-  outline-color: var(--focus-dark);
-}
-
-/* Focus is moved here only to announce the new view; it is not a control. */
-.px-detail-heading:focus,
-.px-detail-heading:focus-visible {
+/* Focus is moved to a detail heading only to announce the view change. */
+.pv-quiet-focus:focus,
+.pv-quiet-focus:focus-visible {
   outline: none;
 }
 
@@ -166,478 +175,504 @@ textarea {
 }
 
 @layer components {
-  /* ---------------------------------------------------------------- Hero */
-  .px-hero {
+  /* ============================================================ Identity */
+  .pv-hero {
     position: relative;
-    overflow: hidden;
-    background: var(--identity);
-    color: var(--on-identity);
-    border-radius: 0 0 var(--r-xl) var(--r-xl);
-    padding: 1.25rem 1.25rem 4.25rem;
-    min-height: 15rem;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    min-height: 19rem;
+    padding: 1rem 1rem 3.25rem;
+    color: var(--on-dark);
+    background: linear-gradient(163deg, var(--identity-a) 0%, var(--identity-b) 46%, var(--identity-c) 100%);
   }
 
-  /* Static sheen. Identical for every patient and every render. */
-  .px-hero::before {
+  .pv-hero::before {
     content: "";
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(120% 95% at 86% -18%, rgb(126 197 183 / 0.26), transparent 64%),
-      radial-gradient(85% 80% at 100% 60%, rgb(126 197 183 / 0.1), transparent 62%),
-      radial-gradient(95% 75% at 4% 112%, rgb(255 255 255 / 0.08), transparent 62%);
+      linear-gradient(212deg, rgb(255 213 168 / 0.4) 0%, rgb(255 213 168 / 0.1) 22%, transparent 44%),
+      linear-gradient(196deg, transparent 26%, rgb(150 205 196 / 0.1) 46%, transparent 64%),
+      linear-gradient(0deg, rgb(10 18 21 / 0.5) 0%, transparent 40%),
+      radial-gradient(150% 95% at 88% -6%, rgb(255 226 192 / 0.24), transparent 58%),
+      radial-gradient(120% 90% at 4% 104%, rgb(6 13 16 / 0.62), transparent 66%);
     pointer-events: none;
   }
 
-  .px-hero > * {
+  .pv-hero::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    height: 62%;
+    background: linear-gradient(to top, rgb(8 14 16 / 0.78), transparent);
+    pointer-events: none;
+  }
+
+  .pv-hero > * {
     position: relative;
     z-index: 1;
   }
 
-  .px-hero-compact {
-    min-height: 8.5rem;
-    padding-bottom: 3rem;
-  }
-
-  .px-hero-eyebrow {
+  .pv-hero-name {
     margin: 0;
-    color: #9ed5ca;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-
-  .px-hero-name {
-    margin: 0.4rem 0 0;
-    font-size: 2.125rem;
-    font-weight: 650;
-    line-height: 1.05;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.12;
     letter-spacing: -0.02em;
-    color: var(--on-identity);
+    color: var(--on-dark);
   }
 
-  .px-hero-meta {
-    margin: 0.45rem 0 0;
-    color: var(--on-identity-2);
-    font-size: 0.8125rem;
+  .pv-hero-meta {
+    margin: 0.35rem 0 0;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--on-dark-2);
   }
 
-  .px-initials {
+  .pv-initials {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex: none;
-    border-radius: var(--r-md);
-    background: rgb(255 255 255 / 0.1);
-    color: var(--on-identity);
-    font-weight: 650;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.16);
+    color: var(--on-dark);
+    font-weight: 700;
     letter-spacing: -0.01em;
   }
 
-  /* Circular control used over the hero and in list rows. */
-  .px-round {
+  .pv-round {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 2.75rem;
     height: 2.75rem;
     flex: none;
-    border-radius: 50%;
-    background: rgb(255 255 255 / 0.14);
-    color: var(--on-identity);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.22);
+    color: var(--on-dark);
     transition: background-color 160ms ease;
   }
 
-  .px-round:hover {
-    background: rgb(255 255 255 / 0.24);
+  .pv-round:hover {
+    background: rgb(255 255 255 / 0.34);
   }
 
-  .px-round-light {
+  .pv-round-light {
     background: var(--surface);
     color: var(--ink);
-    box-shadow: var(--e1);
+    box-shadow: var(--e-float);
   }
 
-  .px-round-light:hover {
+  .pv-round-light:hover {
     background: var(--surface);
-    box-shadow: var(--e2);
+    box-shadow: 0 10px 26px rgb(21 24 28 / 0.18);
   }
 
-  /* ------------------------------------------------------- Card + ribbon */
-  .px-stage {
-    position: relative;
-    display: flex;
-    align-items: stretch;
-    margin-top: -2.75rem;
-    padding: 0 0.625rem;
-  }
-
-  .px-card {
+  /* =============================================================== Sheet */
+  .pv-sheet {
     position: relative;
     z-index: 2;
+    overflow-x: clip;
+    margin-top: -1.5rem;
+    border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+    background: var(--sheet);
+    padding: 1.25rem 0 1.5rem;
+  }
+
+  /* ========================================================== Card stack
+     The stack is a fixed-size deck, as in the reference: every card is the
+     same physical size, so cards can slide past each other without the
+     surrounding layout reflowing. */
+  .pv-stage {
+    --pad-l: 1rem;
+    --pad-r: 0.625rem;
+    --tab-w: 2.75rem;
+    --tab-gap: 0.1875rem;
+    --rail-w: calc(3 * var(--tab-w) + 2 * var(--tab-gap));
+    --overlap: 0.5rem;
+    --card-h: 24rem;
+    position: relative;
+    height: var(--card-h);
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .pv-card {
+    position: absolute;
+    top: 0;
+    left: var(--pad-l);
+    width: calc(100% - var(--pad-l) - var(--pad-r) - var(--rail-w) + var(--overlap));
+    height: var(--card-h);
     display: flex;
     flex-direction: column;
-    flex: 1 1 auto;
-    min-width: 0;
-    min-height: 20rem;
-    border-radius: var(--r-lg);
+    overflow: hidden;
+    border-radius: var(--r-card);
     background: var(--surface);
-    box-shadow: var(--e3);
-    padding: 1.15rem;
+    box-shadow: var(--e-card);
+    padding: 1.125rem;
+    will-change: transform, opacity;
   }
 
-  .px-ribbon {
-    position: relative;
-    z-index: 1;
-    display: flex;
+  .pv-card-moving {
+    transition:
+      transform var(--stack-ms) var(--stack-ease),
+      opacity var(--stack-ms) var(--stack-ease);
+  }
+
+  .pv-card > * {
     flex: none;
-    gap: 0.25rem;
-    margin-left: -0.625rem;
-    padding: 1.5rem 0;
   }
 
-  .px-ribbon-tab {
+  .pv-card-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .pv-card-desc {
+    margin: 0.4375rem 0 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--ink-2);
+  }
+
+  /* ============================================================= Ribbons */
+  .pv-rail {
+    position: absolute;
+    top: 1.125rem;
+    bottom: 1.125rem;
+    right: var(--pad-r);
+    width: var(--rail-w);
+    will-change: transform;
+  }
+
+  .pv-rail-tab {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
     display: flex;
+    width: var(--tab-w);
+    transform: translate3d(calc(var(--slot) * (var(--tab-w) + var(--tab-gap))), 0, 0);
     align-items: center;
     justify-content: center;
-    width: 2.75rem;
-    border-radius: var(--r-md);
-    padding: 0.75rem 0;
-    box-shadow: var(--e1);
-    transition: transform 160ms ease, filter 160ms ease;
+    border-radius: var(--r-card);
+    box-shadow: 0 6px 16px -6px rgb(21 24 28 / 0.3);
+    transition:
+      transform var(--stack-ms) var(--stack-ease),
+      opacity var(--stack-ms) var(--stack-ease);
+    will-change: transform, opacity;
   }
 
-  .px-ribbon-tab:first-child {
-    width: 3.375rem;
-    padding-left: 0.625rem;
+  .pv-rail-tab-merged {
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(calc(-0.75 * var(--tab-w)), 0, 0) scale(0.94);
   }
 
-  .px-ribbon-tab:hover {
-    transform: translateY(-3px);
-  }
-
-  .px-ribbon-label {
+  .pv-rail-label {
     writing-mode: vertical-rl;
     transform: rotate(180deg);
     font-size: 0.6875rem;
-    font-weight: 650;
-    letter-spacing: 0.12em;
+    font-weight: 700;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     white-space: nowrap;
   }
 
-  /* Desktop: siblings widen into a stacked column at the same z-depth. */
-  .px-ribbon-stack {
-    display: none;
-  }
-
-  .px-dots {
+  /* ================================================================ Dots */
+  .pv-dots {
     display: flex;
     justify-content: center;
-    gap: 0.4rem;
-    margin-top: 1.1rem;
+    gap: 0.375rem;
+    margin-top: 1.25rem;
   }
 
-  .px-dot {
-    width: 0.4rem;
-    height: 0.4rem;
-    border-radius: 50%;
-    background: rgb(18 25 29 / 0.22);
-    transition: background-color 160ms ease, width 160ms ease;
+  .pv-dot {
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 999px;
+    background: rgb(21 24 28 / 0.18);
+    transition: background-color 200ms ease, width 200ms ease;
   }
 
-  .px-dot-active {
-    width: 1.1rem;
-    border-radius: var(--r-pill);
+  .pv-dot-on {
+    width: 1.25rem;
     background: var(--ink);
   }
 
-  /* ------------------------------------------------------------ Segments */
-  .px-tabs {
+  /* ================================================================= CTA */
+  .pv-cta {
     display: flex;
-    gap: 0.1875rem;
-    border-radius: var(--r-pill);
-    background: var(--surface);
-    padding: 0.3125rem;
-    box-shadow: var(--e2);
-  }
-
-  .px-tab {
-    flex: 1 1 0;
-    min-width: 0;
-    min-height: 2.75rem;
-    border-radius: var(--r-pill);
-    color: var(--ink-2);
-    font-size: 0.6875rem;
-    font-weight: 650;
-    letter-spacing: -0.005em;
-    transition: background-color 160ms ease, color 160ms ease;
-  }
-
-  .px-tab-active {
-    background: var(--identity-deep);
-    color: #fff;
-  }
-
-  /* The detail stack overlaps the compact hero the same way the card does. */
-  .px-detail {
-    position: relative;
-    z-index: 2;
-    margin-top: -1.5rem;
-    padding: 0 0.625rem;
-  }
-
-  /* ------------------------------------------------------- Sheets + rows */
-  .px-sheet {
-    border-radius: var(--r-lg);
-    background: var(--surface);
-    box-shadow: var(--e2);
-    padding: 1.15rem;
-  }
-
-  .px-row {
-    display: flex;
-    align-items: center;
-    gap: 0.85rem;
-    width: 100%;
-    border-radius: var(--r-md);
-    background: var(--surface);
-    padding: 0.85rem;
-    text-align: left;
-    box-shadow: var(--e1);
-  }
-
-  .px-row-flat {
-    box-shadow: none;
-    background: var(--surface-sunk);
-  }
-
-  /* ------------------------------------------------------------ Pill CTA */
-  .px-pill {
-    display: inline-flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
+    width: 100%;
     min-height: 3.5rem;
-    border-radius: var(--r-pill);
-    background: var(--identity-deep);
-    padding: 0.375rem 0.375rem 0.375rem 1.35rem;
+    border-radius: 999px;
+    background: var(--cta);
+    padding: 0.375rem 0.375rem 0.375rem 1.375rem;
     color: #fff;
     font-size: 0.9375rem;
-    font-weight: 650;
-    transition: transform 160ms ease, background-color 160ms ease;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    box-shadow: var(--e-cta);
+    transition: background-color 160ms ease, transform 160ms ease;
   }
 
-  .px-pill:hover:not(:disabled) {
-    transform: translateY(-2px);
-    background: #1f2b31;
+  .pv-cta:hover:not(:disabled) {
+    background: var(--cta-hover);
+    transform: translateY(-1px);
   }
 
-  .px-pill:disabled {
+  .pv-cta:disabled {
     cursor: wait;
-    opacity: 0.62;
+    opacity: 0.6;
   }
 
-  .px-pill-block {
-    width: 100%;
-  }
-
-  .px-pill-badge {
+  .pv-cta-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 2.75rem;
     height: 2.75rem;
     flex: none;
-    border-radius: 50%;
+    border-radius: 999px;
     background: #fff;
-    color: var(--identity-deep);
+    color: var(--cta);
   }
 
-  .px-pill-quiet {
-    display: inline-flex;
+  /* ================================================================ Rows */
+  .pv-row {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    min-height: 2.75rem;
-    border-radius: var(--r-pill);
+    gap: 0.875rem;
+    width: 100%;
+    border-radius: var(--r-row);
     background: var(--surface);
-    padding: 0 1.1rem;
-    color: var(--ink);
+    padding: 0.9375rem 1rem;
+    text-align: left;
+    box-shadow: var(--e-row);
+  }
+
+  .pv-row-tinted {
+    box-shadow: none;
+  }
+
+  .pv-row-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .pv-row-meta {
+    margin-top: 0.125rem;
     font-size: 0.8125rem;
-    font-weight: 650;
-    box-shadow: var(--e1);
+    color: var(--ink-3);
+  }
+
+  .pv-chevron {
+    flex: none;
+    color: var(--ink-3);
+  }
+
+  /* ====================================================== Section titles */
+  .pv-section-title {
+    font-size: 1.1875rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  .pv-see-all {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .pv-eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* ======================================================= Detail screen */
+  .pv-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem 0;
+  }
+
+  .pv-detail {
+    padding: 0 1rem 2rem;
+  }
+
+  .pv-detail-title {
+    margin: 0;
+    font-size: 1.625rem;
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+  }
+
+  .pv-detail-desc {
+    margin: 0.4375rem 0 0;
+    font-size: 0.9375rem;
+    line-height: 1.47;
+    color: var(--ink-2);
+  }
+
+  /* ============================================================== Roster */
+  .pv-roster-card {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.875rem;
+    border-radius: var(--r-card);
+    background: var(--surface);
+    padding: 1rem;
+    text-align: left;
+    box-shadow: var(--e-row);
+    transition: transform 180ms var(--stack-ease), box-shadow 180ms var(--stack-ease);
+  }
+
+  .pv-roster-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 32px -14px rgb(21 24 28 / 0.3);
   }
 }
 
-/* ------------------------------------------------------------ Breakpoints */
-@media (min-width: 640px) {
-  .px-hero {
-    min-height: 16rem;
-    border-radius: var(--r-xl);
-    padding: 1.75rem 1.75rem 4.75rem;
-    margin: 0 0.5rem;
+/* ===================================================== 440px and wider */
+@media (min-width: 440px) {
+  .pv-hero {
+    min-height: 21.25rem;
+    padding: 1.25rem 1.5rem 3.75rem;
   }
 
-  .px-hero-compact {
-    min-height: 9.5rem;
-    padding-bottom: 3.25rem;
+  .pv-hero-name {
+    font-size: 2rem;
   }
 
-  .px-hero-name {
+  .pv-hero-meta {
+    font-size: 1rem;
+  }
+
+  .pv-sheet {
+    padding-top: 1.5rem;
+  }
+
+  .pv-stage {
+    --pad-l: 1.5rem;
+    --pad-r: 0.875rem;
+    --tab-w: 3.125rem;
+    --tab-gap: 0.25rem;
+    --card-h: 25.5rem;
+  }
+
+  .pv-card {
+    padding: 1.375rem;
+  }
+
+  .pv-card-title {
+    font-size: 1.625rem;
+  }
+
+  .pv-topbar,
+  .pv-detail {
+    padding-inline: 1.5rem;
+  }
+}
+
+/* ==================================================== 1024px and wider
+   The reference is a phone design. The honest desktop adaptation scales the
+   same composition into a centred canvas rather than reflowing it into a
+   dashboard: identical hierarchy, card language and spacing rhythm. */
+@media (min-width: 1024px) {
+  .pv-canvas {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 1.75rem 0 3rem;
+  }
+
+  .pv-hero {
+    min-height: 22rem;
+    border-radius: var(--r-hero);
+    padding: 1.75rem 2rem 4rem;
+  }
+
+  .pv-hero-name {
     font-size: 2.5rem;
   }
 
-  .px-stage {
-    margin-top: -3rem;
-    padding: 0 0.5rem;
+  .pv-sheet {
+    margin-top: -2rem;
+    border-radius: var(--r-sheet);
+    padding: 2rem 0 2.25rem;
   }
 
-  .px-card {
-    min-height: 22rem;
-    border-radius: var(--r-xl);
+  .pv-stage {
+    --pad-l: 2rem;
+    --pad-r: 1.5rem;
+    --tab-w: 3.25rem;
+    --tab-gap: 0.3125rem;
+    --overlap: 0.625rem;
+    --card-h: 25.5rem;
+  }
+
+  .pv-card {
     padding: 1.75rem;
   }
 
-  .px-ribbon {
-    gap: 0.375rem;
-    margin-left: -0.75rem;
-    padding: 2.25rem 0;
+  .pv-card-title {
+    font-size: 1.75rem;
   }
 
-  .px-ribbon-tab {
-    width: 3.25rem;
+  .pv-card-desc {
+    font-size: 0.9375rem;
   }
 
-  .px-ribbon-tab:first-child {
-    width: 4rem;
-    padding-left: 0.75rem;
+  .pv-rail {
+    top: 1.75rem;
+    bottom: 1.75rem;
   }
 
-  .px-detail {
-    margin-top: -1.75rem;
-    padding: 0 1rem;
+  .pv-rail-label {
+    font-size: 0.75rem;
   }
 
-  .px-sheet {
-    border-radius: var(--r-xl);
-    padding: 1.75rem;
+  .pv-topbar {
+    padding: 1.5rem 2rem 0;
   }
 
-  .px-tab {
-    font-size: 0.8125rem;
+  .pv-detail {
+    padding: 0 2rem 3rem;
   }
 
-  .px-tabs {
-    gap: 0.25rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  .px-hero {
-    min-height: 16rem;
-    padding: 2.25rem 2.5rem 5rem;
-    margin: 0 1.5rem;
-  }
-
-  .px-hero-compact {
-    min-height: 10.5rem;
-    padding-bottom: 3.5rem;
-  }
-
-  .px-hero-name {
-    font-size: 2.875rem;
-  }
-
-  /* The foreground card stays a portrait surface at desktop rather than
-     stretching; the sibling stack sits beside it at the same z-depth. */
-  .px-stage {
-    margin-top: -3.5rem;
-    padding: 0 4rem;
-    justify-content: center;
-    gap: 0;
-  }
-
-  .px-detail {
-    max-width: 54rem;
-    margin: -2rem auto 0;
-    padding: 0 1rem;
-  }
-
-  .px-tabs {
-    max-width: 34rem;
-  }
-
-  .px-card {
-    min-height: 23.5rem;
-    flex: 0 1 36rem;
-    padding: 2rem 2.25rem;
-  }
-
-  /* Siblings stop being slivers and become a readable stacked column, still
-     tucked behind the foreground card's right edge. */
-  .px-ribbon {
-    display: none;
-  }
-
-  .px-ribbon-stack {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex: none;
-    flex-direction: column;
-    gap: 0.625rem;
-    width: 19.5rem;
-    margin-left: -1.5rem;
-    padding: 1.75rem 0;
-  }
-
-  /* A pill is a shape — it must not stretch across a desktop card. */
-  .px-pill-block {
-    width: auto;
-    max-width: 20rem;
-    align-self: flex-start;
-  }
-
-  .px-ribbon-card {
-    display: flex;
-    flex: 1 1 0;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.3rem;
-    min-height: 5.5rem;
-    border-radius: var(--r-md);
-    padding: 0.9rem 1.1rem 0.9rem 2.6rem;
-    text-align: left;
-    box-shadow: var(--e1);
-    transition: transform 160ms ease;
-  }
-
-  .px-ribbon-card:hover {
-    transform: translateX(4px);
-  }
-
-  .px-dots {
-    display: none;
+  .pv-detail-title {
+    font-size: 2rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .px-pill,
-  .px-ribbon-tab,
-  .px-ribbon-card,
-  .px-round,
-  .px-tab,
-  .px-dot {
-    transition: none;
+  .pv-card-moving,
+  .pv-rail-tab,
+  .pv-dot,
+  .pv-cta,
+  .pv-round,
+  .pv-roster-card {
+    transition-duration: 1ms !important;
   }
 
-  .px-pill:hover:not(:disabled),
-  .px-ribbon-tab:hover,
-  .px-ribbon-card:hover {
+  .pv-cta:hover:not(:disabled),
+  .pv-roster-card:hover {
     transform: none;
   }
 }

@@ -1,9 +1,9 @@
 import type { SeverityLevel } from "@/lib/api/types";
 
 const TONES: Record<SeverityLevel, { surface: string; ink: string }> = {
-  severe: { surface: "var(--severe-surface)", ink: "var(--severe-ink)" },
-  moderate: { surface: "var(--moderate-surface)", ink: "var(--moderate-ink)" },
-  mild: { surface: "var(--mild-surface)", ink: "var(--mild-ink)" },
+  severe: { surface: "var(--severe-bg)", ink: "var(--severe-fg)" },
+  moderate: { surface: "var(--moderate-bg)", ink: "var(--moderate-fg)" },
+  mild: { surface: "var(--mild-bg)", ink: "var(--mild-fg)" },
 };
 
 /**

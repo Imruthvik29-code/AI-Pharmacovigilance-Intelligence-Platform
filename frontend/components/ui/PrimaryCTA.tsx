@@ -3,26 +3,25 @@
 import { ArrowRightIcon } from "@/components/icons/Icons";
 
 /**
- * Dark pill CTA with a white circular trailing affordance.
- * `block` fills its container (mobile); `inline` stays a contained pill so the
- * shape survives on wide viewports.
+ * The reference's primary action: a dark pill with the label set left and a
+ * white circular trailing affordance. 64px tall, fully rounded, 48px badge.
  */
-export function PillButton({
+export function PrimaryCTA({
   children,
   onClick,
   disabled,
   busy,
-  width = "block",
   type = "button",
   ariaLabel,
+  tabIndex,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   busy?: boolean;
-  width?: "block" | "inline";
   type?: "button" | "submit";
   ariaLabel?: string;
+  tabIndex?: number;
 }) {
   return (
     <button
@@ -31,10 +30,11 @@ export function PillButton({
       disabled={disabled}
       aria-busy={busy || undefined}
       aria-label={ariaLabel}
-      className={`px-pill on-dark ${width === "block" ? "px-pill-block" : "max-w-80"}`}
+      tabIndex={tabIndex}
+      className="pv-cta on-dark"
     >
       <span className="truncate">{children}</span>
-      <span className="px-pill-badge" aria-hidden="true">
+      <span className="pv-cta-badge" aria-hidden="true">
         <ArrowRightIcon className="h-5 w-5" />
       </span>
     </button>
