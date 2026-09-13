@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthGate } from "@/components/AuthGate";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { PatientForm } from "@/components/PatientForm";
 import { StatusBanner } from "@/components/StatusBanner";
-import { patientInitials } from "@/components/PatientAvatar";
-import { ArrowRightIcon, PlusIcon } from "@/components/icons/Icons";
-import { CATEGORIES } from "@/components/patient/categories";
+import { PatientDeck } from "@/components/patient/PatientDeck";
+import { PlusIcon } from "@/components/icons/Icons";
 import { listPatients } from "@/lib/api/patients";
 import { ApiError } from "@/lib/api/errors";
 import { clearSession, loadSession } from "@/lib/auth/session";
@@ -19,29 +18,30 @@ import type { PatientResponse } from "@/lib/api/types";
 /**
  * Patients directory.
  *
- * The screen is a stack, not a list. The most recent record is a portrait
- * identity card that dominates the viewport, with two category-tinted cards
- * standing behind it as visible layers; the remaining records are tiles cut
- * from the same card, never rows. Desktop keeps that vertical composition in
- * a centred canvas rather than reflowing into a two-column dashboard.
+ * The collection itself is the deck: one card per patient, the selected one in
+ * front, the rest stepped behind it and reachable by swipe, tap or arrow key.
+ * There is no second roster underneath — that would list the same patients
+ * twice.
  *
  * Everything shown comes from `listPatients()` — name, age, sex and relation.
  * Initials only; no photo, no derived metric, no fabricated detail.
  */
 
-/** The category tints that stand behind the lead card as the deeper layers. */
-const LEAD_LAYERS = CATEGORIES.slice(1, 3);
-
-/** Age and sex, omitting whatever the record does not carry. */
-function demographics(patient: PatientResponse): string {
-  const parts = [patient.age != null ? `${patient.age} yrs` : null, patient.sex].filter(Boolean);
-  return parts.join(" · ");
-}
-
-/** Relation in the supported vocabulary; "Self" reads naturally as a label. */
-function relationLabel(patient: PatientResponse): string | null {
-  if (!patient.relation) return null;
-  return patient.relation === "Self" ? "My profile" : patient.relation;
+/**
+ * The user's own record leads; everyone else keeps the order the API returned.
+ *
+ * "Own record" is the `Self` relation, never recency — the newest record is
+ * usually a dependant. If several records claim `Self`, the first stable
+ * occurrence leads and the rest stay where the API put them. With no `Self` at
+ * all the API order stands; there is nothing to infer from.
+ *
+ * Not exported: a route module may only export `default` and Next's own route
+ * config, and the build type-checks that.
+ */
+function orderPatients(patients: PatientResponse[]): PatientResponse[] {
+  const self = patients.findIndex((patient) => patient.relation === "Self");
+  if (self < 0) return patients;
+  return [patients[self], ...patients.slice(0, self), ...patients.slice(self + 1)];
 }
 
 export default function DashboardPage() {
@@ -52,6 +52,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [selected, setSelected] = useState(0);
 
   useEffect(() => {
     setEmail(loadSession()?.user.email ?? null);
@@ -88,12 +89,13 @@ export default function DashboardPage() {
     router.replace("/login");
   }
 
-  const [lead, ...rest] = patients;
-  const leadRelation = lead ? relationLabel(lead) : null;
+  const ordered = useMemo(() => orderPatients(patients), [patients]);
+  // A reload can shorten the list under a selection made against the old one.
+  const activeIndex = Math.min(selected, Math.max(ordered.length - 1, 0));
   // Counts the records the API returned; nothing here is derived about a patient.
   const subtitle =
-    patients.length > 0
-      ? `${patients.length} ${patients.length === 1 ? "record" : "records"} · choose one to review`
+    ordered.length > 0
+      ? `${ordered.length} ${ordered.length === 1 ? "record" : "records"} · choose one to review`
       : "Choose a record to review";
 
   return (
@@ -150,7 +152,7 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        {!loading && !error && patients.length === 0 ? (
+        {!loading && !error && ordered.length === 0 ? (
           <section className="mt-9 rounded-card bg-surface px-6 py-14 text-center shadow-[var(--e-row)]">
             <h2 className="pv-section-title">No patients yet</h2>
             <p className="mx-auto mt-2 max-w-sm text-base leading-6 text-ink-2">
@@ -159,88 +161,19 @@ export default function DashboardPage() {
           </section>
         ) : null}
 
-        {lead ? (
-          <div className={`pv-directory-body ${rest.length === 0 ? "pv-directory-solo" : ""}`}>
-            <section aria-label="Most recent patient" className="mt-7">
-              <div className="pv-lead-stage">
-                <div className="pv-lead-peeks" aria-hidden="true">
-                  {LEAD_LAYERS.map((category, index) => (
-                    <span
-                      key={category.id}
-                      className="pv-lead-peek"
-                      style={
-                        {
-                          "--i": LEAD_LAYERS.length - index,
-                          "--tint": category.ink,
-                        } as CSSProperties
-                      }
-                    />
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/patients/${lead.id}`)}
-                  className="pv-lead on-dark"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="pv-initials h-14 w-14 text-lg sm:h-16 sm:w-16 sm:text-xl"
-                  >
-                    {patientInitials(lead.name)}
-                  </span>
-                  <span className="mt-auto pt-6">
-                    {leadRelation ? (
-                      <span className="pv-relation pv-relation-on-dark mb-3">{leadRelation}</span>
-                    ) : null}
-                    <span className="pv-lead-name block">{lead.name}</span>
-                    <span className="pv-lead-meta block">{demographics(lead)}</span>
-                  </span>
-                  <span className="pv-cta pv-cta-invert mt-6" aria-hidden="true">
-                    <span className="truncate">View patient</span>
-                    <span className="pv-cta-badge">
-                      <ArrowRightIcon className="h-5 w-5" />
-                    </span>
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            {rest.length > 0 ? (
-              <section className="mt-9">
-                <h2 className="pv-section-title mb-4">Other patients</h2>
-                <ul className="pv-roster-grid">
-                  {rest.map((patient) => {
-                    const relation = relationLabel(patient);
-                    const meta = demographics(patient);
-                    return (
-                      <li key={patient.id}>
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/patients/${patient.id}`)}
-                          className="pv-roster-item"
-                        >
-                          <span
-                            aria-hidden="true"
-                            className="pv-identity-chip h-11 w-11 flex-none text-base"
-                          >
-                            {patientInitials(patient.name)}
-                          </span>
-                          <span className="mt-auto block w-full min-w-0">
-                            <span className="pv-roster-name">{patient.name}</span>
-                            {meta ? <span className="pv-roster-meta">{meta}</span> : null}
-                          </span>
-                          {relation ? <span className="pv-relation">{relation}</span> : null}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ) : (
+        {ordered.length > 0 ? (
+          <div className="mt-7">
+            <PatientDeck
+              patients={ordered}
+              activeIndex={activeIndex}
+              onSelect={setSelected}
+              onOpen={(patient) => router.push(`/patients/${patient.id}`)}
+            />
+            {ordered.length === 1 ? (
               <p className="pv-directory-note">
                 This is your only record so far. Add another with the button above.
               </p>
-            )}
+            ) : null}
           </div>
         ) : null}
       </div>

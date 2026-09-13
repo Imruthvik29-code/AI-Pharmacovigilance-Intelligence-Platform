@@ -328,10 +328,12 @@ textarea {
      surrounding layout reflowing. */
   .pv-stage {
     --pad-l: 1rem;
-    --pad-r: 0.5rem;
+    --pad-r: 0.875rem;
     --tab-w: 2.75rem;
-    --tab-gap: 0.25rem;
-    --rail-w: calc(3 * var(--tab-w) + 2 * var(--tab-gap));
+    /* Step < width, so each ribbon overlaps the one behind it. Must stay above
+       half a tab plus half a label, or the next ribbon covers its own text. */
+    --tab-step: 2rem;
+    --rail-w: calc(var(--tab-w) + 2 * var(--tab-step));
     --overlap: 0.875rem;
     --card-h: clamp(24rem, 42svh, 28rem);
     position: relative;
@@ -399,11 +401,13 @@ textarea {
     left: 0;
     display: flex;
     width: var(--tab-w);
-    transform: translate3d(calc(var(--slot) * (var(--tab-w) + var(--tab-gap))), 0, 0);
+    transform: translate3d(calc(var(--slot) * var(--tab-step)), 0, 0);
+    /* Nearest the card sits on top, so the fan recedes away from the front. */
+    z-index: calc(9 - var(--slot));
     align-items: center;
     justify-content: center;
-    border-radius: var(--r-card);
-    box-shadow: 0 6px 16px -6px rgb(21 24 28 / 0.3);
+    border-radius: 0 var(--r-card) var(--r-card) 0;
+    box-shadow: 6px 6px 18px -8px rgb(21 24 28 / 0.4);
     transition:
       transform var(--stack-ms) var(--stack-ease),
       opacity var(--stack-ms) var(--stack-ease);
@@ -572,14 +576,8 @@ textarea {
   }
 
   /* =========================================================== Directory */
-  /* The directory owns its shell, so the patient screens' canvas is untouched.
-     One stacking metric drives the whole composition: the lead card and the
-     layers behind it are cut from the same box, so they read as a physical
-     stack rather than as a card with decoration beside it. */
+  /* The directory owns its shell, so the patient screens' canvas is untouched. */
   .pv-directory {
-    --step-x: 1.125rem;
-    --step-y: 0.875rem;
-    --layers: 2;
     padding: 1.75rem 1rem 3rem;
   }
 
@@ -624,55 +622,49 @@ textarea {
     padding-top: 0.25rem;
   }
 
-  /* ================================================================ Stack */
-  /* The lead record is the screen's dominant object: a portrait identity card
-     with two category-tinted cards standing behind it, each offset right and
-     inset vertically by one step so their rounded edges show as layers. */
-  .pv-lead-stage {
+  .pv-directory-note {
+    margin: 1.5rem 0 0;
+    max-width: 24rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--ink-3);
+  }
+
+  /* ========================================================= Patient deck
+     The directory IS the deck: every patient is a card cut from the same box,
+     the selected one in front and the rest stepped back behind it. It shares
+     the category stack's gesture (useStackSwipe) and its dots, nothing else -
+     patient order and category order stay independent. */
+  .pv-deck {
+    /* How far each layer steps right. Net of the scale-down, this leaves about
+       25px of every card's edge exposed - over the 24px minimum target size,
+       because that edge is the card's select button. */
+    --deck-x: 2rem;
+    --deck-depth: 2;
     position: relative;
-    isolation: isolate;
+    /* Tracks the viewport so the deck fills the screen instead of leaving the
+       canvas empty below it, and so the card's proportion follows the phone. */
+    height: clamp(22rem, 60svh, 34rem);
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
-  .pv-lead-peeks {
+  .pv-deck-card {
     position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  /* Same box as the lead, pushed one or two steps back into the stack. The
-     category ink is mixed towards white rather than using the pale category
-     surface, which would sit too close to the canvas to read as an edge. */
-  .pv-lead-peek {
-    position: absolute;
-    top: calc(var(--i) * var(--step-y));
-    bottom: calc(var(--i) * var(--step-y));
-    left: calc(var(--i) * var(--step-x));
-    width: calc(100% - var(--layers) * var(--step-x));
-    border-radius: var(--r-card);
-    background: color-mix(in srgb, var(--tint) 26%, #fff);
-    box-shadow: 0 14px 30px -14px rgb(21 24 28 / 0.42);
-  }
-
-  .pv-lead {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    width: calc(100% - var(--layers) * var(--step-x));
-    flex-direction: column;
+    top: 0;
+    left: 0;
+    width: calc(100% - var(--deck-depth) * var(--deck-x));
+    height: 100%;
     overflow: hidden;
-    aspect-ratio: 5 / 6;
-    min-height: clamp(21rem, 46svh, 29rem);
     border-radius: var(--r-card);
-    padding: 1.375rem;
-    text-align: left;
     color: var(--on-dark);
     background: linear-gradient(163deg, var(--identity-a) 0%, var(--identity-b) 46%, var(--identity-c) 100%);
     box-shadow: var(--e-card);
-    transition: transform 180ms var(--stack-ease);
+    will-change: transform, opacity;
   }
 
-  .pv-lead::before {
+  .pv-deck-card::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -683,16 +675,49 @@ textarea {
     pointer-events: none;
   }
 
-  .pv-lead > * {
+  .pv-deck-card-moving {
+    transition:
+      transform var(--stack-ms) var(--stack-ease),
+      opacity var(--stack-ms) var(--stack-ease);
+  }
+
+  .pv-deck-body {
     position: relative;
     z-index: 1;
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1.375rem;
+    text-align: left;
   }
 
-  .pv-lead:hover {
-    transform: translateY(-2px);
+  /* Cards further back wash towards the canvas, so a swipe brings the next
+     patient into focus continuously instead of swapping one card for another. */
+  .pv-deck-veil {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: var(--canvas);
+    pointer-events: none;
   }
 
-  .pv-lead-name {
+  /* The exposed edge of a card behind the front one is its select target. */
+  .pv-deck-pick {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    border-radius: inherit;
+  }
+
+  /* Drawn inward: the card clips its overflow, so an outset ring never shows.
+     Light ring, because the edge it lands on is the dark identity surface. */
+  .pv-deck-pick:focus-visible {
+    outline: 2px solid var(--focus-dark);
+    outline-offset: -3px;
+  }
+
+  .pv-deck-name {
     margin: 0;
     font-size: clamp(1.875rem, 7.5vw, 2.375rem);
     font-weight: 700;
@@ -700,7 +725,7 @@ textarea {
     letter-spacing: -0.028em;
   }
 
-  .pv-lead-meta {
+  .pv-deck-meta {
     margin: 0.375rem 0 0;
     font-size: 1rem;
     font-weight: 500;
@@ -719,91 +744,25 @@ textarea {
     color: #fff;
   }
 
-  /* =============================================================== Roster */
-  /* The remaining records are tiles cut from the lead's card, not list rows:
-     same radius and surface, identity above the name, no row chevron. */
-  .pv-roster-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-
-  .pv-roster-item {
-    display: flex;
-    width: 100%;
-    height: 100%;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-    min-height: 9.5rem;
-    border-radius: var(--r-card);
-    background: var(--surface);
-    padding: 1.125rem 1.125rem 1.25rem;
-    text-align: left;
-    box-shadow: var(--e-row);
-    transition: transform 180ms var(--stack-ease), box-shadow 180ms var(--stack-ease);
-  }
-
-  .pv-roster-item:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--e-float);
-  }
-
-  .pv-roster-name {
-    display: block;
-    font-size: 1.125rem;
-    font-weight: 700;
-    line-height: 1.2;
-    letter-spacing: -0.02em;
-    overflow-wrap: anywhere;
-  }
-
-  .pv-roster-meta {
-    display: block;
-    margin-top: 0.25rem;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--ink-3);
-  }
-
   /* Relation, in the supported vocabulary, kept deliberately quiet. */
   .pv-relation {
-    display: inline-flex;
-    align-items: center;
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    overflow: hidden;
     border-radius: 999px;
     background: var(--surface-2);
     padding: 0.25rem 0.6875rem;
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--ink-2);
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .pv-relation-on-dark {
     background: rgb(255 255 255 / 0.18);
     color: var(--on-dark);
-  }
-
-  .pv-roster-item .pv-relation {
-    display: block;
-    width: fit-content;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* The only record has no roster under it, so the card takes the room back
-     rather than leaving the canvas empty below it. */
-  .pv-directory-solo .pv-lead {
-    min-height: clamp(24rem, 58svh, 34rem);
-  }
-
-  .pv-directory-note {
-    margin: 1.75rem 0 0;
-    max-width: 24rem;
-    font-size: 0.9375rem;
-    line-height: 1.5;
-    color: var(--ink-3);
   }
 
   .pv-identity-chip {
@@ -840,8 +799,8 @@ textarea {
 
   .pv-stage {
     --pad-l: 1.25rem;
-    --pad-r: 0.625rem;
-    --tab-gap: 0.3125rem;
+    --pad-r: 1rem;
+    --tab-step: 2rem;
     --overlap: 1rem;
   }
 
@@ -871,22 +830,16 @@ textarea {
   }
 
   .pv-directory {
-    --step-x: 1.375rem;
-    --step-y: 1rem;
     padding: 2.25rem 1.5rem 3.5rem;
   }
 
-  .pv-lead {
+  .pv-deck {
+    --deck-x: 2.25rem;
+    height: clamp(24rem, 64svh, 42rem);
+  }
+
+  .pv-deck-body {
     padding: 1.75rem;
-  }
-
-  .pv-roster-grid {
-    gap: 0.875rem;
-  }
-
-  .pv-roster-item {
-    min-height: 12rem;
-    padding: 1.375rem 1.375rem 1.5rem;
   }
 }
 
@@ -921,7 +874,7 @@ textarea {
     --pad-l: 2rem;
     --pad-r: 1.5rem;
     --tab-w: 3.25rem;
-    --tab-gap: 0.5rem;
+    --tab-step: 2.25rem;
     --overlap: 0.625rem;
     --card-h: 25.5rem;
   }
@@ -963,33 +916,18 @@ textarea {
      composition in a centred canvas instead of reflowing into two columns:
      same masthead, same dominant stack, same tiles - only larger. */
   .pv-directory {
-    --step-x: 1.625rem;
-    --step-y: 1.25rem;
-    max-width: 44rem;
+    max-width: 38rem;
     margin: 0 auto;
     padding: 3rem 2rem 4.5rem;
   }
 
-  .pv-directory-body {
-    display: block;
+  .pv-deck {
+    --deck-x: 2.5rem;
+    height: clamp(26rem, 62svh, 42rem);
   }
 
-  /* Wider canvas would make a 5:6 card absurdly tall, so the lead relaxes
-     towards square while staying the dominant object on the screen. */
-  .pv-lead {
-    aspect-ratio: 6 / 5;
-    min-height: 24rem;
-    max-height: 30rem;
+  .pv-deck-body {
     padding: 2rem;
-  }
-
-  .pv-roster-grid {
-    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-    gap: 1rem;
-  }
-
-  .pv-roster-item {
-    min-height: 12.5rem;
   }
 }
 
@@ -999,14 +937,11 @@ textarea {
   .pv-dot,
   .pv-cta,
   .pv-round,
-  .pv-lead,
-  .pv-roster-item {
+  .pv-deck-card-moving {
     transition-duration: 1ms !important;
   }
 
-  .pv-cta:hover:not(:disabled),
-  .pv-lead:hover,
-  .pv-roster-item:hover {
+  .pv-cta:hover:not(:disabled) {
     transform: none;
   }
 }
