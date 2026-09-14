@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthGate } from "@/components/AuthGate";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { PatientForm } from "@/components/PatientForm";
+import { patientInitials } from "@/components/PatientAvatar";
 import { StatusBanner } from "@/components/StatusBanner";
 import { PatientDeck } from "@/components/patient/PatientDeck";
 import { PlusIcon } from "@/components/icons/Icons";
@@ -18,10 +19,9 @@ import type { PatientResponse } from "@/lib/api/types";
 /**
  * Patients directory.
  *
- * The collection itself is the deck: one card per patient, the selected one in
- * front, the rest stepped behind it and reachable by swipe, tap or arrow key.
- * There is no second roster underneath — that would list the same patients
- * twice.
+ * Compact selectors provide collection context; the deck gives the selected
+ * record its own identity surface. Both use the same ordered API records and
+ * selection state. No extra patient requests are needed.
  *
  * Everything shown comes from `listPatients()` — name, age, sex and relation.
  * Initials only; no photo, no derived metric, no fabricated detail.
@@ -93,19 +93,19 @@ export default function DashboardPage() {
   // A reload can shorten the list under a selection made against the old one.
   const activeIndex = Math.min(selected, Math.max(ordered.length - 1, 0));
   // Counts the records the API returned; nothing here is derived about a patient.
-  const subtitle =
+  const recordCount =
     ordered.length > 0
-      ? `${ordered.length} ${ordered.length === 1 ? "record" : "records"} · choose one to review`
-      : "Choose a record to review";
+      ? `${ordered.length} ${ordered.length === 1 ? "record" : "records"}`
+      : null;
 
   return (
     <AuthGate>
-      <div className="pv-directory min-h-screen">
+      <div className="pv-directory">
         <header>
           <div className="pv-directory-head">
             <div className="min-w-0">
-              {email ? <p className="pv-directory-eyebrow truncate">{email}</p> : null}
               <h1 className="pv-directory-title">Patients</h1>
+              {email ? <p className="pv-directory-account" title={email}>{email}</p> : null}
             </div>
             <div className="pv-directory-actions">
               <button type="button" onClick={signOut} className={ghostButtonClass}>
@@ -115,7 +115,7 @@ export default function DashboardPage() {
                 type="button"
                 aria-label={showForm ? "Close patient form" : "Add patient"}
                 onClick={() => setShowForm((open) => !open)}
-                className="on-dark inline-flex h-12 w-12 flex-none items-center justify-center rounded-full bg-cta text-white shadow-[var(--e-cta)] transition hover:-translate-y-0.5"
+                className="pv-directory-add on-dark"
               >
                 <PlusIcon
                   className={`h-5 w-5 transition-transform ${showForm ? "rotate-45" : ""}`}
@@ -123,11 +123,11 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          <p className="pv-directory-sub">{subtitle}</p>
+          <p className="pv-directory-sub">Choose a record to review.</p>
         </header>
 
         {showForm ? (
-          <div className="mt-7 rounded-card bg-surface p-5 shadow-[var(--e-panel)] sm:p-6">
+          <div className="pv-directory-form mt-7 rounded-card bg-surface p-5 shadow-[var(--e-panel)] sm:p-6">
             <h2 className="pv-section-title">New patient</h2>
             <p className="mt-1 text-base text-ink-2">
               Create a record to start tracking treatment and safety.
@@ -162,18 +162,48 @@ export default function DashboardPage() {
         ) : null}
 
         {ordered.length > 0 ? (
-          <div className="mt-7">
-            <PatientDeck
-              patients={ordered}
-              activeIndex={activeIndex}
-              onSelect={setSelected}
-              onOpen={(patient) => router.push(`/patients/${patient.id}`)}
-            />
-            {ordered.length === 1 ? (
-              <p className="pv-directory-note">
-                This is your only record so far. Add another with the button above.
-              </p>
-            ) : null}
+          <div className="pv-directory-composition">
+            <section className="pv-directory-selection" aria-labelledby="patient-selection-heading">
+              <div className="pv-directory-section-head">
+                <h2 id="patient-selection-heading">Your patients</h2>
+                <span>{recordCount}</span>
+              </div>
+              {ordered.length > 1 ? (
+                <div className="pv-patient-selectors">
+                  {ordered.map((patient, index) => (
+                    <button
+                      key={patient.id}
+                      type="button"
+                      className="pv-patient-selector"
+                      aria-label={`Select ${patient.name}`}
+                      aria-pressed={index === activeIndex}
+                      onClick={() => setSelected(index)}
+                    >
+                      <span className="pv-selector-initials" aria-hidden="true">
+                        {patientInitials(patient.name)}
+                      </span>
+                      <span className="pv-selector-copy">
+                        <span className="pv-selector-name">{patient.name}</span>
+                        {patient.age != null ? <span className="pv-selector-meta">{patient.age} yrs</span> : null}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="pv-directory-note">
+                  This is your only record so far. Add another with the button above.
+                </p>
+              )}
+            </section>
+            <div className="pv-directory-feature">
+              <h2 className="pv-directory-feature-title">Patient overview</h2>
+              <PatientDeck
+                patients={ordered}
+                activeIndex={activeIndex}
+                onSelect={setSelected}
+                onOpen={(patient) => router.push(`/patients/${patient.id}`)}
+              />
+            </div>
           </div>
         ) : null}
       </div>

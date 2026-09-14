@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { patientInitials } from "@/components/PatientAvatar";
-import { ArrowRightIcon } from "@/components/icons/Icons";
+import { PrimaryCTA } from "@/components/ui/PrimaryCTA";
 import { useStackSwipe } from "@/lib/hooks/useStackSwipe";
 import type { PatientResponse } from "@/lib/api/types";
 
@@ -24,7 +24,7 @@ import type { PatientResponse } from "@/lib/api/types";
  * photo, no metric.
  */
 
-/** How many cards stay visible behind the front one. Matches `--deck-depth`. */
+/** Maximum visible depth. Space is reserved only for records that exist. */
 const DEPTH = 2;
 /** Each layer back loses this much scale, which is what exposes its edge. */
 const SCALE_STEP = 0.05;
@@ -90,6 +90,7 @@ export function PatientDeck({
       <div
         ref={stageRef}
         className="pv-deck"
+        style={{ "--deck-depth": Math.min(DEPTH, patients.length - 1) } as CSSProperties}
         tabIndex={0}
         role="group"
         aria-label={`Patient ${activeIndex + 1} of ${patients.length}. Use the arrow keys to move through the deck.`}
@@ -122,9 +123,18 @@ export function PatientDeck({
                 transform: `translate3d(${x}, 0, 0) scale(${scale})`,
                 opacity,
                 zIndex: 100 - Math.round(p * 10),
-                visibility: p < -1.2 || p > CULL ? "hidden" : "visible",
+                // A departed card must not cover the desktop selectors or
+                // leave an offstage tab stop. A return drag reveals it again.
+                visibility: p <= -1 || p > CULL ? "hidden" : "visible",
               }}
             >
+              {/* Shared abstract folds are decoration, never patient imagery
+                  or a visual encoding of clinical state. */}
+              <svg className="pv-deck-art" viewBox="0 0 400 460" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                <path d="M0 76C122 160 186 44 400 114V460H0Z" />
+                <path d="M0 211C132 99 246 251 400 168V460H0Z" />
+                <path d="M0 257C155 326 231 209 400 254V460H0Z" />
+              </svg>
               {/* Content belongs to the card in front. It fades out over the
                   first layer back so a receded card shows only its edge — not
                   a slice of someone else's name or CTA — and fades in again as
@@ -135,27 +145,21 @@ export function PatientDeck({
                 aria-hidden={!isFront}
                 inert={!isFront || undefined}
               >
-                <span aria-hidden="true" className="pv-initials h-14 w-14 text-lg sm:h-16 sm:w-16 sm:text-xl">
-                  {patientInitials(patient.name)}
-                </span>
-                <span className="mt-auto w-full pt-6">
-                  {relation ? (
-                    <span className="pv-relation pv-relation-on-dark mb-3">{relation}</span>
-                  ) : null}
-                  <span className="pv-deck-name block">{patient.name}</span>
-                  {meta ? <span className="pv-deck-meta block">{meta}</span> : null}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onOpen(patient)}
-                  aria-label={`View ${patient.name}`}
-                  className="pv-cta pv-cta-invert mt-6"
-                >
-                  <span className="truncate">View patient</span>
-                  <span className="pv-cta-badge" aria-hidden="true">
-                    <ArrowRightIcon className="h-5 w-5" />
+                <div className="pv-deck-topline">
+                  <span aria-hidden="true" className="pv-initials pv-deck-initials">
+                    {patientInitials(patient.name)}
                   </span>
-                </button>
+                  {relation ? (
+                    <span className="pv-relation pv-relation-on-dark">{relation}</span>
+                  ) : null}
+                </div>
+                <div className="pv-deck-identity">
+                  <h3 className="pv-deck-name">{patient.name}</h3>
+                  {meta ? <span className="pv-deck-meta block">{meta}</span> : null}
+                </div>
+                <PrimaryCTA onClick={() => onOpen(patient)} ariaLabel={`View ${patient.name}`}>
+                  View patient
+                </PrimaryCTA>
               </div>
 
               <span
