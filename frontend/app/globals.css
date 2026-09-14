@@ -199,29 +199,34 @@ textarea {
 
 @layer components {
   /* ============================================================ Identity */
+  /* The scenic identity surface. Sky and horizon glow at the back, shared
+     ridge scenery above them, a scrim for the name, and content on top. The
+     same for every patient; it never encodes clinical state. */
   .pv-hero {
     position: relative;
+    isolation: isolate;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    min-height: clamp(17rem, 43svh, 28rem);
-    padding: 1rem 1rem 3.25rem;
+    min-height: clamp(17.5rem, 38svh, 26rem);
+    padding: 1rem 1.25rem 2.75rem;
     color: var(--on-dark);
-    background: linear-gradient(163deg, var(--identity-a) 0%, var(--identity-b) 46%, var(--identity-c) 100%);
+    background: linear-gradient(
+      180deg,
+      var(--identity-a) 0%,
+      color-mix(in srgb, var(--identity-a) 58%, var(--identity-b)) 46%,
+      var(--identity-b) 100%
+    );
   }
 
   .pv-hero::before {
     content: "";
     position: absolute;
     inset: 0;
+    z-index: -2;
     background:
-      radial-gradient(80% 40% at 76% 6%, rgb(255 226 190 / 0.62), transparent 68%),
-      radial-gradient(120% 46% at 100% 20%, rgb(255 206 158 / 0.3), transparent 64%),
-      linear-gradient(200deg, rgb(255 222 184 / 0.28) 0%, rgb(255 222 184 / 0.04) 22%, transparent 40%),
-      linear-gradient(180deg, transparent 40%, rgb(8 18 22 / 0.4) 53%, rgb(8 18 22 / 0.5) 60%, transparent 64%),
-      linear-gradient(192deg, transparent 18%, rgb(186 228 220 / 0.18) 38%, transparent 58%),
-      radial-gradient(100% 70% at 0% 108%, rgb(2 6 8 / 0.86), transparent 58%),
-      linear-gradient(0deg, rgb(3 8 11 / 0.4) 0%, transparent 40%);
+      radial-gradient(110% 70% at 100% 0%, rgb(255 235 205 / 0.5), transparent 72%),
+      radial-gradient(62% 34% at 68% 57%, rgb(255 214 172 / 0.34), transparent 72%);
     pointer-events: none;
   }
 
@@ -229,46 +234,77 @@ textarea {
     content: "";
     position: absolute;
     inset: auto 0 0;
-    height: 58%;
-    background: linear-gradient(to top, rgb(7 13 16 / 0.62), transparent);
+    z-index: -1;
+    height: 55%;
+    background: linear-gradient(to top, rgb(6 14 17 / 0.55), transparent);
     pointer-events: none;
   }
 
-  .pv-hero > * {
-    position: relative;
-    z-index: 1;
+  .pv-hero-scenery {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
   }
 
-  .pv-hero-name {
-    margin: 0;
-    font-size: 1.75rem;
-    font-weight: 700;
-    line-height: 1.12;
-    letter-spacing: -0.02em;
-    color: var(--on-dark);
+  .pv-ridge-far { fill: rgb(206 230 226 / 0.2); }
+  .pv-ridge-mid { fill: rgb(46 92 100 / 0.42); }
+  .pv-ridge-near { fill: rgb(16 40 47 / 0.74); }
+  .pv-water { fill: rgb(7 18 22 / 0.8); }
+
+  .pv-water-light {
+    fill: none;
+    stroke: rgb(255 226 194 / 0.12);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
   }
 
-  .pv-hero-meta {
-    margin: 0.35rem 0 0;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    color: var(--on-dark-2);
+  .pv-hero-back {
+    align-self: flex-start;
   }
 
+  .pv-hero-identity {
+    min-width: 0;
+    max-width: 36rem;
+    margin-top: auto;
+    padding-top: 1.5rem;
+  }
+
+  /* Initials stay present but quiet: a small glass disc, not a second focal
+     point competing with the name. */
   .pv-hero-mark {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 4.75rem;
-    height: 4.75rem;
-    border-radius: 1.5rem;
-    background: rgb(255 255 255 / 0.18);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.32), 0 10px 26px -14px rgb(2 6 8 / 0.8);
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid rgb(255 255 255 / 0.24);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.14);
     color: var(--on-dark);
-    font-size: 1.625rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .pv-hero-name {
+    margin: 0;
+    font-size: 1.875rem;
     font-weight: 700;
-    letter-spacing: -0.01em;
-    backdrop-filter: blur(2px);
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+    color: var(--on-dark);
+    overflow-wrap: anywhere;
+  }
+
+  .pv-hero-meta {
+    margin: 0.375rem 0 0;
+    font-size: 0.9375rem;
+    color: var(--on-dark-2);
   }
 
   .pv-initials {
@@ -312,9 +348,17 @@ textarea {
   }
 
   /* =============================================================== Sheet */
+  .pv-overview {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+
   .pv-sheet {
     position: relative;
     z-index: 2;
+    flex: 1;
+    /* Parked cards sit a full stage-width away; keep them off the document. */
     overflow-x: clip;
     margin-top: -1.5rem;
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
@@ -323,38 +367,44 @@ textarea {
   }
 
   /* ========================================================== Card stack
-     The stack is a fixed-size deck, as in the reference: every card is the
-     same physical size, so cards can slide past each other without the
-     surrounding layout reflowing. */
+     Every card shares one grid cell, so the deck is exactly as tall as its
+     tallest card's content and the cards can still slide past one another
+     without the layout reflowing. */
   .pv-stage {
     --pad-l: 1rem;
-    --pad-r: 0.875rem;
-    --tab-w: 2.75rem;
-    /* Step < width, so each ribbon overlaps the one behind it. Must stay above
-       half a tab plus half a label, or the next ribbon covers its own text. */
-    --tab-step: 2rem;
+    --pad-r: 0.75rem;
+    --tab-w: 3.25rem;
+    /* Each ribbon shows this much; the rest tucks under its neighbour. */
+    --tab-step: 2.5rem;
+    --tab-hidden: calc(var(--tab-w) - var(--tab-step));
     --rail-w: calc(var(--tab-w) + 2 * var(--tab-step));
     --overlap: 0.875rem;
-    --card-h: clamp(24rem, 42svh, 28rem);
+    /* A floor, not a size: content sets the height, so a sparse record gets a
+       shorter card rather than a hole above its summary. */
+    --card-min-h: 20rem;
     position: relative;
-    height: var(--card-h);
+    display: grid;
     touch-action: pan-y;
     user-select: none;
     -webkit-user-select: none;
   }
 
   .pv-card {
-    position: absolute;
-    top: 0;
-    left: var(--pad-l);
-    width: calc(100% - var(--pad-l) - var(--pad-r) - var(--rail-w) + var(--overlap));
-    height: var(--card-h);
+    position: relative;
+    grid-area: 1 / 1;
+    justify-self: start;
     display: flex;
     flex-direction: column;
+    width: calc(100% - var(--pad-l) - var(--pad-r) - var(--rail-w) + var(--overlap));
+    min-height: var(--card-min-h);
+    margin-left: var(--pad-l);
     overflow: hidden;
     border-radius: var(--r-card);
     background: var(--surface);
-    box-shadow: var(--e-card), 10px 0 26px -14px rgb(21 24 28 / 0.5);
+    box-shadow:
+      0 16px 34px -18px rgb(21 24 28 / 0.32),
+      8px 0 22px -14px rgb(21 24 28 / 0.35),
+      0 2px 6px rgb(21 24 28 / 0.05);
     padding: 1.125rem;
     will-change: transform, opacity;
   }
@@ -370,44 +420,112 @@ textarea {
   }
 
   .pv-card-title {
-    margin: 0;
-    font-size: 1.5rem;
+    margin: 0.875rem 0 0;
+    font-size: 1.375rem;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1.15;
     letter-spacing: -0.02em;
   }
 
   .pv-card-desc {
-    margin: 0.4375rem 0 0;
+    margin: 0.375rem 0 1rem;
     font-size: 0.875rem;
     line-height: 1.45;
     color: var(--ink-2);
   }
 
+  /* The recorded summary, grouped on a quiet inset surface. Extra deck height
+     opens above it, so it always stays attached to its action. */
+  .pv-card-summary {
+    display: grid;
+    gap: 0.625rem;
+    margin: auto 0 0;
+    padding: 0.75rem 0.875rem;
+    border-radius: var(--r-control);
+    background: var(--surface-2);
+    list-style: none;
+  }
+
+  .pv-card-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .pv-card-row-icon {
+    display: inline-flex;
+    flex: none;
+    margin-top: 0.125rem;
+  }
+
+  .pv-card-row-text {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--ink);
+  }
+
+  .pv-card-row-sub {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: var(--ink-2);
+  }
+
+  .pv-card-action {
+    margin-top: 0.75rem;
+  }
+
+  /* The label and its arrow share one dark shape, the label centred in the
+     space the arrow leaves, as on the directory card. */
+  .pv-card .pv-cta {
+    min-height: 3.25rem;
+    padding-left: 1.125rem;
+    box-shadow: 0 6px 14px -8px rgb(21 24 28 / 0.4);
+  }
+
+  .pv-card .pv-cta > span:first-child {
+    flex: 1;
+    text-align: center;
+  }
+
+  .pv-card .pv-cta-badge {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
   /* ============================================================= Ribbons */
   .pv-rail {
     position: absolute;
-    top: 1.125rem;
-    bottom: 1.125rem;
+    top: 0.875rem;
+    bottom: 0.875rem;
     right: var(--pad-r);
     width: var(--rail-w);
     will-change: transform;
   }
 
+  /* A ribbon is the exposed edge of a category card: icon at its head, label
+     reading down from it, centred in the strip its neighbour leaves showing. */
   .pv-rail-tab {
     position: absolute;
     top: 0;
     bottom: 0;
     left: 0;
     display: flex;
-    width: var(--tab-w);
-    transform: translate3d(calc(var(--slot) * var(--tab-step)), 0, 0);
-    /* Nearest the card sits on top, so the fan recedes away from the front. */
-    z-index: calc(9 - var(--slot));
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    border-radius: 0 var(--r-card) var(--r-card) 0;
-    box-shadow: 6px 6px 18px -8px rgb(21 24 28 / 0.4);
+    gap: 0.875rem;
+    width: var(--tab-w);
+    padding: 1.125rem 0 1rem var(--tab-hidden);
+    transform: translate3d(calc(var(--slot) * var(--tab-step)), 0, 0);
+    /* Nearest the card sits on top, so the ribbons recede away from it. */
+    z-index: calc(9 - var(--slot));
+    border-radius: var(--r-card);
+    box-shadow:
+      6px 4px 16px -10px rgb(21 24 28 / 0.45),
+      inset 0 1px 0 rgb(255 255 255 / 0.55);
     transition:
       transform var(--stack-ms) var(--stack-ease),
       opacity var(--stack-ms) var(--stack-ease);
@@ -420,10 +538,15 @@ textarea {
     transform: translate3d(calc(-0.75 * var(--tab-w)), 0, 0) scale(0.94);
   }
 
+  .pv-rail-icon {
+    flex: none;
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
   .pv-rail-label {
     writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -449,6 +572,15 @@ textarea {
   .pv-dot-on {
     width: 1.25rem;
     background: var(--ink);
+  }
+
+  /* The overview marks position with round dots, as the directory does. */
+  .pv-overview .pv-dots {
+    gap: 0.5rem;
+  }
+
+  .pv-overview .pv-dot-on {
+    width: 0.4375rem;
   }
 
   /* ================================================================= CTA */
@@ -957,15 +1089,22 @@ textarea {
 /* ===================================================== 440px and wider */
 @media (min-width: 440px) {
   .pv-hero {
-    padding: 1.25rem 1.5rem 3.75rem;
+    min-height: clamp(19rem, 44svh, 31rem);
+    padding: 1.25rem 1.5rem 3rem;
   }
 
   .pv-hero-name {
-    font-size: 2rem;
+    font-size: 2.125rem;
   }
 
   .pv-hero-meta {
     font-size: 1rem;
+  }
+
+  .pv-hero-mark {
+    width: 2.75rem;
+    height: 2.75rem;
+    font-size: 0.875rem;
   }
 
   .pv-sheet {
@@ -975,28 +1114,28 @@ textarea {
   .pv-stage {
     --pad-l: 1.25rem;
     --pad-r: 1rem;
-    --tab-step: 2rem;
     --overlap: 1rem;
-  }
-
-  .pv-hero-mark {
-    width: 5.5rem;
-    height: 5.5rem;
-    border-radius: 1.75rem;
-    font-size: 1.875rem;
+    --card-min-h: clamp(23rem, 40svh, 27rem);
   }
 
   .pv-card {
-    padding: 1.5rem;
+    padding: 1.375rem;
   }
 
   .pv-card-title {
-    font-size: 1.875rem;
+    font-size: 1.5rem;
   }
 
   .pv-card-desc {
-    font-size: 1rem;
-    margin-top: 0.5rem;
+    font-size: 0.9375rem;
+  }
+
+  .pv-card-row-text {
+    font-size: 0.875rem;
+  }
+
+  .pv-card-row-sub {
+    font-size: 0.8125rem;
   }
 
   .pv-topbar,
@@ -1050,6 +1189,46 @@ body:has(.pv-directory) > aside[aria-label="Install PV Intelligence"] button {
   box-shadow: none;
 }
 
+/* ============================================================ Overview page
+   The install offer follows the overview in normal flow rather than floating
+   over the card's action and the position dots. Installation behavior and its
+   placement on every other route are unchanged. */
+body:has(.pv-overview) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--sheet);
+}
+
+body:has(.pv-overview) > .pv-canvas-overview {
+  flex: 1;
+  min-height: 0;
+}
+
+body:has(.pv-overview) > aside[aria-label="Install PV Intelligence"] {
+  position: relative;
+  inset: auto;
+  flex: none;
+  width: calc(100% - 2.5rem);
+  max-width: 34rem;
+  margin: 0 auto max(1.25rem, env(safe-area-inset-bottom));
+  gap: 0.75rem;
+  box-shadow: var(--e-panel);
+}
+
+body:has(.pv-overview) > aside[aria-label="Install PV Intelligence"] button {
+  padding-inline: 0.75rem;
+  font-size: 0.8125rem;
+  box-shadow: none;
+}
+
+/* IconChip sizes itself with utilities; the card chip is larger than its lg
+   step, and unlayered rules are the ones that outrank utilities. */
+.pv-card .pv-card-chip {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
 /* ==================================================== 1024px and wider
    The reference is a phone design. The honest desktop adaptation scales the
    same composition into a centred canvas rather than reflowing it into a
@@ -1061,29 +1240,84 @@ body:has(.pv-directory) > aside[aria-label="Install PV Intelligence"] button {
     padding: 1.75rem 0 3rem;
   }
 
+  /* Desktop composes the overview horizontally: the scene is the back layer
+     and the category stack overlaps its lower-right corner, so one dominant
+     card still leads instead of four equal panels. */
+  .pv-canvas.pv-canvas-overview {
+    max-width: none;
+    margin: 0;
+    padding: 2rem 3rem;
+  }
+
+  .pv-overview {
+    --scene-overlap-x: 11rem;
+    --scene-overlap-y: 13rem;
+    --stack-w: 36rem;
+    display: grid;
+    grid-template-columns:
+      [scene-start] minmax(0, 1fr)
+      [stack-start] var(--scene-overlap-x)
+      [scene-end] calc(var(--stack-w) - var(--scene-overlap-x))
+      [stack-end];
+    grid-template-rows:
+      [scene-start] auto
+      [stack-start] var(--scene-overlap-y)
+      [scene-end] auto
+      [stack-end];
+    flex: 1;
+    align-content: center;
+    width: 100%;
+    max-width: 76rem;
+    margin-inline: auto;
+  }
+
   .pv-hero {
-    min-height: 22rem;
+    grid-column: scene-start / scene-end;
+    grid-row: scene-start / scene-end;
+    min-height: clamp(28rem, 58svh, 42rem);
     border-radius: var(--r-hero);
-    padding: 1.75rem 2rem 4rem;
+    padding: 2rem 2.5rem 2.5rem;
+  }
+
+  /* The name keeps clear of the card overlapping the scene's lower right. */
+  .pv-hero-identity {
+    max-width: calc(100% - var(--scene-overlap-x) - 1.5rem);
   }
 
   .pv-hero-name {
-    font-size: 2.5rem;
+    font-size: 2.75rem;
   }
 
+  .pv-hero-meta {
+    font-size: 1.0625rem;
+  }
+
+  .pv-hero-mark {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 1rem;
+    font-size: 0.9375rem;
+  }
+
+  /* No sheet on desktop: the stack floats over the scene. The side padding is
+     room for shadows inside the horizontal clip that hides parked cards. */
   .pv-sheet {
-    margin-top: -2rem;
-    border-radius: var(--r-sheet);
-    padding: 2rem 0 2.25rem;
+    grid-column: stack-start / stack-end;
+    grid-row: stack-start / stack-end;
+    flex: none;
+    margin: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0 0.375rem 0 1.5rem;
   }
 
   .pv-stage {
-    --pad-l: 2rem;
-    --pad-r: 1.5rem;
-    --tab-w: 3.25rem;
-    --tab-step: 2.25rem;
-    --overlap: 0.625rem;
-    --card-h: 25.5rem;
+    --pad-l: 0rem;
+    --pad-r: 0rem;
+    --tab-w: 4.25rem;
+    --tab-step: 3.25rem;
+    --overlap: 1rem;
+    --card-min-h: 25.5rem;
   }
 
   .pv-card {
@@ -1091,7 +1325,8 @@ body:has(.pv-directory) > aside[aria-label="Install PV Intelligence"] button {
   }
 
   .pv-card-title {
-    font-size: 1.75rem;
+    margin-top: 1rem;
+    font-size: 1.625rem;
   }
 
   .pv-card-desc {
@@ -1099,12 +1334,22 @@ body:has(.pv-directory) > aside[aria-label="Install PV Intelligence"] button {
   }
 
   .pv-rail {
-    top: 1.75rem;
-    bottom: 1.75rem;
+    top: 1.25rem;
+    bottom: 1.25rem;
+  }
+
+  .pv-rail-tab {
+    gap: 1rem;
+    padding-top: 1.5rem;
+  }
+
+  .pv-rail-icon {
+    width: 1.375rem;
+    height: 1.375rem;
   }
 
   .pv-rail-label {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
   }
 
   .pv-topbar {
@@ -1181,6 +1426,20 @@ body:has(.pv-directory) > aside[aria-label="Install PV Intelligence"] button {
 
   body:has(.pv-directory) > aside[aria-label="Install PV Intelligence"] {
     margin-bottom: 1.5rem;
+  }
+}
+
+/* ==================================================== 1600px and wider
+   Extra width goes to the scene and the surrounding canvas, not to larger
+   cards, type or controls. */
+@media (min-width: 1600px) {
+  .pv-overview {
+    --scene-overlap-x: 12rem;
+    max-width: 86rem;
+  }
+
+  .pv-hero {
+    min-height: clamp(30rem, 62svh, 46rem);
   }
 }
 

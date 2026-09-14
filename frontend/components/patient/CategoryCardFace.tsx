@@ -6,9 +6,13 @@ import { briefRows, type WorkspaceData } from "@/components/patient/categoryBrie
 import type { Category, CategoryId } from "@/components/patient/categories";
 
 /**
- * The face of one deck card: tinted icon chip, title, short description, the
- * compact metadata rows, and the primary CTA pinned to the foot — the
- * reference's card anatomy.
+ * The face of one deck card, in the reference's reading order: tinted icon
+ * chip, title, short description, the recorded summary grouped in a quiet inset
+ * panel, then the primary action directly beneath it.
+ *
+ * Header and summary read as one sequence. Any height the deck has beyond this
+ * card's own content opens between the description and the summary, so the
+ * summary and its action always stay together.
  */
 export function CategoryCardFace({
   category,
@@ -35,33 +39,27 @@ export function CategoryCardFace({
         surface={category.surface}
         ink={category.ink}
         size="lg"
-        className="sm:h-14 sm:w-14"
+        className="pv-card-chip"
       />
 
-      <h2 className="pv-card-title mt-3 lg:mt-4">{category.label}</h2>
-      <p className="pv-card-desc line-clamp-3 sm:line-clamp-4">{category.description}</p>
+      <h2 className="pv-card-title">{category.label}</h2>
+      <p className="pv-card-desc">{category.description}</p>
 
-      <ul className="mt-auto space-y-2 pt-4 sm:space-y-2.5 lg:space-y-3">
+      <ul className="pv-card-summary">
         {rows.map((row) => (
-          <li key={row.key} className="flex items-start gap-2">
-            <span className="mt-px flex-none" style={{ color: row.ink }} aria-hidden="true">
-              <row.Icon className="h-[1.0625rem] w-[1.0625rem]" />
+          <li key={row.key} className="pv-card-row">
+            <span className="pv-card-row-icon" style={{ color: row.ink }} aria-hidden="true">
+              <row.Icon className="h-4 w-4" />
             </span>
             <span className="min-w-0">
-              <span className="block text-[0.8125rem] font-medium leading-[1.35] text-ink-2 sm:text-[0.9375rem] lg:text-[0.875rem]">
-                {row.text}
-              </span>
-              {row.sub ? (
-                <span className="mt-0.5 block text-[0.75rem] leading-[1.35] text-ink-3 sm:text-[0.8125rem]">
-                  {row.sub}
-                </span>
-              ) : null}
+              <span className="pv-card-row-text">{row.text}</span>
+              {row.sub ? <span className="pv-card-row-sub">{row.sub}</span> : null}
             </span>
           </li>
         ))}
       </ul>
 
-      <div className="pt-4">
+      <div className="pv-card-action">
         {offerRun ? (
           <PrimaryCTA
             onClick={onRunAnalysis}

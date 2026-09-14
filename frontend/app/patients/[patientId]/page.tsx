@@ -230,10 +230,11 @@ function PatientPage() {
 
   const activeCount = activeMedicationCount(medications);
   const unresolvedSymptoms = unresolvedSymptomCount(symptoms);
+  const showOverview = Boolean(patient) && !openCategory;
 
   return (
     <AuthGate>
-      <div className="pv-canvas flex min-h-screen flex-col">
+      <div className={`pv-canvas flex min-h-screen flex-col ${showOverview ? "pv-canvas-overview" : ""}`}>
         {loading ? (
           <div className="px-4 pt-8 sm:px-6">
             <LoadingSkeleton label="Loading patient" lines={4} />
@@ -350,10 +351,10 @@ function PatientPage() {
           </DetailScreen>
         ) : null}
 
-        {patient && !openCategory ? (
-          <>
+        {patient && showOverview ? (
+          <div className="pv-overview">
             <PatientHero patient={patient} backHref="/dashboard" backLabel="Back to patients" />
-            <div className="pv-sheet flex-1">
+            <div className="pv-sheet">
               {analysisError ? (
                 <div className="mb-4 px-4 sm:px-6">
                   <StatusBanner tone="error" role="alert">
@@ -370,7 +371,7 @@ function PatientPage() {
                 data={{ analysis, medications, symptoms, timeline }}
               />
             </div>
-          </>
+          </div>
         ) : null}
       </div>
     </AuthGate>

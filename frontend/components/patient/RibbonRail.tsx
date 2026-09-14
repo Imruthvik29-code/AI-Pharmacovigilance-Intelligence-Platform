@@ -10,6 +10,9 @@ import { CATEGORIES, categoryIndex, type CategoryId } from "@/components/patient
  * ribbons physically slide between slots along the same easing as the cards,
  * and the newly active one slides left under the card as it fades — it has
  * become the card in front. They are real buttons, not decorative divs.
+ *
+ * Built like the reference's ribbons: the category icon at the head, then the
+ * label reading downwards from it.
  */
 export function RibbonRail({
   activeId,
@@ -54,6 +57,7 @@ export function RibbonRail({
               } as CSSProperties
             }
           >
+            <category.Icon className="pv-rail-icon" />
             <span className="pv-rail-label" aria-hidden="true">
               {category.label}
             </span>
