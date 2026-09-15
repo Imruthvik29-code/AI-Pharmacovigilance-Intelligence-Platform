@@ -2668,46 +2668,6 @@ body:has(.pv-meds) > aside[aria-label="Install PV Intelligence"] button {
   }
 }
 
-/* Wide screens use the width: recorded medications and adding one on the
-   left, what is due next beside them. Reading order is unchanged. */
-@media (min-width: 1024px) {
-  body:has(.pv-meds) > .pv-canvas {
-    max-width: 72rem;
-    padding-inline: 1.5rem;
-  }
-
-  .pv-meds {
-    grid-template-columns: minmax(0, 1fr) minmax(20rem, 25rem);
-    align-items: start;
-    gap: 2rem;
-  }
-
-  .pv-meds-main {
-    gap: 1.25rem;
-  }
-
-  /* Both column heads share one row height, so their titles line up. */
-  .pv-meds-section-row {
-    min-height: 2.75rem;
-  }
-
-  .pv-meds-facts {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin-left: 3.625rem;
-  }
-}
-
-@media (min-width: 1600px) {
-  body:has(.pv-meds) > .pv-canvas {
-    max-width: 78rem;
-  }
-
-  .pv-meds {
-    grid-template-columns: minmax(0, 1fr) 27rem;
-    gap: 2.5rem;
-  }
-}
-
 /* ==================================================== 1024px and wider
    The reference is a phone design. The honest desktop adaptation scales the
    same composition into a centred canvas rather than reflowing it into a
