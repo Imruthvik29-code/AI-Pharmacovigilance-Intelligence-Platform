@@ -48,7 +48,9 @@ export function SafetyScoreCard({
           )}
         </svg>
         <span className="pv-safety-ring-number" style={safetyScore === null ? { color: "var(--ink-3)" } : undefined}>
-          {safetyScore === null ? "—" : safetyScore}
+          <span className={`pv-safety-ring-digits ${safetyScore === null ? "pv-safety-ring-digits-empty" : ""}`}>
+            {safetyScore === null ? "—" : safetyScore}
+          </span>
         </span>
       </div>
 

@@ -1354,8 +1354,24 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
   font-size: 1.75rem;
   font-weight: 700;
   letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: proportional-nums;
   color: var(--ink);
+}
+
+/* Optical centring: the line box is trimmed to the digits' own cap height and
+   baseline, so the ink - not the font's ascent and descent - is what centres.
+   Proportional figures drop the tabular "1"'s wide left bearing, and the
+   half-step nudge offsets the trailing letter-spacing after the last digit. */
+.pv-safety-ring-digits {
+  display: block;
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+  translate: -0.015em 0;
+}
+
+/* A dash sits below the digits' mid-height; lift it to the ring's centre. */
+.pv-safety-ring-digits-empty {
+  translate: -0.015em -0.08em;
 }
 
 .pv-safety-score-copy {
