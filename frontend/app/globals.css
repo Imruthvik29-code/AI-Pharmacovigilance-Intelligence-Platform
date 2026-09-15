@@ -364,7 +364,22 @@ textarea {
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
     background: var(--sheet);
     box-shadow: 0 -12px 28px -16px rgb(6 14 17 / 0.5);
-    padding: clamp(1.375rem, 3svh, 2.25rem) 0 1.5rem;
+    padding: clamp(1.375rem, 3svh, 2.25rem) 0 0.75rem;
+    /* Spare height is shared out above and below the deck (2 : 3) instead of
+       collecting under the dots, so the cards sit lower on tall screens
+       without growing. With no spare height both spacers collapse to zero. */
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pv-sheet::before,
+  .pv-sheet::after {
+    content: "";
+    flex: 2 1 0;
+  }
+
+  .pv-sheet::after {
+    flex-grow: 3;
   }
 
   /* ========================================================== Card stack
@@ -384,6 +399,17 @@ textarea {
     /* A floor, not a size: content sets the height, so a sparse record gets a
        shorter card rather than a hole above its summary. */
     --card-min-h: 18rem;
+    /* Ribbons standing left and right of the card, set from the active index
+       by the component. Each side exposes its nearest ribbon less the overlap,
+       then one tab step per further ribbon; the card and its ribbons are then
+       centred as one group. Resolved where used, against this container. */
+    --lead: 0;
+    --trail: 0;
+    --expose-l: calc(min(var(--lead), 1) * (var(--tab-w) - var(--overlap)) + max(var(--lead) - 1, 0) * var(--tab-step));
+    --expose-r: calc(min(var(--trail), 1) * (var(--tab-w) - var(--overlap)) + max(var(--trail) - 1, 0) * var(--tab-step));
+    --card-w: calc(100cqw - var(--pad-l) - var(--pad-r) - var(--rail-w) + var(--overlap));
+    --card-x: calc((100cqw - var(--card-w) - var(--expose-l) - var(--expose-r)) / 2 + var(--expose-l));
+    container-type: inline-size;
     position: relative;
     display: grid;
     touch-action: pan-y;
@@ -400,12 +426,15 @@ textarea {
     width: calc(100% - var(--pad-l) - var(--pad-r) - var(--rail-w) + var(--overlap));
     min-height: var(--card-min-h);
     margin-left: var(--pad-l);
+    translate: calc(var(--card-x) - var(--pad-l)) 0;
     overflow: hidden;
     border-radius: var(--r-card);
     background: var(--surface);
+    /* The side shadow falls on whichever side has ribbons behind the card. */
     box-shadow:
       0 18px 36px -18px rgb(21 24 28 / 0.34),
-      10px 0 24px -16px rgb(21 24 28 / 0.3),
+      10px 0 24px -16px rgb(21 24 28 / calc(0.3 * min(var(--trail), 1))),
+      -10px 0 24px -16px rgb(21 24 28 / calc(0.3 * min(var(--lead), 1))),
       0 2px 6px rgb(21 24 28 / 0.05);
     padding: 1.125rem;
     will-change: transform, opacity;
@@ -414,6 +443,7 @@ textarea {
   .pv-card-moving {
     transition:
       transform var(--stack-ms) var(--stack-ease),
+      translate var(--stack-ms) var(--stack-ease),
       opacity var(--stack-ms) var(--stack-ease);
   }
 
@@ -517,12 +547,14 @@ textarea {
   }
 
   /* ============================================================= Ribbons */
+  /* The rail spans the stage; each ribbon places itself beside the card. */
   .pv-rail {
     position: absolute;
     top: 1.25rem;
     bottom: 1.25rem;
-    right: var(--pad-r);
-    width: var(--rail-w);
+    left: 0;
+    right: 0;
+    pointer-events: none;
     will-change: transform;
   }
 
@@ -539,9 +571,12 @@ textarea {
     gap: 0.75rem;
     width: var(--tab-w);
     padding: 1rem 0 1rem var(--tab-hidden);
-    transform: translate3d(calc(var(--slot) * var(--tab-step)), 0, 0);
+    /* Right of the card: tucked under its right edge, one step further out per
+       slot. The exposed strip is the ribbon's right-hand part. */
+    transform: translate3d(calc(var(--card-x) + var(--card-w) - var(--overlap) + var(--slot) * var(--tab-step)), 0, 0);
     /* Nearest the card sits on top, so the ribbons recede away from it. */
     z-index: calc(9 - var(--slot));
+    pointer-events: auto;
     border-radius: var(--r-card);
     /* Category colour softened towards the surface: identifiable, recessed,
        never louder than the card in front. */
@@ -556,10 +591,21 @@ textarea {
     will-change: transform, opacity;
   }
 
+  /* Left of the card: the mirror image, exposing the ribbon's left-hand part. */
+  .pv-rail-tab[data-side="left"] {
+    padding-left: 0;
+    padding-right: var(--tab-hidden);
+    transform: translate3d(calc(var(--card-x) + var(--overlap) - var(--tab-w) - var(--slot) * var(--tab-step)), 0, 0);
+    box-shadow:
+      -4px 2px 12px -8px rgb(21 24 28 / 0.26),
+      inset 0 1px 0 rgb(255 255 255 / 0.5);
+  }
+
+  /* The active category's ribbon slides under the card as it fades. */
   .pv-rail-tab-merged {
     opacity: 0;
     pointer-events: none;
-    transform: translate3d(calc(-0.75 * var(--tab-w)), 0, 0) scale(0.94);
+    transform: translate3d(calc(var(--card-x) + (var(--card-w) - var(--tab-w)) / 2), 0, 0) scale(0.94);
   }
 
   .pv-rail-icon {
@@ -2749,6 +2795,12 @@ body:has(.pv-meds) > aside[aria-label="Install PV Intelligence"] button {
     background: transparent;
     box-shadow: none;
     padding: 0 0.375rem 0 1.5rem;
+    display: block;
+  }
+
+  .pv-sheet::before,
+  .pv-sheet::after {
+    content: none;
   }
 
   .pv-stage {

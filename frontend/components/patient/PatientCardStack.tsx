@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, type CSSProperties } from "react";
 import { CategoryCardFace } from "@/components/patient/CategoryCardFace";
 import { RibbonRail } from "@/components/patient/RibbonRail";
 import { type WorkspaceData } from "@/components/patient/categoryBrief";
@@ -52,7 +52,14 @@ export function PatientCardStack({
 
   return (
     <section aria-label="Patient workspace">
-      <div ref={stageRef} className="pv-stage" {...handlers}>
+      {/* How many ribbons stand left and right of the card; the CSS centres the
+          card and its ribbons as one group from these counts. */}
+      <div
+        ref={stageRef}
+        className="pv-stage"
+        style={{ "--lead": active, "--trail": CATEGORIES.length - 1 - active } as CSSProperties}
+        {...handlers}
+      >
         <RibbonRail activeId={activeId} onSelect={onSelect} dragX={dragX} dragging={dragging} />
 
         {CATEGORIES.map((category, index) => {

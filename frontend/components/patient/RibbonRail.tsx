@@ -6,10 +6,12 @@ import { CATEGORIES, categoryIndex, type CategoryId } from "@/components/patient
 /**
  * The vertical category ribbons standing behind the foreground card.
  *
- * Each ribbon owns a slot in the rail. When the active category changes the
- * ribbons physically slide between slots along the same easing as the cards,
- * and the newly active one slides left under the card as it fades — it has
- * become the card in front. They are real buttons, not decorative divs.
+ * Position follows the active index: categories before the active one stand to
+ * its LEFT, categories after it to its RIGHT, each side ranked outwards from
+ * the card. When the active category changes the ribbons physically slide
+ * between slots along the same easing as the cards, and the newly active one
+ * slides under the card as it fades — it has become the card in front. They
+ * are real buttons, not decorative divs.
  *
  * Built like the reference's ribbons: the category icon at the head, then the
  * label reading downwards from it.
@@ -37,8 +39,9 @@ export function RibbonRail({
     >
       {CATEGORIES.map((category, index) => {
         const merged = index === active;
-        // Rank among the categories still standing in the rail.
-        const slot = index < active ? index : index - 1;
+        const side = merged ? "merged" : index < active ? "left" : "right";
+        // Rank outwards from the card on its own side: 0 sits against the card.
+        const slot = merged ? 0 : index < active ? active - 1 - index : index - active - 1;
 
         return (
           <button
@@ -49,9 +52,10 @@ export function RibbonRail({
             aria-current={merged ? "true" : undefined}
             tabIndex={merged ? -1 : undefined}
             className={`pv-rail-tab ${merged ? "pv-rail-tab-merged" : ""}`}
+            data-side={side}
             style={
               {
-                "--slot": merged ? 0 : slot,
+                "--slot": slot,
                 "--ribbon-tint": category.surface,
                 "--ribbon-ink": category.ink,
               } as CSSProperties

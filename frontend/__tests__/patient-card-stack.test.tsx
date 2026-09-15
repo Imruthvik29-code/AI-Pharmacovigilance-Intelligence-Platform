@@ -125,6 +125,24 @@ describe("PatientCardStack", () => {
     }
   });
 
+  it("stands earlier categories to the left of the card and later ones to the right", () => {
+    for (const [activeIndex, category] of CATEGORIES.entries()) {
+      const { view } = renderStack({ activeId: category.id });
+      CATEGORIES.forEach((other, index) => {
+        const ribbon = view.getByRole("button", { name: `Show ${other.label}`, hidden: true });
+        const side = index < activeIndex ? "left" : index > activeIndex ? "right" : "merged";
+        expect(ribbon).toHaveAttribute("data-side", side);
+        // Slot 0 sits against the card, counting outwards on each side.
+        const expectedSlot = side === "left" ? activeIndex - 1 - index : side === "right" ? index - activeIndex - 1 : 0;
+        expect(ribbon.style.getPropertyValue("--slot")).toBe(String(expectedSlot));
+      });
+      const stage = view.container.querySelector(".pv-stage") as HTMLElement;
+      expect(stage.style.getPropertyValue("--lead")).toBe(String(activeIndex));
+      expect(stage.style.getPropertyValue("--trail")).toBe(String(CATEGORIES.length - 1 - activeIndex));
+      view.unmount();
+    }
+  });
+
   it("selects a category when its ribbon is activated", () => {
     const props = renderStack();
     fireEvent.click(screen.getByRole("button", { name: "Show Timeline" }));
