@@ -13,8 +13,8 @@ import {
 import { localCalendarDate } from "@/lib/dates/localDate";
 import { rememberDrug } from "@/lib/drugs/nameCache";
 import { medicationSearchSubtitle, termTypeLabel } from "@/lib/drugs/termType";
-import { SearchIcon } from "@/components/icons/Icons";
-import { fieldOnSunkClass, primaryButtonClass } from "@/lib/ui/classes";
+import { CheckIcon, SearchIcon } from "@/components/icons/Icons";
+import { fieldOnCardClass } from "@/lib/ui/classes";
 
 export function MedicationPicker({
   patientId,
@@ -157,22 +157,21 @@ export function MedicationPicker({
     : undefined;
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-card bg-surface-2 p-5 sm:p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">Medication identity</p>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight">What medication are you taking?</h2>
-          <p className="mt-1 max-w-xl text-sm text-ink-2">
-            Search by the name on the strip or bottle. Brand names and ingredients can both be recognized.
-          </p>
-        </div>
-        <span className="hidden rounded-full bg-surface px-3 py-1 text-[0.75rem] font-semibold text-ink-2 sm:inline-flex">Verified catalog</span>
+    <form onSubmit={handleSubmit} className="pv-meds-form">
+      <div className="pv-meds-form-intro">
+        <h2 className="pv-meds-form-title">What medication are you taking?</h2>
+        <p className="pv-meds-form-hint">
+          Search by the name on the strip or bottle. Brand names and ingredients can both be recognized.
+        </p>
       </div>
 
-      <div ref={rootRef} className="relative mt-5">
-        <label className="block text-sm font-medium" htmlFor={inputId}>Medicine name</label>
-        <div className="relative mt-2">
-          <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2">
+      <div ref={rootRef} className="pv-meds-search">
+        <div className="pv-meds-label-row">
+          <label className="pv-meds-label" htmlFor={inputId}>Medicine name</label>
+          <span className="pv-meds-catalog-tag">Verified catalog</span>
+        </div>
+        <div className="relative">
+          <span aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3">
             <SearchIcon className="h-[1.05rem] w-[1.05rem]" />
           </span>
           <input
@@ -184,7 +183,7 @@ export function MedicationPicker({
             onChange={(event) => { setQuery(event.target.value); setSelected(null); }}
             onKeyDown={onSearchKeyDown}
             placeholder="e.g. Vasograin, aspirin, metformin"
-            className={`${fieldOnSunkClass} pl-9`}
+            className={`${fieldOnCardClass} pv-meds-field pl-10`}
             aria-expanded={open}
             aria-haspopup="listbox"
             aria-controls={open ? listId : undefined}
@@ -193,17 +192,17 @@ export function MedicationPicker({
           />
         </div>
 
-        {searching ? <p className="mt-2 text-sm text-ink-2">Checking the medication catalog…</p> : null}
+        {searching ? <p className="pv-meds-search-status">Checking the medication catalog…</p> : null}
         {searchError ? <div className="mt-2"><StatusBanner tone="error" role="alert">{searchError}</StatusBanner></div> : null}
         {!searching && !searchError && query.trim().length >= REFERENCE_DRUG_MIN_QUERY_LENGTH && open && results.length === 0 ? (
-          <div className="mt-3 rounded-row bg-surface p-4">
-            <p className="text-sm font-medium">We couldn’t find a verified catalog match.</p>
-            <p className="mt-1 text-xs leading-5 text-ink-2">Check the spelling or use the active ingredient printed on the package. We won’t guess a medication identity.</p>
+          <div className="pv-meds-nomatch">
+            <p className="pv-meds-nomatch-title">We couldn’t find a verified catalog match.</p>
+            <p className="pv-meds-nomatch-text">Check the spelling or use the active ingredient printed on the package. We won’t guess a medication identity.</p>
           </div>
         ) : null}
 
         {open && results.length > 0 ? (
-          <ul id={listId} role="listbox" className="mt-2 max-h-72 overflow-auto rounded-row bg-surface p-1 shadow-[var(--e-float)]">
+          <ul id={listId} role="listbox" className="pv-meds-options">
             {results.map((drug, index) => {
               const active = index === activeIndex;
               return (
@@ -214,15 +213,15 @@ export function MedicationPicker({
                   aria-selected={active}
                   onMouseEnter={() => setActiveIndex(index)}
                   onMouseDown={(event) => { event.preventDefault(); selectDrug(drug); }}
-                  className={`cursor-pointer rounded-md px-3 py-3 ${active ? "bg-surface-2" : "hover:bg-surface-2/70"}`}
+                  className={`pv-meds-option ${active ? "is-active" : ""}`}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold">{drug.name}</span>
-                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-ink-2">
+                  <div className="pv-meds-option-row">
+                    <span className="pv-meds-option-name">{drug.name}</span>
+                    <span className="pv-meds-option-code">
                       {drug.term_type || "match"}
                     </span>
                   </div>
-                  <span className="mt-1 block text-xs text-ink-2">{medicationSearchSubtitle(drug)}</span>
+                  <span className="pv-meds-option-sub">{medicationSearchSubtitle(drug)}</span>
                 </li>
               );
             })}
@@ -231,32 +230,41 @@ export function MedicationPicker({
       </div>
 
       {selected ? (
-        <div className="mt-4 rounded-row bg-mild-bg p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Medication selected</p>
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="text-base font-semibold">{selected.name}</span>
-            <span className="text-sm text-ink-2">{termTypeLabel(selected.term_type)}</span>
+        <div className="pv-meds-selected">
+          <span className="pv-meds-selected-icon" aria-hidden="true">
+            <CheckIcon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="pv-meds-selected-label">Medication selected</p>
+            <p className="pv-meds-selected-name">
+              <span className="pv-meds-selected-drug">{selected.name}</span>
+              <span className="pv-meds-selected-kind">{termTypeLabel(selected.term_type)}</span>
+            </p>
+            {selected.rxcui ? <p className="pv-meds-selected-note">Standardized medication identity linked for safety analysis.</p> : null}
           </div>
-          {selected.rxcui ? <p className="mt-1 text-xs text-ink-2">Standardized medication identity linked for safety analysis.</p> : null}
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className="block text-sm font-medium" htmlFor="start-date">Start date</label>
-          <input id="start-date" type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} className={fieldOnSunkClass} />
-        </div>
-        <div>
-          <label className="block text-sm font-medium" htmlFor="dose">Dose <span className="font-normal text-ink-2">(optional)</span></label>
-          <input id="dose" value={dose} onChange={(event) => setDose(event.target.value)} placeholder="e.g. 1 tablet" className={fieldOnSunkClass} />
+      <div className="pv-meds-form-group">
+        <p className="pv-meds-form-group-title">Prescription details</p>
+        <div className="pv-meds-form-grid">
+          <div>
+            <label className="pv-meds-label" htmlFor="start-date">Start date</label>
+            <input id="start-date" type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} className={`${fieldOnCardClass} pv-meds-field`} />
+          </div>
+          <div>
+            <label className="pv-meds-label" htmlFor="dose">Dose <span className="pv-meds-optional">(optional)</span></label>
+            <input id="dose" value={dose} onChange={(event) => setDose(event.target.value)} placeholder="e.g. 1 tablet" className={`${fieldOnCardClass} pv-meds-field`} />
+          </div>
+          <div className="pv-meds-form-wide">
+            <label className="pv-meds-label" htmlFor="purpose">Purpose <span className="pv-meds-optional">(optional)</span></label>
+            <input id="purpose" value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="e.g. Migraine" className={`${fieldOnCardClass} pv-meds-field`} />
+          </div>
         </div>
       </div>
 
-      <label className="mt-3 block text-sm font-medium" htmlFor="purpose">Purpose <span className="font-normal text-ink-2">(optional)</span></label>
-      <input id="purpose" value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="e.g. Migraine" className={fieldOnSunkClass} />
-
-      {submitError ? <div className="mt-3"><StatusBanner tone="error" role="alert">{submitError}</StatusBanner></div> : null}
-      <button type="submit" disabled={!selected || submitting} className={`${primaryButtonClass} mt-5 w-full sm:w-auto`}>
+      {submitError ? <StatusBanner tone="error" role="alert">{submitError}</StatusBanner> : null}
+      <button type="submit" disabled={!selected || submitting} className="on-dark pv-meds-submit">
         {submitting ? "Adding medication…" : "Add medication"}
       </button>
     </form>

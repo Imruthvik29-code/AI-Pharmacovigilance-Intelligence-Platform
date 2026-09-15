@@ -5,9 +5,8 @@ import { ApiError } from "@/lib/api/errors";
 import { generateMedicationSchedule, listUpcomingDoses, markDose } from "@/lib/api/schedule";
 import type { DoseStatus, MedicationResponse, UpcomingDoseResponse } from "@/lib/api/types";
 import { displayDrugName } from "@/lib/drugs/nameCache";
-import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui/classes";
 import { IconChip } from "@/components/ui/IconChip";
-import { CheckIcon, ClockIcon } from "@/components/icons/Icons";
+import { CheckIcon } from "@/components/icons/Icons";
 import { StatusBanner } from "@/components/StatusBanner";
 
 type Props = {
@@ -21,6 +20,25 @@ const statusActions: Array<{ status: DoseStatus; label: string }> = [
   { status: "skipped", label: "Skipped" },
   { status: "missed", label: "Missed" },
 ];
+
+function doseDateLabel(dose: UpcomingDoseResponse): string {
+  const scheduled = new Date(dose.scheduled_time);
+  return Number.isNaN(scheduled.getTime())
+    ? "Scheduled dose"
+    : new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" }).format(scheduled);
+}
+
+/** Consecutive doses that share a calendar day, keeping the order they were returned in. */
+function groupByDay(doses: UpcomingDoseResponse[]): Array<{ label: string; doses: UpcomingDoseResponse[] }> {
+  const groups: Array<{ label: string; doses: UpcomingDoseResponse[] }> = [];
+  for (const dose of doses) {
+    const label = doseDateLabel(dose);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.doses.push(dose);
+    else groups.push({ label, doses: [dose] });
+  }
+  return groups;
+}
 
 export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Props) {
   const [doses, setDoses] = useState<UpcomingDoseResponse[]>([]);
@@ -95,69 +113,72 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
   );
 
   return (
-    <section aria-labelledby="schedule-heading">
-      <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">Medication schedule</p>
-          <h2 id="schedule-heading" className="mt-0.5 text-[1.0625rem] font-semibold tracking-[-0.01em] text-ink">What is due next</h2>
-          <p className="mt-1 max-w-2xl text-[0.8125rem] leading-5 text-ink-2">Only future, unmarked doses for active medications appear here.</p>
+    <section aria-labelledby="schedule-heading" className="pv-meds-section">
+      <header className="pv-meds-section-head">
+        <div className="pv-meds-section-row">
+          <h2 id="schedule-heading" className="pv-meds-section-title">What is due next</h2>
+          <button type="button" onClick={() => void loadDoses()} disabled={loading} className="pv-meds-quiet-button">
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
         </div>
-        <button type="button" onClick={() => void loadDoses()} disabled={loading} className={`${secondaryButtonClass} self-start`}>
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
+        <p className="pv-meds-section-note">Only future, unmarked doses for active medications appear here.</p>
+      </header>
 
-      <div className="mt-3">
-        {error ? <div className="mb-4"><StatusBanner tone="error" role="alert">{error}</StatusBanner></div> : null}
-        {notice ? <div className="mb-4"><StatusBanner tone="info">{notice}</StatusBanner></div> : null}
+      <div className="pv-meds-stack">
+        {error ? <StatusBanner tone="error" role="alert">{error}</StatusBanner> : null}
+        {notice ? <StatusBanner tone="info">{notice}</StatusBanner> : null}
 
         {loading ? (
-          <div className="space-y-3" aria-label="Loading schedule">
-            {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-card bg-surface-2" />)}
+          <div className="pv-meds-card pv-meds-loading" aria-label="Loading schedule">
+            {[1, 2, 3].map((item) => <div key={item} className="pv-meds-loading-line" />)}
           </div>
         ) : doses.length > 0 ? (
-          <div className="space-y-3">
-            {doses.map((dose) => {
-              const medication = medicationNames.get(dose.medication_id);
-              return (
-                <DoseRow key={dose.id} dose={dose} medication={medication} busy={busyDoseId === dose.id} onMark={handleMark} />
-              );
-            })}
-          </div>
+          groupByDay(doses).map((group, index) => (
+            <div key={`${group.label}-${index}`} className="pv-dose-day">
+              <p className="pv-dose-day-label">{group.label}</p>
+              <ul className="pv-meds-card pv-dose-list">
+                {group.doses.map((dose) => {
+                  const medication = medicationNames.get(dose.medication_id);
+                  return (
+                    <DoseRow key={dose.id} dose={dose} medication={medication} busy={busyDoseId === dose.id} onMark={handleMark} />
+                  );
+                })}
+              </ul>
+            </div>
+          ))
         ) : (
-          <div className="rounded-card bg-surface px-5 py-8 text-center shadow-[var(--e-row)]">
-            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-mild-bg text-mild">
-              <CheckIcon className="h-5 w-5" />
-            </span>
-            <h3 className="mt-3 text-[0.9375rem] font-semibold text-ink">No upcoming doses</h3>
-            <p className="mx-auto mt-1 max-w-md text-[0.875rem] leading-6 text-ink-2">Generate a schedule for an active medication with a duration and dosing frequency, or check back after the next dose is due.</p>
+          <div className="pv-meds-card pv-meds-empty">
+            <IconChip Icon={CheckIcon} surface="var(--mild-bg)" ink="var(--mild-fg)" size="md" />
+            <div className="min-w-0">
+              <h3 className="pv-meds-empty-title">No upcoming doses</h3>
+              <p className="pv-meds-empty-text">Generate a schedule for an active medication with a duration and dosing frequency, or check back after the next dose is due.</p>
+            </div>
           </div>
         )}
 
         {schedulableMedications.length > 0 ? (
-          <div className="mt-6 border-t border-hairline pt-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[0.9375rem] font-semibold text-ink">Medication schedules</p>
-                <p className="mt-1 text-[0.75rem] text-ink-3">Schedules are created once per medication.</p>
-              </div>
+          <div className="pv-meds-schedules">
+            <div className="pv-meds-subhead">
+              <p className="pv-meds-subhead-title">Medication schedules</p>
+              <p className="pv-meds-section-note">Schedules are created once per medication.</p>
             </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <ul className="pv-meds-card pv-meds-schedule-list">
               {schedulableMedications.map((medication) => {
                 const drugLabel = displayDrugName(medication.drug_id);
+                const label = medication.drug_name ?? drugLabel.name;
                 return (
-                  <div key={medication.id} className="flex flex-col items-start gap-3 rounded-row bg-surface-2 px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 max-w-full">
-                      <p className="truncate text-[0.875rem] font-semibold text-ink">{drugLabel.name}</p>
-                      <p className="mt-0.5 text-[0.75rem] text-ink-3">{medication.dose ?? "Dose not recorded"}</p>
+                  <li key={medication.id} className="pv-meds-schedule">
+                    <div className="pv-meds-schedule-copy">
+                      <p className={`pv-meds-schedule-name ${medication.drug_name || drugLabel.cached ? "" : "is-unnamed"}`}>{label}</p>
+                      <p className="pv-meds-schedule-dose">{medication.dose ?? "Dose not recorded"}</p>
                     </div>
-                    <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className={primaryButtonClass} aria-label={`Create schedule for ${drugLabel.name}`}>
+                    <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className="on-dark pv-meds-dark-button" aria-label={`Create schedule for ${label}`}>
                       {generatingMedicationId === medication.id ? "Creating…" : "Create schedule"}
                     </button>
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
         ) : null}
       </div>
@@ -168,31 +189,25 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
 function DoseRow({ dose, medication, busy, onMark }: { dose: UpcomingDoseResponse; medication?: MedicationResponse; busy: boolean; onMark: (dose: UpcomingDoseResponse, status: DoseStatus) => void }) {
   const scheduled = new Date(dose.scheduled_time);
   const validDate = !Number.isNaN(scheduled.getTime());
-  const dateLabel = validDate ? new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" }).format(scheduled) : "Scheduled dose";
   const timeLabel = validDate ? new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(scheduled) : "";
   const medicationLabel = dose.drug_name || displayDrugName(medication?.drug_id ?? "").name;
 
   return (
-    <div className="rounded-row bg-surface px-4 py-4 shadow-[var(--e-row)] sm:px-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <IconChip Icon={ClockIcon} surface="var(--medications-surface)" ink="var(--medications-ink)" size="sm" className="mt-0.5" />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <p className="font-semibold tracking-[-0.01em] text-ink">{medicationLabel}</p>
-              <span className="text-[0.75rem] text-ink-3">{dose.dose ?? medication?.dose ?? "Dose not recorded"}</span>
-            </div>
-            <p className="mt-1 text-[0.8125rem] text-ink-2">{dateLabel} · {timeLabel}</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-2 lg:min-w-[300px]" aria-label={`Update ${medicationLabel} dose status`}>
-          {statusActions.map((action) => (
-            <button key={action.status} type="button" onClick={() => onMark(dose, action.status)} disabled={busy} className={action.status === "taken" ? primaryButtonClass : secondaryButtonClass} aria-label={`${action.label} ${medicationLabel} dose`}>
-              {busy ? "…" : action.label}
-            </button>
-          ))}
+    <li className="pv-dose">
+      <div className="pv-dose-head">
+        {timeLabel ? <p className="pv-dose-time">{timeLabel}</p> : null}
+        <div className="pv-dose-copy">
+          <p className="pv-dose-name">{medicationLabel}</p>
+          <p className="pv-dose-amount">{dose.dose ?? medication?.dose ?? "Dose not recorded"}</p>
         </div>
       </div>
-    </div>
+      <div className="pv-dose-actions" aria-label={`Update ${medicationLabel} dose status`}>
+        {statusActions.map((action) => (
+          <button key={action.status} type="button" onClick={() => onMark(dose, action.status)} disabled={busy} className={action.status === "taken" ? "on-dark pv-dose-action is-primary" : "pv-dose-action"} aria-label={`${action.label} ${medicationLabel} dose`}>
+            {busy ? "…" : action.label}
+          </button>
+        ))}
+      </div>
+    </li>
   );
 }

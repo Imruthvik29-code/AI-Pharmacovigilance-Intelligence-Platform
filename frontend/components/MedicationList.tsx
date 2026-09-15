@@ -1,11 +1,36 @@
 "use client";
 
 import { IconChip } from "@/components/ui/IconChip";
-import { CapsuleIcon } from "@/components/icons/Icons";
+import { CapsuleIcon, CheckIcon } from "@/components/icons/Icons";
 import { displayDrugName } from "@/lib/drugs/nameCache";
 import { termTypeLabel } from "@/lib/drugs/termType";
+import { formatCalendarDate } from "@/lib/patient/summaries";
 import type { MedicationResponse } from "@/lib/api/types";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
+
+/** The recorded course details, in reading order. Absent values are left out. */
+function prescriptionFacts(medication: MedicationResponse): Array<{ label: string; value: string }> {
+  const facts: Array<{ label: string; value: string }> = [];
+  if (medication.times_per_day != null) {
+    facts.push({ label: "Frequency", value: `${medication.times_per_day}× daily` });
+  }
+  if (medication.interval_hours != null) {
+    facts.push({ label: "Interval", value: `Every ${medication.interval_hours} h` });
+  }
+  if (medication.duration_days != null) {
+    facts.push({
+      label: "Duration",
+      value: `${medication.duration_days} ${medication.duration_days === 1 ? "day" : "days"}`,
+    });
+  }
+  if (medication.start_date) {
+    facts.push({ label: "Started", value: formatCalendarDate(medication.start_date) });
+  }
+  if (medication.end_date) {
+    facts.push({ label: "Ends", value: formatCalendarDate(medication.end_date) });
+  }
+  return facts;
+}
 
 export function MedicationList({
   medications,
@@ -35,19 +60,22 @@ export function MedicationList({
         </div>
       ) : null}
 
-      <div className={`${showHeading ? "mt-3" : ""} space-y-2`}>
+      <div className={`${showHeading ? "mt-3" : ""} pv-meds-list`}>
         {loading ? <LoadingSkeleton label="Loading medications" lines={3} /> : null}
         {error ? (
-          <p className="rounded-row bg-severe-bg px-4 py-3 text-[0.875rem] text-severe" role="alert">
+          <p className="pv-meds-alert" role="alert">
             {error}
           </p>
         ) : null}
         {!loading && !error && medications.length === 0 ? (
-          <div className="rounded-row bg-surface-2 px-4 py-5">
-            <p className="text-[0.9375rem] font-semibold">No medications recorded</p>
-            <p className="mt-1 text-[0.875rem] leading-6 text-ink-2">
-              Search the catalog to add an active course to this patient.
-            </p>
+          <div className="pv-meds-card pv-meds-empty">
+            <IconChip Icon={CapsuleIcon} surface="var(--surface-2)" ink="var(--ink-3)" size="md" />
+            <div className="min-w-0">
+              <p className="pv-meds-empty-title">No medications recorded</p>
+              <p className="pv-meds-empty-text">
+                Search the catalog to add an active course to this patient.
+              </p>
+            </div>
           </div>
         ) : null}
 
@@ -65,50 +93,61 @@ export function MedicationList({
                   ? medication.drug_generic_name
                   : null;
               const identityVerified = Boolean(medication.drug_name);
+              const active = medication.status === "active";
+              const facts = prescriptionFacts(medication);
 
               return (
-                <article key={medication.id} className="pv-row items-start">
-                  <IconChip
-                    Icon={CapsuleIcon}
-                    surface="var(--medications-surface)"
-                    ink="var(--medications-ink)"
-                    size="sm"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <p
-                          className={`truncate font-semibold tracking-[-0.01em] ${identityVerified || cached.cached ? "text-ink" : "text-ink-3"}`}
-                        >
-                          {name}
-                        </p>
+                <article
+                  key={medication.id}
+                  className={`pv-meds-card pv-meds-item ${active ? "" : "is-inactive"}`}
+                >
+                  <div className="pv-meds-item-head">
+                    <IconChip
+                      Icon={CapsuleIcon}
+                      surface={active ? "var(--medications-bg)" : "var(--surface-2)"}
+                      ink={active ? "var(--medications-fg)" : "var(--ink-3)"}
+                      size="md"
+                    />
+                    <div className="pv-meds-identity">
+                      <h3
+                        className={`pv-meds-name ${identityVerified || cached.cached ? "" : "is-unnamed"}`}
+                      >
+                        {name}
+                      </h3>
+                      <p className="pv-meds-kind">
+                        {[termType, genericContext, medication.dose].filter(Boolean).join(" · ") ||
+                          "Medication details not recorded"}
+                      </p>
+                      <div className="pv-meds-tags">
+                        <span className={`pv-meds-status ${active ? "is-active" : ""}`}>
+                          <span className="pv-meds-status-text">{medication.status.replace(/_/g, " ")}</span>
+                        </span>
                         {identityVerified ? (
-                          <span className="rounded-full bg-medications px-2 py-0.5 text-[0.6875rem] font-semibold text-medications-ink">
-                            Verified
+                          <span className="pv-meds-verified">
+                            <CheckIcon className="pv-meds-verified-icon" />
+                            <span>Verified</span>
                           </span>
                         ) : null}
                       </div>
-                      <span className="shrink-0 rounded-full bg-surface-2 px-2.5 py-0.5 text-[0.6875rem] font-semibold capitalize text-ink-2">
-                        {medication.status}
-                      </span>
                     </div>
-                    <p className="mt-1 text-[0.8125rem] text-ink-2">
-                      {[termType, genericContext, medication.dose].filter(Boolean).join(" · ") ||
-                        "Medication details not recorded"}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[0.75rem] text-ink-3">
-                      {medication.start_date ? <span>Started {medication.start_date}</span> : null}
-                      {medication.end_date ? <span>Ends {medication.end_date}</span> : null}
-                      {medication.times_per_day != null ? (
-                        <span>{medication.times_per_day}× daily</span>
-                      ) : null}
-                    </div>
-                    {medication.purpose_text ? (
-                      <p className="mt-1.5 text-[0.8125rem] leading-5 text-ink-2">
-                        {medication.purpose_text}
-                      </p>
-                    ) : null}
                   </div>
+
+                  {facts.length > 0 || medication.purpose_text ? (
+                    <dl className="pv-meds-facts">
+                      {facts.map((fact) => (
+                        <div key={fact.label} className="pv-meds-fact">
+                          <dt>{fact.label}</dt>
+                          <dd>{fact.value}</dd>
+                        </div>
+                      ))}
+                      {medication.purpose_text ? (
+                        <div className="pv-meds-fact pv-meds-fact-wide">
+                          <dt>Purpose</dt>
+                          <dd>{medication.purpose_text}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  ) : null}
                 </article>
               );
             })

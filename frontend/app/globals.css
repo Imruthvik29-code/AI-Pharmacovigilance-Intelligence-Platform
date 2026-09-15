@@ -1835,6 +1835,879 @@ body:has(.pv-safety) .pv-detail .pv-cta > span:first-child {
   }
 }
 
+/* ======================================================= Medications detail
+   Each recorded medication leads with its identity, then its recorded course
+   details on a grey inset panel; adding a medication is one deliberate card;
+   the dose schedule follows, grouped by day. Wide screens set the schedule in
+   a side column. Every rule is owned by the Medications detail (`.pv-meds*`,
+   `.pv-dose*`) or scoped to it through `body:has(.pv-meds)`, so no other
+   screen can match. Nothing reads smaller than 13px. */
+body:has(.pv-meds) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--sheet);
+}
+
+body:has(.pv-meds) > .pv-canvas {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+/* The install offer follows the page in normal flow rather than floating over
+   the last dose's actions. Install behaviour and other routes are unchanged. */
+body:has(.pv-meds) > aside[aria-label="Install PV Intelligence"] {
+  position: relative;
+  inset: auto;
+  flex: none;
+  width: calc(100% - 2.5rem);
+  max-width: 34rem;
+  margin: 0 auto max(1.25rem, env(safe-area-inset-bottom));
+  gap: 0.75rem;
+  box-shadow: var(--e-panel);
+}
+
+body:has(.pv-meds) > aside[aria-label="Install PV Intelligence"] button {
+  padding-inline: 0.75rem;
+  font-size: 0.8125rem;
+  box-shadow: none;
+}
+
+.pv-meds {
+  display: grid;
+  gap: 2.25rem;
+}
+
+.pv-meds-main {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.pv-meds-side {
+  min-width: 0;
+}
+
+.pv-meds-card {
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: 0 14px 30px -20px rgb(21 24 28 / 0.28), 0 1px 3px rgb(21 24 28 / 0.05);
+}
+
+/* ------------------------------------------------------------ Sections */
+.pv-meds-section {
+  display: grid;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.pv-meds-section-head {
+  padding: 0 0.25rem;
+}
+
+.pv-meds-section-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+}
+
+.pv-meds-section-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+
+.pv-meds-section-note {
+  margin: 0.1875rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-3);
+  text-wrap: pretty;
+}
+
+.pv-meds-count {
+  flex: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.pv-meds-stack {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.pv-meds-alert {
+  margin: 0;
+  border-radius: var(--r-row);
+  background: var(--severe-bg);
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--severe-fg);
+}
+
+/* ------------------------------------------------------ Medication cards */
+.pv-meds-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pv-meds-item {
+  padding: 1.125rem;
+}
+
+.pv-meds-item-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+.pv-meds-identity {
+  flex: 1;
+  min-width: 0;
+  padding-top: 0.0625rem;
+}
+
+/* The full name always shows: long catalog names wrap rather than truncate. */
+.pv-meds-name {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.pv-meds-name.is-unnamed {
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.pv-meds-kind {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.pv-meds-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.625rem;
+}
+
+.pv-meds-status,
+.pv-meds-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  border-radius: 999px;
+  padding: 0.1875rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.pv-meds-status {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.pv-meds-status-text {
+  display: inline-block;
+}
+
+.pv-meds-status-text::first-letter {
+  text-transform: uppercase;
+}
+
+.pv-meds-status::before {
+  content: "";
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: none;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.pv-meds-status.is-active {
+  background: var(--medications-bg);
+  color: var(--medications-fg);
+}
+
+.pv-meds-status.is-active::before {
+  opacity: 1;
+}
+
+.pv-meds-verified {
+  padding-left: 0.4375rem;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.pv-meds-verified-icon {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: var(--medications-fg);
+}
+
+/* Recorded course details on the grey inset panel the overview card uses. */
+.pv-meds-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  margin: 1rem 0 0;
+  padding: 0.875rem 1rem;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+}
+
+.pv-meds-fact {
+  min-width: 0;
+}
+
+.pv-meds-fact-wide {
+  grid-column: 1 / -1;
+}
+
+.pv-meds-fact dt {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--ink-3);
+}
+
+.pv-meds-fact dd {
+  margin: 0.125rem 0 0;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.pv-meds-item.is-inactive .pv-meds-name:not(.is-unnamed) {
+  color: var(--ink-2);
+}
+
+.pv-meds-item.is-inactive .pv-meds-fact dd {
+  color: var(--ink-2);
+}
+
+/* ------------------------------------------------------------ Empty states */
+.pv-meds-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 1.125rem;
+}
+
+.pv-meds-empty-title {
+  margin: 0.125rem 0 0;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.pv-meds-empty-text {
+  margin: 0.25rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* ------------------------------------------------------- Add medication */
+.pv-meds-add {
+  overflow: hidden;
+}
+
+.pv-meds-add-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  padding: 1rem 1.125rem;
+  border-radius: var(--r-card);
+  text-align: left;
+  color: var(--ink);
+}
+
+.pv-meds-add-trigger:focus-visible {
+  outline-offset: -2px;
+}
+
+.pv-meds-add-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  background: var(--cta);
+  color: #fff;
+  transition: transform 180ms ease, background-color 180ms ease;
+}
+
+.pv-meds-add.is-open .pv-meds-add-chip {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  transform: rotate(45deg);
+}
+
+.pv-meds-add-copy {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.pv-meds-add-title {
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.pv-meds-add-note {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.pv-meds-add-body {
+  margin: 0 1.125rem;
+  padding: 1.125rem 0 1.25rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.pv-meds-form {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.pv-meds-form-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+
+.pv-meds-form-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.pv-meds-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+.pv-meds-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.pv-meds-optional {
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.pv-meds-catalog-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--medications-bg);
+  padding: 0.125rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--medications-fg);
+}
+
+.pv-meds-field {
+  margin-top: 0.4375rem;
+}
+
+.pv-meds-search-status {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.pv-meds-nomatch {
+  margin-top: 0.625rem;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  padding: 0.875rem 1rem;
+}
+
+.pv-meds-nomatch-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.pv-meds-nomatch-text {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.pv-meds-options {
+  max-height: 18rem;
+  overflow: auto;
+  margin: 0.5rem 0 0;
+  padding: 0.3125rem;
+  list-style: none;
+  border-radius: var(--r-control);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--hairline), var(--e-float);
+}
+
+.pv-meds-option {
+  cursor: pointer;
+  border-radius: 0.625rem;
+  padding: 0.6875rem 0.75rem;
+}
+
+.pv-meds-option.is-active {
+  background: var(--surface-2);
+}
+
+.pv-meds-option-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pv-meds-option-name {
+  min-width: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* The catalog's term-type code stays available but subordinate. */
+.pv-meds-option-code {
+  flex: none;
+  margin-top: 0.0625rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+.pv-meds-option-sub {
+  display: block;
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.pv-meds-selected {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: var(--r-control);
+  background: var(--medications-bg);
+  padding: 0.875rem 1rem;
+}
+
+.pv-meds-selected-icon {
+  display: inline-flex;
+  flex: none;
+  margin-top: 0.0625rem;
+  color: var(--medications-fg);
+}
+
+.pv-meds-selected-label {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--medications-fg);
+}
+
+.pv-meds-selected-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.125rem 0.5rem;
+  margin: 0.1875rem 0 0;
+}
+
+.pv-meds-selected-drug {
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.pv-meds-selected-kind {
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.pv-meds-selected-note {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.pv-meds-form-group {
+  padding-top: 1.125rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.pv-meds-form-group-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.pv-meds-form-grid {
+  display: grid;
+  gap: 0.875rem;
+}
+
+/* The date input keeps its native control; only its box is aligned. */
+.pv-meds-field[type="date"] {
+  display: block;
+  min-width: 0;
+  appearance: none;
+}
+
+.pv-meds-submit,
+.pv-meds-dark-button,
+.pv-dose-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+
+.pv-meds-submit,
+.pv-meds-dark-button,
+.pv-dose-action.is-primary {
+  background: var(--cta);
+  color: #fff;
+}
+
+.pv-meds-submit {
+  min-height: 3.25rem;
+  width: 100%;
+  padding: 0 1.5rem;
+  font-size: 1rem;
+  box-shadow: 0 6px 14px -8px rgb(21 24 28 / 0.35);
+}
+
+.pv-meds-submit:disabled,
+.pv-meds-dark-button:disabled,
+.pv-dose-action:disabled,
+.pv-meds-quiet-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------------- Schedule */
+.pv-meds-quiet-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 2.75rem;
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 0 1.125rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--hairline);
+}
+
+.pv-meds-loading {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.125rem;
+}
+
+@keyframes pv-meds-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pv-meds-loading-line {
+  height: 3.25rem;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  animation: pv-meds-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.pv-dose-day {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pv-dose-day-label {
+  margin: 0;
+  padding: 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+.pv-dose-list {
+  margin: 0;
+  padding: 0 1.125rem;
+  list-style: none;
+}
+
+.pv-dose {
+  padding: 1rem 0;
+}
+
+.pv-dose + .pv-dose {
+  border-top: 1px solid var(--hairline);
+}
+
+.pv-dose-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+.pv-dose-time {
+  flex: none;
+  min-width: 4.75rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.pv-dose-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.pv-dose-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.pv-dose-amount {
+  margin: 0.125rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.pv-dose-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+}
+
+.pv-dose-action {
+  min-height: 2.75rem;
+  min-width: 0;
+  padding: 0 0.5rem;
+  background: var(--surface-2);
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
+
+.pv-meds-schedules {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.625rem;
+}
+
+.pv-meds-subhead {
+  padding: 0 0.25rem;
+}
+
+.pv-meds-subhead-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.pv-meds-schedule-list {
+  margin: 0;
+  padding: 0 1.125rem;
+  list-style: none;
+}
+
+.pv-meds-schedule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.9375rem 0;
+}
+
+.pv-meds-schedule + .pv-meds-schedule {
+  border-top: 1px solid var(--hairline);
+}
+
+.pv-meds-schedule-copy {
+  flex: 1 1 11rem;
+  min-width: 0;
+}
+
+.pv-meds-schedule-name {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.pv-meds-schedule-name.is-unnamed {
+  color: var(--ink-3);
+}
+
+.pv-meds-schedule-dose {
+  margin: 0.125rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.pv-meds-dark-button {
+  flex: none;
+  min-height: 2.75rem;
+  padding: 0 1.125rem;
+  font-size: 0.9375rem;
+}
+
+@media (min-width: 440px) {
+  .pv-meds-item,
+  .pv-meds-empty,
+  .pv-meds-loading {
+    padding: 1.25rem 1.375rem;
+  }
+
+  .pv-meds-add-trigger {
+    padding: 1.125rem 1.375rem;
+  }
+
+  .pv-meds-add-body {
+    margin: 0 1.375rem;
+  }
+
+  .pv-dose-list,
+  .pv-meds-schedule-list {
+    padding: 0 1.375rem;
+  }
+
+  .pv-meds-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pv-meds-form-wide {
+    grid-column: 1 / -1;
+  }
+
+  .pv-meds-submit {
+    width: auto;
+    justify-self: start;
+    min-width: 12rem;
+  }
+}
+
+/* Wide screens use the width: recorded medications and adding one on the
+   left, what is due next beside them. Reading order is unchanged. */
+@media (min-width: 1024px) {
+  body:has(.pv-meds) > .pv-canvas {
+    max-width: 72rem;
+    padding-inline: 1.5rem;
+  }
+
+  .pv-meds {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 25rem);
+    align-items: start;
+    gap: 2rem;
+  }
+
+  .pv-meds-main {
+    gap: 1.25rem;
+  }
+
+  /* Both column heads share one row height, so their titles line up. */
+  .pv-meds-section-row {
+    min-height: 2.75rem;
+  }
+
+  .pv-meds-facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-left: 3.625rem;
+  }
+}
+
+@media (min-width: 1600px) {
+  body:has(.pv-meds) > .pv-canvas {
+    max-width: 78rem;
+  }
+
+  .pv-meds {
+    grid-template-columns: minmax(0, 1fr) 27rem;
+    gap: 2.5rem;
+  }
+}
+
 /* ==================================================== 1024px and wider
    The reference is a phone design. The honest desktop adaptation scales the
    same composition into a centred canvas rather than reflowing it into a

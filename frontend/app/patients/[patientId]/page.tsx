@@ -15,6 +15,7 @@ import { DetailScreen } from "@/components/patient/DetailScreen";
 import { PatientCardStack } from "@/components/patient/PatientCardStack";
 import { PatientHero } from "@/components/patient/PatientHero";
 import { isCategoryId, type CategoryId } from "@/components/patient/categories";
+import { PlusIcon } from "@/components/icons/Icons";
 import { PrimaryCTA } from "@/components/ui/PrimaryCTA";
 import { listAnalysisRuns, runAnalysis } from "@/lib/api/analysis";
 import { ApiError } from "@/lib/api/errors";
@@ -291,38 +292,69 @@ function PatientPage() {
             ) : null}
 
             {openCategory === "medications" ? (
-              <>
-                <MedicationList medications={medications} error={medError} showHeading={false} />
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPicker((open) => !open)}
-                    className={secondaryButtonClass}
+              <div className="pv-meds">
+                <div className="pv-meds-main">
+                  <div className="pv-meds-section">
+                    <header className="pv-meds-section-head">
+                      <div className="pv-meds-section-row">
+                        <h2 className="pv-meds-section-title">Recorded medications</h2>
+                        {medications.length > 0 && !medError ? (
+                          <span className="pv-meds-count">
+                            {activeCount} active of {medications.length} recorded
+                          </span>
+                        ) : null}
+                      </div>
+                    </header>
+                    <MedicationList medications={medications} error={medError} showHeading={false} />
+                  </div>
+
+                  <section
+                    aria-label="Add medication"
+                    className={`pv-meds-card pv-meds-add ${showPicker ? "is-open" : ""}`}
                   >
-                    {showPicker ? "Hide medication form" : "Add medication"}
-                  </button>
-                  {showPicker ? (
-                    <div className="mt-4">
-                      <MedicationPicker
-                        patientId={patientId}
-                        onCreated={(medication) => {
-                          setMedications((current) => [...current, medication]);
-                          setShowPicker(false);
-                          void refreshSecondary();
-                        }}
-                      />
-                    </div>
-                  ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setShowPicker((open) => !open)}
+                      aria-expanded={showPicker}
+                      className="pv-meds-add-trigger"
+                    >
+                      <span className="pv-meds-add-chip" aria-hidden="true">
+                        <PlusIcon className="h-5 w-5" />
+                      </span>
+                      <span className="pv-meds-add-copy">
+                        <span className="pv-meds-add-title">
+                          {showPicker ? "Hide medication form" : "Add medication"}
+                        </span>
+                        {showPicker ? null : (
+                          <span className="pv-meds-add-note" aria-hidden="true">
+                            Search the verified medication catalog
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                    {showPicker ? (
+                      <div className="pv-meds-add-body">
+                        <MedicationPicker
+                          patientId={patientId}
+                          onCreated={(medication) => {
+                            setMedications((current) => [...current, medication]);
+                            setShowPicker(false);
+                            void refreshSecondary();
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                  </section>
                 </div>
-                <SchedulePanel
-                  patientId={patientId}
-                  medications={medications}
-                  onTimelineRefresh={() => void refreshSecondary()}
-                />
-                <p className="pv-row-meta px-0.5">
-                  {activeCount} active of {medications.length} recorded
-                </p>
-              </>
+
+                <div className="pv-meds-side">
+                  <SchedulePanel
+                    patientId={patientId}
+                    medications={medications}
+                    onTimelineRefresh={() => void refreshSecondary()}
+                  />
+                </div>
+              </div>
             ) : null}
 
             {openCategory === "symptoms" ? (
