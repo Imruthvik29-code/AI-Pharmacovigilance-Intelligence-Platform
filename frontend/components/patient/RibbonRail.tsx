@@ -52,8 +52,8 @@ export function RibbonRail({
             style={
               {
                 "--slot": merged ? 0 : slot,
-                backgroundColor: category.surface,
-                color: category.ink,
+                "--ribbon-tint": category.surface,
+                "--ribbon-ink": category.ink,
               } as CSSProperties
             }
           >

@@ -6,6 +6,18 @@ import { briefRows, type WorkspaceData } from "@/components/patient/categoryBrie
 import type { Category, CategoryId } from "@/components/patient/categories";
 
 /**
+ * Whether this category has nothing on record yet. Presentation only: the rows
+ * and their wording come from `briefRows` unchanged; an empty category just
+ * sets them as a quiet line instead of an inset summary panel.
+ */
+function hasNoRecord(id: CategoryId, data: WorkspaceData): boolean {
+  if (id === "safety") return !data.analysis;
+  if (id === "medications") return data.medications.length === 0;
+  if (id === "symptoms") return data.symptoms.length === 0;
+  return data.timeline.length === 0;
+}
+
+/**
  * The face of one deck card, in the reference's reading order: tinted icon
  * chip, title, short description, the recorded summary grouped in a quiet inset
  * panel, then the primary action directly beneath it.
@@ -30,6 +42,7 @@ export function CategoryCardFace({
   analysisRunning?: boolean;
 }) {
   const rows = briefRows(category.id, data);
+  const empty = hasNoRecord(category.id, data);
   const offerRun = category.id === "safety" && !data.analysis && Boolean(onRunAnalysis);
 
   return (
@@ -45,10 +58,14 @@ export function CategoryCardFace({
       <h2 className="pv-card-title">{category.label}</h2>
       <p className="pv-card-desc">{category.description}</p>
 
-      <ul className="pv-card-summary">
+      <ul className={`pv-card-summary ${empty ? "pv-card-summary-empty" : ""}`}>
         {rows.map((row) => (
           <li key={row.key} className="pv-card-row">
-            <span className="pv-card-row-icon" style={{ color: row.ink }} aria-hidden="true">
+            <span
+              className="pv-card-row-icon"
+              style={empty ? undefined : { color: row.ink }}
+              aria-hidden="true"
+            >
               <row.Icon className="h-4 w-4" />
             </span>
             <span className="min-w-0">

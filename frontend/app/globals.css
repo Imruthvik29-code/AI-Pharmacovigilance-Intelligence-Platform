@@ -208,8 +208,8 @@ textarea {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    min-height: clamp(17.5rem, 38svh, 26rem);
-    padding: 1rem 1.25rem 2.75rem;
+    min-height: clamp(18.5rem, 43svh, 28rem);
+    padding: 1rem 1.25rem 3rem;
     color: var(--on-dark);
     background: linear-gradient(
       180deg,
@@ -235,8 +235,8 @@ textarea {
     position: absolute;
     inset: auto 0 0;
     z-index: -1;
-    height: 55%;
-    background: linear-gradient(to top, rgb(6 14 17 / 0.55), transparent);
+    height: 58%;
+    background: linear-gradient(to top, rgb(6 14 17 / 0.64), transparent);
     pointer-events: none;
   }
 
@@ -249,9 +249,9 @@ textarea {
     pointer-events: none;
   }
 
-  .pv-ridge-far { fill: rgb(206 230 226 / 0.2); }
-  .pv-ridge-mid { fill: rgb(46 92 100 / 0.42); }
-  .pv-ridge-near { fill: rgb(16 40 47 / 0.74); }
+  .pv-ridge-far { fill: rgb(206 230 226 / 0.24); }
+  .pv-ridge-mid { fill: rgb(46 92 100 / 0.5); }
+  .pv-ridge-near { fill: rgb(16 40 47 / 0.8); }
   .pv-water { fill: rgb(7 18 22 / 0.8); }
 
   .pv-water-light {
@@ -360,10 +360,11 @@ textarea {
     flex: 1;
     /* Parked cards sit a full stage-width away; keep them off the document. */
     overflow-x: clip;
-    margin-top: -1.5rem;
+    margin-top: -1.75rem;
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
     background: var(--sheet);
-    padding: 1.25rem 0 1.5rem;
+    box-shadow: 0 -12px 28px -16px rgb(6 14 17 / 0.5);
+    padding: clamp(1.375rem, 3svh, 2.25rem) 0 1.5rem;
   }
 
   /* ========================================================== Card stack
@@ -373,15 +374,16 @@ textarea {
   .pv-stage {
     --pad-l: 1rem;
     --pad-r: 0.75rem;
-    --tab-w: 3.25rem;
-    /* Each ribbon shows this much; the rest tucks under its neighbour. */
-    --tab-step: 2.5rem;
+    --tab-w: 2.75rem;
+    /* Each ribbon shows this much; the rest tucks under its neighbour. Narrow
+       enough that the card leads, still well over the 24px target minimum. */
+    --tab-step: 2rem;
     --tab-hidden: calc(var(--tab-w) - var(--tab-step));
     --rail-w: calc(var(--tab-w) + 2 * var(--tab-step));
     --overlap: 0.875rem;
     /* A floor, not a size: content sets the height, so a sparse record gets a
        shorter card rather than a hole above its summary. */
-    --card-min-h: 20rem;
+    --card-min-h: 18rem;
     position: relative;
     display: grid;
     touch-action: pan-y;
@@ -402,8 +404,8 @@ textarea {
     border-radius: var(--r-card);
     background: var(--surface);
     box-shadow:
-      0 16px 34px -18px rgb(21 24 28 / 0.32),
-      8px 0 22px -14px rgb(21 24 28 / 0.35),
+      0 18px 36px -18px rgb(21 24 28 / 0.34),
+      10px 0 24px -16px rgb(21 24 28 / 0.3),
       0 2px 6px rgb(21 24 28 / 0.05);
     padding: 1.125rem;
     will-change: transform, opacity;
@@ -420,7 +422,7 @@ textarea {
   }
 
   .pv-card-title {
-    margin: 0.875rem 0 0;
+    margin: 0.75rem 0 0;
     font-size: 1.375rem;
     font-weight: 700;
     line-height: 1.15;
@@ -428,7 +430,7 @@ textarea {
   }
 
   .pv-card-desc {
-    margin: 0.375rem 0 1rem;
+    margin: 0.25rem 0 0.875rem;
     font-size: 0.875rem;
     line-height: 1.45;
     color: var(--ink-2);
@@ -461,7 +463,7 @@ textarea {
   .pv-card-row-text {
     display: block;
     font-size: 0.8125rem;
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.35;
     color: var(--ink);
   }
@@ -474,16 +476,34 @@ textarea {
     color: var(--ink-2);
   }
 
+  /* Nothing on record yet: a quiet editorial line under a hairline, set in
+     secondary ink, rather than a grey status pill competing with the title. */
+  .pv-card-summary-empty {
+    padding: 0.75rem 0 0;
+    border-top: 1px solid var(--hairline);
+    border-radius: 0;
+    background: none;
+  }
+
+  .pv-card-summary-empty .pv-card-row-icon {
+    color: var(--ink-3);
+  }
+
+  .pv-card-summary-empty .pv-card-row-text {
+    color: var(--ink-2);
+    text-wrap: balance;
+  }
+
   .pv-card-action {
-    margin-top: 0.75rem;
+    margin-top: 0.875rem;
   }
 
   /* The label and its arrow share one dark shape, the label centred in the
      space the arrow leaves, as on the directory card. */
   .pv-card .pv-cta {
     min-height: 3.25rem;
-    padding-left: 1.125rem;
-    box-shadow: 0 6px 14px -8px rgb(21 24 28 / 0.4);
+    padding-left: 1.25rem;
+    box-shadow: 0 4px 10px -6px rgb(21 24 28 / 0.3);
   }
 
   .pv-card .pv-cta > span:first-child {
@@ -499,8 +519,8 @@ textarea {
   /* ============================================================= Ribbons */
   .pv-rail {
     position: absolute;
-    top: 0.875rem;
-    bottom: 0.875rem;
+    top: 1.25rem;
+    bottom: 1.25rem;
     right: var(--pad-r);
     width: var(--rail-w);
     will-change: transform;
@@ -516,16 +536,20 @@ textarea {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.875rem;
+    gap: 0.75rem;
     width: var(--tab-w);
-    padding: 1.125rem 0 1rem var(--tab-hidden);
+    padding: 1rem 0 1rem var(--tab-hidden);
     transform: translate3d(calc(var(--slot) * var(--tab-step)), 0, 0);
     /* Nearest the card sits on top, so the ribbons recede away from it. */
     z-index: calc(9 - var(--slot));
     border-radius: var(--r-card);
+    /* Category colour softened towards the surface: identifiable, recessed,
+       never louder than the card in front. */
+    background-color: color-mix(in srgb, var(--ribbon-tint) 88%, var(--surface));
+    color: var(--ribbon-ink);
     box-shadow:
-      6px 4px 16px -10px rgb(21 24 28 / 0.45),
-      inset 0 1px 0 rgb(255 255 255 / 0.55);
+      4px 2px 12px -8px rgb(21 24 28 / 0.26),
+      inset 0 1px 0 rgb(255 255 255 / 0.5);
     transition:
       transform var(--stack-ms) var(--stack-ease),
       opacity var(--stack-ms) var(--stack-ease);
@@ -540,15 +564,15 @@ textarea {
 
   .pv-rail-icon {
     flex: none;
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1.125rem;
+    height: 1.125rem;
   }
 
   .pv-rail-label {
     writing-mode: vertical-rl;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     white-space: nowrap;
   }
@@ -577,6 +601,7 @@ textarea {
   /* The overview marks position with round dots, as the directory does. */
   .pv-overview .pv-dots {
     gap: 0.5rem;
+    margin-top: clamp(1.25rem, 3svh, 2rem);
   }
 
   .pv-overview .pv-dot-on {
@@ -1089,7 +1114,7 @@ textarea {
 /* ===================================================== 440px and wider */
 @media (min-width: 440px) {
   .pv-hero {
-    min-height: clamp(19rem, 44svh, 31rem);
+    min-height: clamp(19rem, 47svh, 33rem);
     padding: 1.25rem 1.5rem 3rem;
   }
 
@@ -1108,14 +1133,13 @@ textarea {
   }
 
   .pv-sheet {
-    padding-top: 1.5rem;
+    padding-top: clamp(1.5rem, 3.5svh, 2.5rem);
   }
 
   .pv-stage {
     --pad-l: 1.25rem;
     --pad-r: 1rem;
     --overlap: 1rem;
-    --card-min-h: clamp(23rem, 40svh, 27rem);
   }
 
   .pv-card {
@@ -1252,7 +1276,7 @@ body:has(.pv-overview) > aside[aria-label="Install PV Intelligence"] button {
   .pv-overview {
     --scene-overlap-x: 11rem;
     --scene-overlap-y: 13rem;
-    --stack-w: 36rem;
+    --stack-w: 35rem;
     display: grid;
     grid-template-columns:
       [scene-start] minmax(0, 1fr)
@@ -1308,16 +1332,16 @@ body:has(.pv-overview) > aside[aria-label="Install PV Intelligence"] button {
     margin: 0;
     border-radius: 0;
     background: transparent;
+    box-shadow: none;
     padding: 0 0.375rem 0 1.5rem;
   }
 
   .pv-stage {
     --pad-l: 0rem;
     --pad-r: 0rem;
-    --tab-w: 4.25rem;
-    --tab-step: 3.25rem;
+    --tab-w: 3.5rem;
+    --tab-step: 2.625rem;
     --overlap: 1rem;
-    --card-min-h: 25.5rem;
   }
 
   .pv-card {
@@ -1334,22 +1358,22 @@ body:has(.pv-overview) > aside[aria-label="Install PV Intelligence"] button {
   }
 
   .pv-rail {
-    top: 1.25rem;
-    bottom: 1.25rem;
+    top: 1.5rem;
+    bottom: 1.5rem;
   }
 
   .pv-rail-tab {
-    gap: 1rem;
-    padding-top: 1.5rem;
+    gap: 0.875rem;
+    padding-top: 1.25rem;
   }
 
   .pv-rail-icon {
-    width: 1.375rem;
-    height: 1.375rem;
+    width: 1.25rem;
+    height: 1.25rem;
   }
 
   .pv-rail-label {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
   }
 
   .pv-topbar {
