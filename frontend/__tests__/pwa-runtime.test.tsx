@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PwaRuntime } from "@/components/PwaRuntime";
+import { INSTALL_DISMISSED_KEY, INSTALL_SUPPRESS_MS, PwaRuntime } from "@/components/PwaRuntime";
 
 describe("PwaRuntime", () => {
   const originalServiceWorker = navigator.serviceWorker;
@@ -12,6 +12,8 @@ describe("PwaRuntime", () => {
       value: { register: vi.fn().mockResolvedValue(undefined) },
     });
     window.__pvInstallPrompt = undefined;
+    // Dismissals now persist; keep each test starting from a clean slate.
+    window.localStorage.clear();
   });
 
   afterEach(() => {
@@ -93,5 +95,57 @@ describe("PwaRuntime", () => {
 
     expect(screen.queryByRole("complementary", { name: "Install PV Intelligence" })).not.toBeInTheDocument();
     expect(prompt).not.toHaveBeenCalled();
+  });
+
+  function offerInstall() {
+    const event = new Event("beforeinstallprompt") as Event & {
+      prompt: () => Promise<void>;
+      userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+    };
+    event.prompt = vi.fn().mockResolvedValue(undefined);
+    event.userChoice = Promise.resolve({ outcome: "dismissed" as const });
+    window.dispatchEvent(event);
+  }
+
+  it("remembers a dismissal across remounts instead of offering again on the next page", async () => {
+    const user = userEvent.setup();
+    const first = render(<PwaRuntime />);
+    offerInstall();
+    await user.click(await screen.findByRole("button", { name: "Dismiss install prompt" }));
+
+    const stored = Number(window.localStorage.getItem(INSTALL_DISMISSED_KEY));
+    expect(stored).toBeGreaterThan(0);
+    expect(Date.now() - stored).toBeLessThan(5000);
+
+    first.unmount();
+    render(<PwaRuntime />);
+    offerInstall();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("complementary", { name: "Install PV Intelligence" })).not.toBeInTheDocument();
+  });
+
+  it("offers installation again once the dismissal is older than a day", async () => {
+    window.localStorage.setItem(INSTALL_DISMISSED_KEY, String(Date.now() - INSTALL_SUPPRESS_MS - 1000));
+    render(<PwaRuntime />);
+    offerInstall();
+    expect(await screen.findByRole("complementary", { name: "Install PV Intelligence" })).toBeInTheDocument();
+  });
+
+  it("stays hidden when the app is already running installed", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === "(display-mode: standalone)",
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+    try {
+      render(<PwaRuntime />);
+      offerInstall();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(screen.queryByRole("complementary", { name: "Install PV Intelligence" })).not.toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+    }
   });
 });
