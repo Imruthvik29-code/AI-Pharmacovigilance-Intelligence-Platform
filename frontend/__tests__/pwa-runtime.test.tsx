@@ -69,4 +69,29 @@ describe("PwaRuntime", () => {
     expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
     expect(window.__pvInstallPrompt).toBeUndefined();
   });
+
+  it("shows the compact offer with a single install action and an icon dismiss control", async () => {
+    const user = userEvent.setup();
+    const prompt = vi.fn().mockResolvedValue(undefined);
+    render(<PwaRuntime />);
+
+    const event = new Event("beforeinstallprompt") as Event & {
+      prompt: () => Promise<void>;
+      userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+    };
+    event.prompt = prompt;
+    event.userChoice = Promise.resolve({ outcome: "dismissed" as const });
+    window.dispatchEvent(event);
+
+    const offer = await screen.findByRole("complementary", { name: "Install PV Intelligence" });
+    expect(offer).toHaveTextContent("Install PV Intelligence");
+    expect(screen.getByText("Get quicker access.")).toBeInTheDocument();
+    expect(screen.queryByText("Not now")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "Dismiss install prompt" }));
+
+    expect(screen.queryByRole("complementary", { name: "Install PV Intelligence" })).not.toBeInTheDocument();
+    expect(prompt).not.toHaveBeenCalled();
+  });
 });
