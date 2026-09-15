@@ -3,6 +3,11 @@ import { CardSkeleton } from "@/components/LoadingSkeleton";
 import { StatusBanner } from "@/components/StatusBanner";
 import type { AnalysisRunResponse } from "@/lib/api/types";
 
+/**
+ * The Safety detail's content in every state: history error, run in progress,
+ * the stored report, no analysis yet, and loading. `pv-safety` is present in
+ * all of them so the Safety reading surface applies to the whole screen.
+ */
 export function AnalysisHero({
   run,
   historyError,
@@ -15,7 +20,7 @@ export function AnalysisHero({
   running: boolean;
 }) {
   return (
-    <div className="space-y-3" aria-busy={running}>
+    <div className="pv-safety" aria-busy={running}>
       {historyError ? (
         <StatusBanner tone="error" role="alert">
           Could not load analysis history. {historyError}
@@ -33,12 +38,9 @@ export function AnalysisHero({
       {run ? <AnalysisReport run={run} /> : null}
 
       {!running && !run && historyLoaded && !historyError ? (
-        <section className="rounded-row bg-surface-2 px-5 py-8">
-          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-3">
-            Analysis report
-          </p>
-          <h2 className="mt-2 text-[1.0625rem] font-semibold tracking-[-0.01em]">No analysis yet</h2>
-          <p className="mt-2 max-w-xl text-[0.875rem] leading-6 text-ink-2">
+        <section className="pv-safety-card pv-safety-empty">
+          <h2 className="pv-safety-empty-title">No analysis yet</h2>
+          <p className="pv-safety-empty-text">
             Add medications, then run analysis to generate a safety report from this patient’s
             current record.
           </p>

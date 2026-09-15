@@ -1,9 +1,10 @@
-import { ShieldIcon } from "@/components/icons/Icons";
-import { IconChip } from "@/components/ui/IconChip";
 import type { RiskLevel } from "@/lib/api/types";
 
 /**
- * The deterministic score, presented as one of the detail screen's rows.
+ * The deterministic score, set as the lead of the Safety summary: the number
+ * itself, its recorded risk level, and a slim meter drawn from that same
+ * number. Nothing here is computed — the meter only visualises the reported
+ * score against the scale it is already reported on.
  *
  * Risk colour lives here — on the finding surface — and never on the patient
  * identity surface, which stays constant for every patient.
@@ -25,27 +26,34 @@ export function SafetyScoreCard({
   const tone = risk ? riskTone[risk] : { surface: "var(--surface-2)", ink: "var(--ink-2)" };
 
   return (
-    <section aria-label="Safety score">
-      <div className="pv-row">
-        <IconChip Icon={ShieldIcon} surface={tone.surface} ink={tone.ink} size="md" />
-        <div className="min-w-0 flex-1">
-          <p className="pv-row-title">Safety score</p>
-          <p className="pv-row-meta">
-            {safetyScore === null ? "Not recorded" : `${safetyScore} of 100`}
-            {risk ? " · " : ""}
-            {risk ? <span style={{ color: tone.ink }}>{risk} risk</span> : null}
-          </p>
-        </div>
-        <p
-          className="flex-none text-[1.75rem] font-bold leading-none tracking-[-0.03em]"
-          style={{ color: safetyScore === null ? "var(--ink-3)" : tone.ink }}
+    <section aria-label="Safety score" className="pv-safety-score">
+      <div className="pv-safety-score-head">
+        <p className="pv-safety-score-label">Safety score</p>
+        {risk ? (
+          <span className="pv-safety-risk" style={{ backgroundColor: tone.surface, color: tone.ink }}>
+            {risk} risk
+          </span>
+        ) : null}
+      </div>
+
+      <p className="pv-safety-score-value">
+        <span
+          className="pv-safety-score-number"
+          style={{ color: safetyScore === null ? "var(--ink-3)" : undefined }}
         >
           {safetyScore === null ? "—" : safetyScore}
-        </p>
-      </div>
-      <p className="mt-2 px-1 text-[0.75rem] leading-5 text-ink-3">
-        Out of 100. Produced by rule engines, not by the language model.
+        </span>
+        <span className="pv-safety-score-scale">
+          {safetyScore === null ? "Not recorded" : "of 100"}
+        </span>
       </p>
+
+      {safetyScore === null ? null : (
+        <div className="pv-safety-meter" aria-hidden="true">
+          {/* Bounded only so an out-of-range value cannot break the layout. */}
+          <span style={{ width: `${Math.min(Math.max(safetyScore, 0), 100)}%`, backgroundColor: tone.ink }} />
+        </div>
+      )}
     </section>
   );
 }
