@@ -1254,10 +1254,11 @@ body:has(.pv-overview) > aside[aria-label="Install PV Intelligence"] button {
 }
 
 /* ============================================================ Safety detail
-   A focused clinical reading surface: calm ground, one summary of the stored
-   run, the individual deterministic findings, then context. Every rule is
-   owned by the Safety detail (`.pv-safety*`) or scoped to it through
-   `body:has(.pv-safety)`, so no other screen can match. */
+   A focused clinical reading surface in the overview's language: white
+   elevated cards with icon chips and a grey inset panel for what the run
+   found; the AI explanation flat and secondary. Nothing reads smaller than
+   13px. Every rule is owned by the Safety detail (`.pv-safety*`) or scoped
+   to it through `body:has(.pv-safety)`, so no other screen can match. */
 body:has(.pv-safety) {
   display: flex;
   flex-direction: column;
@@ -1294,96 +1295,108 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
 
 .pv-safety {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.875rem;
 }
 
 .pv-safety-report {
   display: grid;
-  gap: 2rem;
+  gap: 2.25rem;
 }
 
 .pv-safety-card {
   border-radius: var(--r-card);
   background: var(--surface);
-  box-shadow: 0 12px 28px -18px rgb(21 24 28 / 0.26), 0 1px 3px rgb(21 24 28 / 0.05);
+  box-shadow: 0 14px 30px -20px rgb(21 24 28 / 0.28), 0 1px 3px rgb(21 24 28 / 0.05);
 }
+
 
 /* ------------------------------------------------------------- Summary */
 .pv-safety-summary {
   padding: 1.25rem;
 }
 
-.pv-safety-score-head {
+.pv-safety-score {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  gap: 1.125rem;
 }
 
-.pv-safety-score-label {
-  margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--ink-2);
+.pv-safety-ring {
+  position: relative;
+  flex: none;
+  width: 6.25rem;
+  height: 6.25rem;
 }
 
-/* Inline-block so the first letter can be capitalised without changing the
-   recorded value's text. */
+.pv-safety-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pv-safety-ring-track {
+  fill: none;
+  stroke: var(--surface-2);
+  stroke-width: 8;
+}
+
+.pv-safety-ring-value {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.pv-safety-ring-number {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.pv-safety-score-copy {
+  min-width: 0;
+}
+
+/* Capitalised for display only; the recorded value's text is unchanged. */
 .pv-safety-risk {
-  display: inline-block;
-  border-radius: 999px;
-  padding: 0.25rem 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.3;
-  white-space: nowrap;
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
 }
 
 .pv-safety-risk::first-letter {
   text-transform: uppercase;
 }
 
-.pv-safety-score-value {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin: 0.5rem 0 0;
+.pv-safety-score-line {
+  margin: 0.25rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--ink-2);
 }
 
-.pv-safety-score-number {
-  font-size: 2.75rem;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-
-.pv-safety-score-scale {
-  font-size: 0.875rem;
+.pv-safety-score-note {
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
   color: var(--ink-3);
 }
 
-.pv-safety-meter {
-  height: 0.375rem;
-  margin-top: 0.875rem;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--surface-2);
-}
-
-.pv-safety-meter > span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-}
-
+/* What the run found and when, on the grey inset panel the overview card uses. */
 .pv-safety-facts {
   display: grid;
   gap: 0.875rem;
   margin-top: 1.125rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--hairline);
+  padding: 0.9375rem 1rem;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
 }
 
 .pv-safety-fact {
@@ -1408,23 +1421,28 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
 }
 
 .pv-safety-fact-sub {
-  margin: 0.125rem 0 0;
-  font-size: 0.8125rem;
+  margin: 0.1875rem 0 0;
+  font-size: 0.875rem;
   line-height: 1.4;
   color: var(--ink-2);
 }
 
-.pv-safety-caption {
-  margin: 0.625rem 0.25rem 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
+/* The analysis version stays on record but quieter than the date it qualifies. */
+.pv-safety-fact-version {
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
   color: var(--ink-3);
+}
+
+.pv-safety-fact-version::first-letter {
+  text-transform: uppercase;
 }
 
 /* ------------------------------------------------------------ Sections */
 .pv-safety-section {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.875rem;
 }
 
 /* Title and its aside (confidence, record count) share one line; the note
@@ -1440,86 +1458,100 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
   gap: 1rem;
 }
 
-.pv-safety-nowrap {
-  white-space: nowrap;
-}
-
 .pv-safety-section-title {
   margin: 0;
-  font-size: 1.0625rem;
+  font-size: 1.125rem;
   font-weight: 650;
   line-height: 1.3;
   letter-spacing: -0.015em;
 }
 
 .pv-safety-section-note {
-  margin: 0.125rem 0 0;
-  font-size: 0.8125rem;
+  margin: 0.1875rem 0 0;
+  font-size: 0.875rem;
   line-height: 1.45;
   color: var(--ink-3);
-}
-
-.pv-safety-group {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.pv-safety-group + .pv-safety-group {
-  margin-top: 0.5rem;
-}
-
-.pv-safety-group-title {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0;
-  padding: 0 0.25rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--ink-2);
+  text-wrap: pretty;
 }
 
 .pv-safety-count {
   flex: none;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--ink-3);
 }
 
-/* One surface per group, items divided by hairlines rather than a card each. */
-.pv-safety-list {
+/* ------------------------------------------------------------- Findings */
+.pv-safety-groups {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pv-safety-group {
+  padding: 1.125rem;
+}
+
+.pv-safety-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.pv-safety-group-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.pv-safety-group-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.pv-safety-group-meta {
+  margin: 0.1875rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+/* An empty group states it plainly, at reading size, as its second line. */
+.pv-safety-group-none {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.pv-safety-items {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.pv-safety-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem;
-}
-
-.pv-safety-item + .pv-safety-item {
+.pv-safety-group .pv-safety-items {
+  margin-top: 1rem;
+  padding-top: 1rem;
   border-top: 1px solid var(--hairline);
 }
 
-.pv-safety-item-body {
-  flex: 1;
-  min-width: 0;
+.pv-safety-item + .pv-safety-item {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--hairline);
 }
 
 .pv-safety-item-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .pv-safety-item-title {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1.35;
   letter-spacing: -0.01em;
@@ -1528,8 +1560,8 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
 
 .pv-safety-item-text {
   margin: 0.375rem 0 0;
-  font-size: 0.875rem;
-  line-height: 1.5;
+  font-size: 0.9375rem;
+  line-height: 1.55;
   color: var(--ink-2);
   text-wrap: pretty;
 }
@@ -1541,11 +1573,58 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
 .pv-safety-item-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.125rem 0.75rem;
+  gap: 0.125rem 0.875rem;
   margin: 0.5rem 0 0;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.4;
   color: var(--ink-3);
+}
+
+/* The shared severity badge, one step larger here. Unlayered so it can
+   override the component's own utility sizing. */
+.pv-safety-severity {
+  display: inline-flex;
+  flex: none;
+}
+
+.pv-safety-severity > span {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+}
+
+.pv-safety-sources {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.125rem 0 0;
+  padding: 0 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.pv-safety-sources-icon {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.125rem;
+}
+
+/* ------------------------------------------------ Deductions and adherence */
+.pv-safety-rows {
+  padding: 0.25rem 1.125rem;
+}
+
+.pv-safety-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 0;
+}
+
+.pv-safety-rows .pv-safety-item + .pv-safety-item {
+  margin-top: 0;
+  padding-top: 0.875rem;
 }
 
 .pv-safety-category {
@@ -1561,61 +1640,44 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 0.625rem;
+  gap: 0.75rem;
 }
 
 .pv-safety-points {
   min-width: 2.25rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 650;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-/* Nothing recorded: a quiet editorial line under a hairline. */
-.pv-safety-empty-line {
+.pv-safety-none {
   margin: 0;
-  padding: 0.75rem 0.25rem 0;
-  border-top: 1px solid var(--hairline);
-  font-size: 0.875rem;
+  padding: 0.875rem 0;
+  font-size: 0.9375rem;
   line-height: 1.45;
   color: var(--ink-2);
 }
 
-.pv-safety-sources {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0 0.25rem;
-  font-size: 0.875rem;
-  line-height: 1.45;
-  color: var(--ink-2);
-}
-
-.pv-safety-sources-icon {
-  flex: none;
-  width: 1rem;
-  height: 1rem;
-  margin-top: 0.125rem;
-  color: var(--ink-3);
-}
-
-/* --------------------------------------------------------- Explanation */
+/* ------------------------------------------------------ AI explanation */
 .pv-safety-confidence {
   flex: none;
   border-radius: 999px;
   background: var(--surface-2);
-  padding: 0.25rem 0.625rem;
-  font-size: 0.75rem;
+  padding: 0.25rem 0.6875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--ink-2);
 }
 
+/* Flat and tinted rather than elevated, so it reads as commentary on the
+   findings, never as a finding itself. */
 .pv-safety-explanation {
   display: grid;
-  gap: 1rem;
+  gap: 0.875rem;
   padding: 1.25rem;
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--sheet));
 }
 
 .pv-safety-lead {
@@ -1628,44 +1690,32 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
 
 .pv-safety-sub-label {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--ink-3);
 }
 
 .pv-safety-sub-text {
   margin: 0.25rem 0 0;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   line-height: 1.6;
-  color: var(--ink);
+  color: var(--ink-2);
   text-wrap: pretty;
-}
-
-.pv-safety-footnote {
-  margin: 0;
-  padding-top: 0.875rem;
-  border-top: 1px solid var(--hairline);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--ink-3);
-}
-
-.pv-safety-unavailable {
-  padding: 0.75rem 0.25rem 0;
-  border-top: 1px solid var(--hairline);
 }
 
 .pv-safety-unavailable-title {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
+  line-height: 1.45;
   color: var(--ink-2);
 }
 
-.pv-safety-unavailable-text {
-  margin: 0.25rem 0 0;
-  font-size: 0.75rem;
+.pv-safety-footnote {
+  margin: 0;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--ink-3);
+  text-wrap: pretty;
 }
 
 /* ---------------------------------------------------- Empty and closing */
@@ -1675,7 +1725,7 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
 
 .pv-safety-empty-title {
   margin: 0;
-  font-size: 1.0625rem;
+  font-size: 1.125rem;
   font-weight: 650;
   letter-spacing: -0.015em;
 }
@@ -1688,14 +1738,15 @@ body:has(.pv-safety) > aside[aria-label="Install PV Intelligence"] button {
   color: var(--ink-2);
 }
 
-/* The shared disclaimer, set as a quiet closing note. Unlayered so it can
-   override the component's own utility colour. */
+/* The shared disclaimer as a quiet closing note at a readable size.
+   Unlayered so it can override the component's own utility type. */
 .pv-safety-disclaimer {
-  padding: 1.25rem 0.25rem 0;
-  border-top: 1px solid var(--hairline);
+  padding: 0 0.25rem;
 }
 
 .pv-safety-disclaimer p {
+  font-size: 0.8125rem;
+  line-height: 1.6;
   color: var(--ink-3);
 }
 
@@ -1718,35 +1769,53 @@ body:has(.pv-safety) .pv-detail .pv-cta > span:first-child {
     padding: 1.5rem;
   }
 
-  .pv-safety-item {
-    padding: 1.125rem 1.25rem;
+  .pv-safety-group {
+    padding: 1.25rem 1.375rem;
+  }
+
+  .pv-safety-rows {
+    padding: 0.25rem 1.375rem;
+  }
+
+  .pv-safety-ring {
+    width: 6.75rem;
+    height: 6.75rem;
   }
 }
 
-/* Wider columns set the summary side by side: the score on one side, what the
-   run found and when it ran on the other. */
+/* Wider columns keep the score at full width and set what the run found and
+   when it ran side by side on the inset panel. */
 @media (min-width: 1024px) {
   .pv-safety-report {
-    gap: 2.5rem;
+    gap: 2.75rem;
   }
 
   .pv-safety-summary {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    align-items: center;
-    gap: 2rem;
     padding: 1.75rem;
   }
 
-  .pv-safety-facts {
-    margin-top: 0;
-    padding: 0 0 0 2rem;
-    border-top: 0;
-    border-left: 1px solid var(--hairline);
+  .pv-safety-score {
+    gap: 1.5rem;
   }
 
-  .pv-safety-score-number {
-    font-size: 3.25rem;
+  .pv-safety-facts {
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 1rem 1.5rem;
+    margin-top: 1.375rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .pv-safety-ring {
+    width: 7rem;
+    height: 7rem;
+  }
+
+  .pv-safety-ring-number {
+    font-size: 2rem;
+  }
+
+  .pv-safety-risk {
+    font-size: 1.375rem;
   }
 }
 
