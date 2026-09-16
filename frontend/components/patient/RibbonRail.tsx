@@ -4,17 +4,15 @@ import type { CSSProperties } from "react";
 import { CATEGORIES, categoryIndex, type CategoryId } from "@/components/patient/categories";
 
 /**
- * The vertical category ribbons standing behind the foreground card.
+ * The category cards standing behind the foreground card.
  *
  * Position follows the active index: categories before the active one stand to
  * its LEFT, categories after it to its RIGHT, each side ranked outwards from
- * the card. When the active category changes the ribbons physically slide
- * between slots along the same easing as the cards, and the newly active one
- * slides under the card as it fades — it has become the card in front. They
- * are real buttons, not decorative divs.
- *
- * Built like the reference's ribbons: the category icon at the head, then the
- * label reading downwards from it.
+ * the card. The adjacent card shows a strip of its surface with its icon and
+ * name; cards further back show only an edge. When the active category changes
+ * they physically slide between slots along the same easing as the cards, and
+ * the newly active one slides under the card as it fades — it has become the
+ * card in front. They are real buttons, not decorative divs.
  */
 export function RibbonRail({
   activeId,
@@ -53,6 +51,8 @@ export function RibbonRail({
             tabIndex={merged ? -1 : undefined}
             className={`pv-rail-tab ${merged ? "pv-rail-tab-merged" : ""}`}
             data-side={side}
+            // The card against the active one shows its name; cards further back show only an edge.
+            data-depth={merged ? undefined : slot === 0 ? "adjacent" : "far"}
             style={
               {
                 "--slot": slot,

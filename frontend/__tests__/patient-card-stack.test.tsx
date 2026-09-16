@@ -135,6 +135,9 @@ describe("PatientCardStack", () => {
         // Slot 0 sits against the card, counting outwards on each side.
         const expectedSlot = side === "left" ? activeIndex - 1 - index : side === "right" ? index - activeIndex - 1 : 0;
         expect(ribbon.style.getPropertyValue("--slot")).toBe(String(expectedSlot));
+        // Only the card against the active one is "adjacent"; the rest are edges.
+        const expectedDepth = side === "merged" ? null : expectedSlot === 0 ? "adjacent" : "far";
+        expect(ribbon.getAttribute("data-depth")).toBe(expectedDepth);
       });
       const stage = view.container.querySelector(".pv-stage") as HTMLElement;
       expect(stage.style.getPropertyValue("--lead")).toBe(String(activeIndex));
