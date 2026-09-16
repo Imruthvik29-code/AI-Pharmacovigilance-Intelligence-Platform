@@ -614,9 +614,8 @@ textarea {
     visibility: hidden;
   }
 
-  /* The adjacent card shows only its category icon, in a small white chip
-     level with the active card's header; its name stays the button's
-     accessible name. */
+  /* The adjacent card shows its category icon in a small white chip level with
+     the active card's header, and its name reading down the strip below. */
   .pv-rail-tab[data-depth="adjacent"] {
     padding-top: 0.75rem;
   }
@@ -630,7 +629,17 @@ textarea {
   }
 
   .pv-rail-tab[data-depth="adjacent"] .pv-rail-label {
-    display: none;
+    display: flex;
+  }
+
+  /* The name column is narrower than the icon chip; this centres the two on
+     one line down the strip. */
+  .pv-rail-tab[data-side="left"][data-depth="adjacent"] .pv-rail-label {
+    margin-left: 0.125rem;
+  }
+
+  .pv-rail-tab[data-side="right"][data-depth="adjacent"] .pv-rail-label {
+    margin-right: 0.125rem;
   }
 
   .pv-rail-tab[data-depth="adjacent"] .pv-rail-icon {
