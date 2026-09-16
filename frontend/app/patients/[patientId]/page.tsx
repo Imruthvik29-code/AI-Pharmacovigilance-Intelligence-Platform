@@ -14,6 +14,7 @@ import { TimelineList } from "@/components/TimelineList";
 import { DetailScreen } from "@/components/patient/DetailScreen";
 import { PatientCardStack } from "@/components/patient/PatientCardStack";
 import { PatientHero } from "@/components/patient/PatientHero";
+import { PatientSnapshot } from "@/components/patient/PatientSnapshot";
 import { isCategoryId, type CategoryId } from "@/components/patient/categories";
 import { PlusIcon } from "@/components/icons/Icons";
 import { PrimaryCTA } from "@/components/ui/PrimaryCTA";
@@ -385,7 +386,9 @@ function PatientPage() {
 
         {patient && showOverview ? (
           <div className="pv-overview">
-            <PatientHero patient={patient} backHref="/dashboard" backLabel="Back to patients" />
+            <PatientHero patient={patient} backHref="/dashboard" backLabel="Back to patients">
+              <PatientSnapshot medications={medications} analysis={analysis} timeline={timeline} />
+            </PatientHero>
             <div className="pv-sheet">
               {analysisError ? (
                 <div className="mb-4 px-4 sm:px-6">

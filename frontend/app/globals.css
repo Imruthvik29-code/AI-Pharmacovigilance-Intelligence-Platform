@@ -307,6 +307,43 @@ textarea {
     color: var(--on-dark-2);
   }
 
+  /* The record snapshot: what is on file, the deterministic risk level and
+     when the record last changed. It sits at the foot of the identity block,
+     which is bottom-anchored inside the hero, so it uses the hero's existing
+     spare height and moves nothing below it. */
+  .pv-snap {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0.6875rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .pv-snap-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    color: var(--on-dark);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.3;
+    text-shadow: 0 1px 2px rgb(6 14 17 / 0.35);
+  }
+
+  .pv-snap-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pv-snap-icon {
+    flex: none;
+    width: 0.9375rem;
+    height: 0.9375rem;
+    opacity: 0.85;
+  }
+
   .pv-initials {
     display: inline-flex;
     align-items: center;
@@ -514,6 +551,22 @@ textarea {
     background: none;
   }
 
+  /* Recorded rows are grouped by their category's own tint, with hairlines
+     drawn as shadows so no row changes height. A category with nothing on
+     record keeps the neutral empty treatment above. */
+  .pv-card-summary:not(.pv-card-summary-empty) {
+    background: color-mix(in srgb, var(--card-tint) 46%, var(--surface-2));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-ink) 12%, transparent);
+  }
+
+  .pv-card-summary:not(.pv-card-summary-empty) .pv-card-row + .pv-card-row {
+    box-shadow: 0 -0.3125rem 0 -0.25rem color-mix(in srgb, var(--card-ink) 12%, transparent);
+  }
+
+  .pv-card-summary:not(.pv-card-summary-empty) .pv-card-row:first-child .pv-card-row-text {
+    font-weight: 650;
+  }
+
   .pv-card-summary-empty .pv-card-row-icon {
     color: var(--ink-3);
   }
@@ -584,7 +637,7 @@ textarea {
     border-radius: var(--r-card);
     /* Category colour softened towards the surface: identifiable, recessed,
        never louder than the card in front. */
-    background-color: color-mix(in srgb, var(--ribbon-tint) 38%, var(--surface));
+    background-color: color-mix(in srgb, var(--ribbon-tint) 72%, var(--surface));
     color: var(--ribbon-ink);
     box-shadow:
       0 12px 24px -18px rgb(21 24 28 / 0.4),
@@ -604,7 +657,7 @@ textarea {
 
   /* Cards further back: a plain edge in the card language, no icon or name. */
   .pv-rail-tab[data-depth="far"] {
-    background-color: color-mix(in srgb, var(--ribbon-tint) 30%, var(--surface));
+    background-color: color-mix(in srgb, var(--ribbon-tint) 52%, var(--surface));
     box-shadow:
       0 10px 20px -14px rgb(21 24 28 / 0.45),
       0 0 0 1px rgb(21 24 28 / 0.06);

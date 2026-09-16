@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon } from "@/components/icons/Icons";
 import { patientInitials } from "@/components/PatientAvatar";
@@ -20,10 +21,13 @@ export function PatientHero({
   patient,
   backHref,
   backLabel,
+  children,
 }: {
   patient: PatientResponse;
   backHref: string;
   backLabel: string;
+  /** Optional record snapshot, set beneath the demographics line. */
+  children?: ReactNode;
 }) {
   return (
     <header className="pv-hero on-dark">
@@ -41,6 +45,7 @@ export function PatientHero({
         </span>
         <h1 className="pv-hero-name">{patient.name}</h1>
         <p className="pv-hero-meta">{demographicLine(patient)}</p>
+        {children}
       </div>
     </header>
   );

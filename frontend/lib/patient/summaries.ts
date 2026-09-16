@@ -87,6 +87,26 @@ export function latestTimelineEvent(events: TimelineEventResponse[]): TimelineEv
   return [...events].sort((a, b) => b.event_time.localeCompare(a.event_time))[0];
 }
 
+/**
+ * When this record last meaningfully changed: the later of the saved analysis
+ * run and the most recent timeline event, both read from the API payload as
+ * ISO timestamps. `patient.updated_at` is deliberately not considered — it
+ * moves when demographics are edited, which is not a clinical update. Returns
+ * null when neither exists, so callers can omit the line rather than guess.
+ */
+export function latestClinicalUpdate(
+  analysis: AnalysisRunResponse | null,
+  events: TimelineEventResponse[],
+): string | null {
+  const candidates = [analysis?.created_at, latestTimelineEvent(events)?.event_time]
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => !Number.isNaN(new Date(value).getTime()));
+  if (candidates.length === 0) return null;
+  return candidates.reduce((latest, value) =>
+    new Date(value).getTime() > new Date(latest).getTime() ? value : latest,
+  );
+}
+
 /** Two most recently started medications, for the compact overview metadata. */
 export function recentMedicationNames(medications: MedicationResponse[], limit = 2): string[] {
   return [...medications]

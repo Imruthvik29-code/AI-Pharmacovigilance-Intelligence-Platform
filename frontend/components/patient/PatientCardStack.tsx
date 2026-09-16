@@ -75,12 +75,15 @@ export function PatientCardStack({
               key={category.id}
               className={`pv-card ${dragging ? "" : "pv-card-moving"}`}
               style={{
+                // The card's own category colour, for the summary grouping.
+                "--card-tint": category.surface,
+                "--card-ink": category.ink,
                 transform: `translate3d(${offset}px, 0, 0) scale(${1 - ratio * 0.05})`,
                 opacity: near ? 1 - ratio * 0.38 : 0,
                 zIndex: 10 - Math.round(ratio * 8),
                 pointerEvents: isActive ? "auto" : "none",
                 visibility: near ? "visible" : "hidden",
-              }}
+              } as CSSProperties}
               aria-hidden={isActive ? undefined : true}
               inert={isActive ? undefined : true}
             >
