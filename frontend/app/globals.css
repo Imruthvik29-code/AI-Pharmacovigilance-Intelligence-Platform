@@ -721,14 +721,16 @@ textarea {
     background: var(--surface);
   }
 
-  /* The name reads down the visible strip in title case, set small. */
+  /* Stack upright letters down the existing ribbon label column. */
   .pv-rail-label {
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
     width: 1.5rem;
-    writing-mode: vertical-rl;
     font-size: 0.75rem;
     font-weight: 600;
+    line-height: 1;
     letter-spacing: 0.01em;
     white-space: nowrap;
   }

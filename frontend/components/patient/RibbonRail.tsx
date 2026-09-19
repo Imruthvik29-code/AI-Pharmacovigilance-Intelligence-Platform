@@ -63,7 +63,9 @@ export function RibbonRail({
           >
             <category.Icon className="pv-rail-icon" />
             <span className="pv-rail-label" aria-hidden="true">
-              {category.label}
+              {category.label.toUpperCase().split("").map((letter, index) => (
+                <span key={index}>{letter}</span>
+              ))}
             </span>
           </button>
         );
