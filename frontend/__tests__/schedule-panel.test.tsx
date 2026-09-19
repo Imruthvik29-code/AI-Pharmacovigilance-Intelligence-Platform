@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SchedulePanel } from "@/components/SchedulePanel";
+import { ApiError } from "@/lib/api/errors";
 
 const { displayDrugName, generateMedicationSchedule, listUpcomingDoses, markDose } = vi.hoisted(() => ({
   displayDrugName: vi.fn(),
@@ -100,5 +101,55 @@ describe("SchedulePanel", () => {
     expect(await screen.findByText("Name not cached in this browser")).toBeInTheDocument();
     expect(screen.queryByText(/drug-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/medication-1/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { name: "doses", response: [dose] },
+    { name: "an empty schedule", response: [] },
+  ])("shows only the request error and recovers to $name on refresh", async ({ response }) => {
+    const user = userEvent.setup();
+    listUpcomingDoses.mockRejectedValueOnce(new ApiError(503, "Could not load upcoming doses."));
+    render(<SchedulePanel patientId="patient-1" medications={[medication]} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load upcoming doses.");
+    expect(screen.queryByText("No upcoming doses")).not.toBeInTheDocument();
+
+    listUpcomingDoses.mockResolvedValue(response);
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    if (response.length > 0) {
+      expect(screen.getByRole("button", { name: "Taken Examplecin dose" })).toBeInTheDocument();
+      expect(screen.queryByText("No upcoming doses")).not.toBeInTheDocument();
+    } else {
+      expect(screen.getByText("No upcoming doses")).toBeInTheDocument();
+    }
+    expect(listUpcomingDoses).toHaveBeenCalledTimes(2);
+  });
+
+  it("hides a previously empty schedule when its refresh fails", async () => {
+    const user = userEvent.setup();
+    listUpcomingDoses.mockResolvedValueOnce([]);
+    render(<SchedulePanel patientId="patient-1" medications={[medication]} />);
+    expect(await screen.findByText("No upcoming doses")).toBeInTheDocument();
+
+    listUpcomingDoses.mockRejectedValueOnce(new ApiError(503, "Could not load upcoming doses."));
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load upcoming doses.");
+    expect(screen.queryByText("No upcoming doses")).not.toBeInTheDocument();
+  });
+
+  it("keeps previously loaded doses visible when their refresh fails", async () => {
+    const user = userEvent.setup();
+    render(<SchedulePanel patientId="patient-1" medications={[medication]} />);
+    expect(await screen.findByRole("button", { name: "Taken Examplecin dose" })).toBeInTheDocument();
+
+    listUpcomingDoses.mockRejectedValueOnce(new ApiError(503, "Could not load upcoming doses."));
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load upcoming doses.");
+    expect(screen.getByRole("button", { name: "Taken Examplecin dose" })).toBeInTheDocument();
+    expect(screen.queryByText("No upcoming doses")).not.toBeInTheDocument();
   });
 });

@@ -146,7 +146,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
               </ul>
             </div>
           ))
-        ) : (
+        ) : !error ? (
           <div className="pv-meds-card pv-meds-empty">
             <IconChip Icon={CheckIcon} surface="var(--mild-bg)" ink="var(--mild-fg)" size="md" />
             <div className="min-w-0">
@@ -154,7 +154,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
               <p className="pv-meds-empty-text">Generate a schedule for an active medication with a duration and dosing frequency, or check back after the next dose is due.</p>
             </div>
           </div>
-        )}
+        ) : null}
 
         {schedulableMedications.length > 0 ? (
           <div className="pv-meds-schedules">

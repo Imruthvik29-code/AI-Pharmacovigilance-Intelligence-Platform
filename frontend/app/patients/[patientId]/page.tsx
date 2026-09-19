@@ -306,7 +306,7 @@ function PatientPage() {
                         ) : null}
                       </div>
                     </header>
-                    <MedicationList medications={medications} error={medError} showHeading={false} />
+                    <MedicationList medications={medications} loading={loading} error={medError} showHeading={false} />
                   </div>
 
                   <section
