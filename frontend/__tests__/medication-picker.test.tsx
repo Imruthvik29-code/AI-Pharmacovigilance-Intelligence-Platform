@@ -110,7 +110,7 @@ describe("MedicationPicker keyboard", () => {
     await user.type(input, "unknownmed");
     expect(await screen.findByText("We couldn’t find a verified catalog match.")).toBeInTheDocument();
     expect(screen.getByText(/We won’t guess a medication identity/i)).toBeInTheDocument();
-    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add medication" })).toBeDisabled();
   });
 
@@ -124,6 +124,9 @@ describe("MedicationPicker keyboard", () => {
     const first = await screen.findByRole("option", { name: /Examplecin/i });
     await user.click(first);
     expect(screen.getByText("Medication selected")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Duration (days)"), "7");
+    await user.selectOptions(screen.getByLabelText("Frequency mode"), "times_per_day");
+    await user.type(screen.getByLabelText("Times per day"), "2");
     await user.click(screen.getByRole("button", { name: "Add medication" }));
     expect(await screen.findByText("Medication service unavailable")).toBeInTheDocument();
     expect(screen.getByText("Medication selected")).toBeInTheDocument();

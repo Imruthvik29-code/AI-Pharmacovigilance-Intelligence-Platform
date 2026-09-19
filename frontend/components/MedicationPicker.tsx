@@ -37,6 +37,11 @@ export function MedicationPicker({
   const [dose, setDose] = useState("");
   const [purpose, setPurpose] = useState("");
   const [startDate, setStartDate] = useState(() => localCalendarDate());
+  const [duration, setDuration] = useState("");
+  const [frequencyMode, setFrequencyMode] = useState<"" | "times_per_day" | "interval_hours">("");
+  const [frequency, setFrequency] = useState("");
+  const [durationTouched, setDurationTouched] = useState(false);
+  const [frequencyTouched, setFrequencyTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -125,9 +130,18 @@ export function MedicationPicker({
     }
   }
 
+  const durationValue = Number(duration);
+  const frequencyValue = Number(frequency);
+  const validDuration = duration.trim() !== "" && Number.isSafeInteger(durationValue) && durationValue >= 1;
+  const validFrequency = frequency.trim() !== "" && Number.isFinite(frequencyValue) && (
+    frequencyMode === "times_per_day"
+      ? Number.isInteger(frequencyValue) && frequencyValue >= 1 && frequencyValue <= 24
+      : frequencyMode === "interval_hours" && frequencyValue > 0
+  );
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!selected || submitting) return;
+    if (!selected || submitting || !startDate || !validDuration || !validFrequency) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -138,6 +152,9 @@ export function MedicationPicker({
         status: "active",
         dose: dose.trim() || null,
         purpose_text: purpose.trim() || null,
+        duration_days: durationValue,
+        times_per_day: frequencyMode === "times_per_day" ? frequencyValue : null,
+        interval_hours: frequencyMode === "interval_hours" ? frequencyValue : null,
       });
       onCreated(created);
       setSelected(null);
@@ -145,6 +162,11 @@ export function MedicationPicker({
       setResults([]);
       setDose("");
       setPurpose("");
+      setDuration("");
+      setFrequencyMode("");
+      setFrequency("");
+      setDurationTouched(false);
+      setFrequencyTouched(false);
     } catch (error) {
       setSubmitError(error instanceof ApiError ? error.detail : "Could not add medication.");
     } finally {
@@ -263,8 +285,63 @@ export function MedicationPicker({
         </div>
       </div>
 
+      <div className="pv-meds-form-group">
+        <p className="pv-meds-form-group-title">Scheduling details</p>
+        <div className="pv-meds-form-grid">
+          <div className="pv-meds-form-wide">
+            <label className="pv-meds-label" htmlFor="medication-duration">Duration (days)</label>
+            <input
+              id="medication-duration" type="number" inputMode="numeric" required min={1} step={1}
+              value={duration} onChange={(event) => setDuration(event.target.value)}
+              onBlur={() => setDurationTouched(true)}
+              aria-invalid={(durationTouched || duration !== "") && !validDuration}
+              aria-describedby="medication-duration-help"
+              className={`${fieldOnCardClass} pv-meds-field`}
+            />
+            <p id="medication-duration-help" className="pv-meds-form-hint">Enter a whole number of days, at least 1.</p>
+          </div>
+          <div>
+            <label className="pv-meds-label" htmlFor="medication-frequency-mode">Frequency mode</label>
+            <select
+              id="medication-frequency-mode" required value={frequencyMode}
+              onChange={(event) => {
+                setFrequencyMode(event.target.value as typeof frequencyMode);
+                setFrequency("");
+                setFrequencyTouched(false);
+              }}
+              className={`${fieldOnCardClass} pv-meds-field`}
+            >
+              <option value="">Choose mode</option>
+              <option value="times_per_day">Times per day</option>
+              <option value="interval_hours">Interval (hours)</option>
+            </select>
+          </div>
+          <div>
+            <label className="pv-meds-label" htmlFor="medication-frequency">
+              {frequencyMode === "times_per_day" ? "Times per day" : frequencyMode === "interval_hours" ? "Hours between doses" : "Frequency value"}
+            </label>
+            <input
+              id="medication-frequency" type="number" required disabled={!frequencyMode}
+              inputMode={frequencyMode === "interval_hours" ? "decimal" : "numeric"}
+              min={frequencyMode === "times_per_day" ? 1 : 0}
+              max={frequencyMode === "times_per_day" ? 24 : undefined}
+              step={frequencyMode === "times_per_day" ? 1 : "any"}
+              value={frequency} onChange={(event) => setFrequency(event.target.value)}
+              onBlur={() => setFrequencyTouched(true)}
+              aria-invalid={(frequencyTouched || frequency !== "") && !validFrequency}
+              aria-describedby="medication-frequency-help"
+              className={`${fieldOnCardClass} pv-meds-field`}
+            />
+            <p id="medication-frequency-help" className="pv-meds-form-hint">
+              {frequencyMode === "times_per_day" ? "Enter a whole number from 1 to 24." : frequencyMode === "interval_hours" ? "Enter hours greater than 0. Decimals are allowed." : "Choose how to enter the prescribed frequency."}
+            </p>
+          </div>
+        </div>
+        <p className="pv-meds-form-hint">Save the prescribed values here, then use Create schedule to generate doses.</p>
+      </div>
+
       {submitError ? <StatusBanner tone="error" role="alert">{submitError}</StatusBanner> : null}
-      <button type="submit" disabled={!selected || submitting} className="on-dark pv-meds-submit">
+      <button type="submit" disabled={!selected || submitting || !startDate || !validDuration || !validFrequency} className="on-dark pv-meds-submit">
         {submitting ? "Adding medication…" : "Add medication"}
       </button>
     </form>
