@@ -8,8 +8,21 @@ export type AuthResponse = { access_token: string; refresh_token: string | null;
 export type SignupRequest = { email: string; password: string };
 export type LoginRequest = { email: string; password: string };
 export type PatientRelation = "Self" | "Parent" | "Spouse" | "Child" | "Sibling" | "Grandparent" | "Other" | "Caregiver / dependent";
-export type PatientResponse = { id: string; user_id: string; name: string; relation?: PatientRelation | null; age: number | null; sex: string | null; weight_kg: number | null; renal_flag: boolean; hepatic_flag: boolean; created_at: string; updated_at: string };
-export type PatientCreate = { name: string; relation?: PatientRelation | null; age?: number | null; sex?: string | null; weight_kg?: number | null; renal_flag?: boolean; hepatic_flag?: boolean };
+/**
+ * Daily routine context recorded against the patient, not the prescription.
+ * `timezone` is an IANA key; meal values are local wall-clock "HH:MM[:SS]"
+ * strings, never instants. All optional -- absent means not recorded.
+ */
+export type PatientRoutine = {
+  timezone?: string | null;
+  breakfast_time?: string | null;
+  lunch_time?: string | null;
+  dinner_time?: string | null;
+};
+export type PatientResponse = { id: string; user_id: string; name: string; relation?: PatientRelation | null; age: number | null; sex: string | null; weight_kg: number | null; renal_flag: boolean; hepatic_flag: boolean; timezone: string | null; breakfast_time: string | null; lunch_time: string | null; dinner_time: string | null; created_at: string; updated_at: string };
+export type PatientCreate = { name: string; relation?: PatientRelation | null; age?: number | null; sex?: string | null; weight_kg?: number | null; renal_flag?: boolean; hepatic_flag?: boolean } & PatientRoutine;
+/** Partial update -- only the keys sent are changed (backend uses exclude_unset). */
+export type PatientUpdate = { name?: string; relation?: PatientRelation | null; age?: number | null; sex?: string | null; weight_kg?: number | null; renal_flag?: boolean; hepatic_flag?: boolean } & PatientRoutine;
 export type MedicationStatus = "active" | "completed" | "completed_early" | "paused" | "discontinued";
 export type MedicationResponse = {
   id: string;

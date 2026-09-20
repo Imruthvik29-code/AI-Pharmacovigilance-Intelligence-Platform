@@ -6,6 +6,12 @@ import { createPatient } from "@/lib/api/patients";
 import type { PatientRelation, PatientResponse } from "@/lib/api/types";
 import { fieldClass, primaryButtonClass } from "@/lib/ui/classes";
 import { StatusBanner } from "@/components/StatusBanner";
+import {
+  detectTimezone,
+  PatientRoutineFields,
+  routineToPayload,
+  type RoutineDraft,
+} from "@/components/PatientRoutineFields";
 
 const relations: PatientRelation[] = [
   "Self",
@@ -23,6 +29,14 @@ export function PatientForm({ onCreated }: { onCreated: (patient: PatientRespons
   const [age, setAge] = useState("");
   const [sex, setSex] = useState("");
   const [relation, setRelation] = useState<PatientRelation | "">("");
+  // Timezone is prefilled from the device but stays editable, and is only
+  // ever sent as whatever the user leaves in the field.
+  const [routine, setRoutine] = useState<RoutineDraft>(() => ({
+    timezone: detectTimezone(),
+    breakfast: "",
+    lunch: "",
+    dinner: "",
+  }));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +52,7 @@ export function PatientForm({ onCreated }: { onCreated: (patient: PatientRespons
         age: age.trim() === "" ? undefined : Number(age),
         sex: sex.trim() || undefined,
         relation: relation || undefined,
+        ...routineToPayload(routine),
       });
       onCreated(patient);
     } catch (err) {
@@ -70,6 +85,7 @@ export function PatientForm({ onCreated }: { onCreated: (patient: PatientRespons
           {relations.map((item) => <option key={item}>{item}</option>)}
         </select>
       </div>
+      <PatientRoutineFields value={routine} onChange={setRoutine} idPrefix="patient-routine" />
       {error ? <StatusBanner tone="error" role="alert">{error}</StatusBanner> : null}
       <button type="submit" disabled={submitting || name.trim().length === 0} className={primaryButtonClass}>{submitting ? "Creating…" : "Create patient"}</button>
     </form>

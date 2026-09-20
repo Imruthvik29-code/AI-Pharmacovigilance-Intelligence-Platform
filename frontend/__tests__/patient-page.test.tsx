@@ -38,7 +38,7 @@ vi.mock("@/lib/api/symptoms", () => ({ listSymptoms: vi.fn() }));
 vi.mock("@/lib/api/timeline", () => ({ listTimeline: vi.fn() }));
 vi.mock("@/lib/api/analysis", () => ({ listAnalysisRuns: vi.fn(), runAnalysis: vi.fn() }));
 
-const patient = { id: "patient-123", user_id: "user-123", name: "Asha Rao", age: 42, sex: "female", weight_kg: 64, renal_flag: false, hepatic_flag: true, created_at: "2026-09-08T10:00:00Z", updated_at: "2026-09-08T10:00:00Z" };
+const patient = { id: "patient-123", user_id: "user-123", name: "Asha Rao", age: 42, sex: "female", weight_kg: 64, renal_flag: false, hepatic_flag: true, timezone: null, breakfast_time: null, lunch_time: null, dinner_time: null, created_at: "2026-09-08T10:00:00Z", updated_at: "2026-09-08T10:00:00Z" };
 const medication = { id: "med-123", patient_id: "patient-123", drug_id: "drug-123", drug_name: "Aspirin", drug_generic_name: "aspirin", drug_term_type: "IN", drug_source: "RxNorm", condition_id: null, purpose_text: null, dose: "100 mg", times_per_day: 1, interval_hours: null, duration_days: 30, start_date: "2026-09-01", end_date: null, status: "active", created_at: "2026-09-01T10:00:00Z", updated_at: "2026-09-01T10:00:00Z" } satisfies MedicationResponse;
 const analysis = { id: "analysis-123", patient_id: "patient-123", analysis_version: "1.0", deterministic_result: { safety_score: 82, risk_level: "moderate", starting_score: 100, total_points_deducted: 18, interaction_findings: [], adr_findings: [], adherence_findings: [], penalties: [] }, safety_score: 82, risk_level: "moderate", llm_summary: null, llm_reasoning: null, llm_recommendations: null, confidence_score: null, confidence_level: null, created_at: "2026-09-08T10:00:00Z" } satisfies AnalysisRunResponse;
 

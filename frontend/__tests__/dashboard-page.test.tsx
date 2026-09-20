@@ -50,6 +50,10 @@ const samplePatient: PatientResponse = {
   weight_kg: 62,
   renal_flag: false,
   hepatic_flag: false,
+  timezone: null,
+  breakfast_time: null,
+  lunch_time: null,
+  dinner_time: null,
   created_at: "2026-09-08T08:00:00Z",
   updated_at: "2026-09-08T08:00:00Z",
 };

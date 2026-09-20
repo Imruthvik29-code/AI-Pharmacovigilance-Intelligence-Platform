@@ -122,3 +122,124 @@ def test_no_delete_endpoint_exists(existing_auth_user_id, created_patient_ids):
 
     resp = client.delete(f"/api/v1/patients/{created['id']}")
     assert resp.status_code == 405  # Method Not Allowed -- route doesn't exist
+
+
+# --- Phase 1: patient daily routine (timezone + meal times) -----------------
+#
+# Routine fields are optional context, never inferred. These tests pin that
+# they round-trip, that omitting them leaves a patient valid, that partial
+# update reaches them, and that an invalid IANA zone is refused.
+
+
+def test_create_patient_with_routine_fields(existing_auth_user_id, created_patient_ids):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    resp = client.post(
+        "/api/v1/patients",
+        json={
+            "name": "Routine Patient",
+            "timezone": "Asia/Kolkata",
+            "breakfast_time": "08:00:00",
+            "lunch_time": "13:30:00",
+            "dinner_time": "20:15:00",
+        },
+    )
+    assert resp.status_code == 201
+    created = resp.json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
+
+    assert created["timezone"] == "Asia/Kolkata"
+    assert created["breakfast_time"] == "08:00:00"
+    assert created["lunch_time"] == "13:30:00"
+    assert created["dinner_time"] == "20:15:00"
+
+
+def test_create_patient_without_routine_fields_leaves_them_null(
+    existing_auth_user_id, created_patient_ids
+):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    resp = client.post("/api/v1/patients", json={"name": "No Routine"})
+    assert resp.status_code == 201
+    created = resp.json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
+
+    # Absent routine must stay absent -- nothing is guessed on the patient's behalf.
+    assert created["timezone"] is None
+    assert created["breakfast_time"] is None
+    assert created["lunch_time"] is None
+    assert created["dinner_time"] is None
+
+
+def test_update_patient_routine_preserves_other_fields(
+    existing_auth_user_id, created_patient_ids
+):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    created = client.post("/api/v1/patients", json={"name": "Edit Routine", "age": 44}).json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
+
+    resp = client.put(
+        f"/api/v1/patients/{created['id']}",
+        json={"timezone": "Europe/London", "breakfast_time": "07:45:00"},
+    )
+    assert resp.status_code == 200
+    updated = resp.json()
+
+    assert updated["timezone"] == "Europe/London"
+    assert updated["breakfast_time"] == "07:45:00"
+    # Fields the request did not mention are untouched.
+    assert updated["name"] == "Edit Routine"
+    assert updated["age"] == 44
+    assert updated["lunch_time"] is None
+
+
+def test_update_patient_can_clear_a_meal_time(existing_auth_user_id, created_patient_ids):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    created = client.post(
+        "/api/v1/patients",
+        json={"name": "Clear Meal", "timezone": "UTC", "lunch_time": "12:00:00"},
+    ).json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
+
+    resp = client.put(f"/api/v1/patients/{created['id']}", json={"lunch_time": None})
+    assert resp.status_code == 200
+    assert resp.json()["lunch_time"] is None
+    assert resp.json()["timezone"] == "UTC"
+
+
+@pytest.mark.parametrize("bad_zone", ["Asia/Kolkatta", "Not/AZone", "kolkata", ""])
+def test_invalid_timezone_is_rejected(existing_auth_user_id, bad_zone):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    resp = client.post("/api/v1/patients", json={"name": "Bad TZ", "timezone": bad_zone})
+    assert resp.status_code == 422
+
+
+def test_invalid_timezone_is_rejected_on_update(existing_auth_user_id, created_patient_ids):
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    created = client.post("/api/v1/patients", json={"name": "Bad TZ Update"}).json()
+    created_patient_ids.append(uuid.UUID(created["id"]))
+
+    resp = client.put(f"/api/v1/patients/{created['id']}", json={"timezone": "Mars/Olympus"})
+    assert resp.status_code == 422
+
+
+def test_routine_does_not_require_meal_ordering(existing_auth_user_id, created_patient_ids):
+    """A night-shift routine is valid: no clinical ordering rule is invented."""
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    resp = client.post(
+        "/api/v1/patients",
+        json={
+            "name": "Night Shift",
+            "timezone": "UTC",
+            "breakfast_time": "20:00:00",
+            "lunch_time": "01:00:00",
+            "dinner_time": "10:00:00",
+        },
+    )
+    assert resp.status_code == 201
+    created_patient_ids.append(uuid.UUID(resp.json()["id"]))

@@ -15,7 +15,7 @@ are created by the migrations; SQLAlchemy should never try to
 create/alter them itself.
 """
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time as time_of_day
 
 from sqlalchemy import (
     Boolean,
@@ -26,6 +26,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    Time,
     UniqueConstraint,
     text,
 )
@@ -82,6 +83,15 @@ class Patient(Base):
     weight_kg: Mapped[float | None] = mapped_column(Numeric)
     renal_flag: Mapped[bool] = mapped_column(default=False)
     hepatic_flag: Mapped[bool] = mapped_column(default=False)
+    # Daily routine context, not clinical instruction. `timezone` is an IANA
+    # key (e.g. "Asia/Kolkata"); the meal columns are recurring local
+    # wall-clock times, stored WITHOUT a zone so they survive DST rather
+    # than drifting the way a fixed instant would. All nullable: existing
+    # patients have no routine recorded and none is ever inferred.
+    timezone: Mapped[str | None] = mapped_column(String(length=64))
+    breakfast_time: Mapped[time_of_day | None] = mapped_column(Time(timezone=False))
+    lunch_time: Mapped[time_of_day | None] = mapped_column(Time(timezone=False))
+    dinner_time: Mapped[time_of_day | None] = mapped_column(Time(timezone=False))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 

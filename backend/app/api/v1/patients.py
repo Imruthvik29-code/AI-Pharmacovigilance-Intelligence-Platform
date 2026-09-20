@@ -79,6 +79,10 @@ async def create_patient(
         weight_kg=payload.weight_kg,
         renal_flag=payload.renal_flag,
         hepatic_flag=payload.hepatic_flag,
+        timezone=payload.timezone,
+        breakfast_time=payload.breakfast_time,
+        lunch_time=payload.lunch_time,
+        dinner_time=payload.dinner_time,
         created_at=now,
         updated_at=now,
     )
