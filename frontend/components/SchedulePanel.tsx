@@ -40,6 +40,31 @@ function groupByDay(doses: UpcomingDoseResponse[]): Array<{ label: string; doses
   return groups;
 }
 
+/**
+ * Why the schedule endpoint would refuse this medication, or null when it
+ * would accept it. Mirrors the API's documented preconditions (duration plus
+ * at least one frequency field) so the panel can say what is absent instead
+ * of dropping the medication from view. Reports only what was never
+ * recorded -- no value is guessed on the patient's behalf.
+ */
+function missingScheduleFields(medication: MedicationResponse): string | null {
+  const needsDuration = medication.duration_days == null;
+  const needsFrequency = medication.times_per_day == null && medication.interval_hours == null;
+  if (needsDuration && needsFrequency) return "Duration and dosing frequency were not recorded.";
+  if (needsDuration) return "Duration was not recorded.";
+  if (needsFrequency) return "Dosing frequency was not recorded.";
+  return null;
+}
+
+/** The catalog name to show, and whether it is a real name or a placeholder. */
+function medicationLabel(medication: MedicationResponse): { label: string; unnamed: boolean } {
+  const cached = displayDrugName(medication.drug_id);
+  return {
+    label: medication.drug_name ?? cached.name,
+    unnamed: !(medication.drug_name || cached.cached),
+  };
+}
+
 export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Props) {
   const [doses, setDoses] = useState<UpcomingDoseResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,9 +133,18 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
     }
   }
 
-  const schedulableMedications = medications.filter(
-    (medication) => medication.status === "active" && medication.duration_days != null && (medication.times_per_day != null || medication.interval_hours != null),
+  // Active medications split by whether the schedule endpoint would accept
+  // them. The eligible side keeps exactly its previous membership; the rest
+  // are surfaced as an explained, non-interactive state rather than filtered
+  // away silently.
+  const activeMedications = medications.filter((medication) => medication.status === "active");
+  const schedulableMedications = activeMedications.filter(
+    (medication) => missingScheduleFields(medication) === null,
   );
+  const unschedulableMedications = activeMedications.flatMap((medication) => {
+    const reason = missingScheduleFields(medication);
+    return reason === null ? [] : [{ medication, reason }];
+  });
 
   return (
     <section aria-labelledby="schedule-heading" className="pv-meds-section">
@@ -151,7 +185,11 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
             <IconChip Icon={CheckIcon} surface="var(--mild-bg)" ink="var(--mild-fg)" size="md" />
             <div className="min-w-0">
               <h3 className="pv-meds-empty-title">No upcoming doses</h3>
-              <p className="pv-meds-empty-text">Generate a schedule for an active medication with a duration and dosing frequency, or check back after the next dose is due.</p>
+              <p className="pv-meds-empty-text">
+                {schedulableMedications.length === 0 && unschedulableMedications.length > 0
+                  ? "No active medication has both a recorded duration and dosing frequency, so no schedule can be generated yet."
+                  : "Generate a schedule for an active medication with a duration and dosing frequency, or check back after the next dose is due."}
+              </p>
             </div>
           </div>
         ) : null}
@@ -164,17 +202,39 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
             </div>
             <ul className="pv-meds-card pv-meds-schedule-list">
               {schedulableMedications.map((medication) => {
-                const drugLabel = displayDrugName(medication.drug_id);
-                const label = medication.drug_name ?? drugLabel.name;
+                const { label, unnamed } = medicationLabel(medication);
                 return (
                   <li key={medication.id} className="pv-meds-schedule">
                     <div className="pv-meds-schedule-copy">
-                      <p className={`pv-meds-schedule-name ${medication.drug_name || drugLabel.cached ? "" : "is-unnamed"}`}>{label}</p>
+                      <p className={`pv-meds-schedule-name ${unnamed ? "is-unnamed" : ""}`}>{label}</p>
                       <p className="pv-meds-schedule-dose">{medication.dose ?? "Dose not recorded"}</p>
                     </div>
                     <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className="on-dark pv-meds-dark-button" aria-label={`Create schedule for ${label}`}>
                       {generatingMedicationId === medication.id ? "Creating…" : "Create schedule"}
                     </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
+
+        {unschedulableMedications.length > 0 ? (
+          <div className="pv-meds-schedules">
+            <div className="pv-meds-subhead">
+              <p className="pv-meds-subhead-title">Not yet schedulable</p>
+              <p className="pv-meds-section-note">These active medications stay on the record. A schedule needs the prescribed duration and frequency.</p>
+            </div>
+            <ul className="pv-meds-card pv-meds-schedule-list">
+              {unschedulableMedications.map(({ medication, reason }) => {
+                const { label, unnamed } = medicationLabel(medication);
+                return (
+                  <li key={medication.id} className="pv-meds-schedule">
+                    <div className="pv-meds-schedule-copy">
+                      <p className={`pv-meds-schedule-name ${unnamed ? "is-unnamed" : ""}`}>{label}</p>
+                      <p className="pv-meds-schedule-dose">{reason}</p>
+                    </div>
+                    <span className="pv-meds-schedule-flag">Schedule unavailable</span>
                   </li>
                 );
               })}
