@@ -29,10 +29,23 @@ For new databases (from scratch), two options during transition period:
 Option 1 — Continue using 001–003 until a full baseline migration is
 generated (recommended during transition):
 
+    psql "$DATABASE_URL" -f bootstrap_alembic_version.sql
     psql "$DATABASE_URL" -f 001_initial_schema.sql
     psql "$DATABASE_URL" -f 002_seed_data.sql
     psql "$DATABASE_URL" -f 003_reference_drugs_external_reference.sql
     alembic stamp 0001_baseline
+
+    Prerequisite: `bootstrap_alembic_version.sql` must run FIRST, before
+    001_initial_schema.sql and before any Alembic command. It pre-creates
+    `alembic_version` with `version_num VARCHAR(64)`; Alembic 1.13.2 would
+    otherwise create that column as VARCHAR(32), which is too narrow for
+    `0004_add_reference_drug_search_trigram_indexes` (46 characters), and
+    `alembic upgrade head` would abort and roll back at the 0002 -> 0003
+    transition. The file refuses to run once `patients` exists, which is
+    why it precedes 001. See ARCHITECTURE_DECISIONS.md §6.5.
+
+    The stamp/upgrade steps must be run ONLINE; offline `--sql` output
+    emits its own version table at the default width.
 
 Option 2 — Generate a proper baseline revision that builds schema from
 scratch via `Base.metadata`:

@@ -8,9 +8,10 @@ at repository root, per `ARCHITECTURE_DECISIONS.md` §6.1).
 ## Status
 
 - **Phase B Data Quality & Migration Foundation** — Alembic is **Independent** and **Before** schema extensions.
-- **Current tracked history:** `0001_baseline -> 0002_add_term_type_is_active -> 0003_add_rxnorm_concept_relations -> 0004_add_reference_drug_search_trigram_indexes`.
+- **Current tracked history:** `0001_baseline -> 0002_add_term_type_is_active -> 0003_add_rxnorm_concept_relations -> 0004_add_reference_drug_search_trigram_indexes -> 0005_add_patient_relation -> 0006_add_patient_daily_routine`.
 - Existing production databases originally received 001–003 manually and were reconciled to the Alembic history; subsequent schema changes are tracked as migrations.
 - `0004` adds the `pg_trgm` extension and GIN trigram indexes used by the existing `reference_drugs` name/generic-name search. It changes no API or medication-identity semantics.
+- `0005` adds the optional `patients.relation` column; `0006` adds the optional patient daily-routine columns (`timezone`, `breakfast_time`, `lunch_time`, `dinner_time`).
 
 ## Configuration
 
@@ -35,7 +36,44 @@ alembic upgrade head
 
 ### For new databases (from scratch)
 
-During the transition, continue using the legacy 001–003 SQL files to create the initial schema, then stamp the appropriate baseline before applying subsequent Alembic revisions. A future full baseline revision can replace this transitional procedure.
+Run these six steps in order, from the repository root, against an empty database:
+
+```bash
+psql "$DATABASE_URL" -f bootstrap_alembic_version.sql          # 1. version table (infrastructure)
+psql "$DATABASE_URL" -f 001_initial_schema.sql                 # 2. schema
+psql "$DATABASE_URL" -f 002_seed_data.sql                      # 3. seed
+psql "$DATABASE_URL" -f 003_reference_drugs_external_reference.sql
+python -m alembic -c alembic.ini stamp 0001_baseline           # 5. adopt baseline
+python -m alembic -c alembic.ini upgrade head                  # 6. apply 0002 -> 0006
+```
+
+**Steps 5 and 6 must be run ONLINE** — connected directly to the database.
+See the `--sql` caveat under *Verification* below; generated offline SQL is
+**not** a valid substitute for this sequence.
+
+`bootstrap_alembic_version.sql` runs **first**, before any schema exists. It
+creates `alembic_version` with `version_num VARCHAR(64)`. Alembic 1.13.2
+would otherwise create that column as `VARCHAR(32)`
+(`Column("version_num", String(32))` in `alembic/runtime/migration.py`),
+which is too narrow for this project's longest revision identifier,
+`0004_add_reference_drug_search_trigram_indexes` (46 characters). On a stock
+version table `upgrade head` aborts while recording the `0002 -> 0003`
+transition, and because the run is wrapped in a single transaction the whole
+upgrade rolls back to `0001_baseline`.
+
+Alembic adopts the pre-created table rather than replacing it:
+`_ensure_version_table()` calls `self._version.create(..., checkfirst=True)`,
+so it issues no DDL against an existing version table and never inspects or
+alters the column type. No change to `env.py`, `alembic.ini`, or any existing
+revision is involved.
+
+The bootstrap file refuses to run if `patients` already exists, which is why
+it must precede `001_initial_schema.sql` — that file creates `patients`, and
+the guard can only tell a new database from an established one while it runs
+ahead of it.
+
+This remains the transitional procedure: the legacy 001–003 files are still
+the schema foundation, and no full baseline revision is introduced.
 
 ### Creating a new migration
 
@@ -84,9 +122,33 @@ With live DB:
 
 ```bash
 alembic current
-alembic upgrade head --sql
+alembic upgrade head --sql   # inspection only — see caveat below
 alembic upgrade head
 ```
+
+#### `--sql` (offline) caveat
+
+`--sql` is useful for reviewing what a migration *would* emit, but it must
+never be used to bootstrap or migrate a database in place of the online
+commands.
+
+In offline mode Alembic cannot query the database, so when it starts from no
+known version it emits its **own unconditional** version-table DDL:
+
+```python
+if self.as_sql and not head_maintainer.heads:
+    # for offline mode, include a CREATE TABLE from the base
+    self._version.create(self.connection)   # note: no checkfirst
+```
+
+That statement creates `version_num` at the default `VARCHAR(32)`. Applying
+such a script therefore either collides with an existing `alembic_version`
+table or reintroduces the too-narrow column that
+`bootstrap_alembic_version.sql` exists to prevent.
+
+Online commands take a different path — `_ensure_version_table()` with
+`checkfirst=True` — which adopts the pre-created table untouched. Use the
+online sequence documented under *For new databases* for any real database.
 
 ## References
 

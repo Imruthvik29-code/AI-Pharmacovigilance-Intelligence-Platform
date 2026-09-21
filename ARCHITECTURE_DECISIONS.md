@@ -44,7 +44,7 @@ An AI-powered medication safety and pharmacovigilance platform. The system track
 
 - Backend: FastAPI, SQLAlchemy (async), Pydantic, PostgreSQL (Supabase-hosted), LangGraph for AI workflow orchestration.
 - Eleven database tables: `patients`, `conditions`, `reference_drugs`, `medications`, `medication_schedule`, `medication_doses`, `symptoms`, `interaction_rules`, `adr_rules`, `timeline_events`, `analysis_runs`.
-- Migrations are flat, sequentially numbered SQL files at the repository root (`001_initial_schema.sql`, `002_seed_data.sql`, `003_reference_drugs_external_reference.sql`) as the pre-Alembic baseline. Alembic (`backend/alembic/`) now manages versioned migrations, with history `0001_baseline -> 0002_add_term_type_is_active`.
+- Migrations are flat, sequentially numbered SQL files at the repository root (`001_initial_schema.sql`, `002_seed_data.sql`, `003_reference_drugs_external_reference.sql`) as the pre-Alembic baseline. Alembic (`backend/alembic/`) now manages versioned migrations, with history `0001_baseline -> 0002_add_term_type_is_active -> 0003_add_rxnorm_concept_relations -> 0004_add_reference_drug_search_trigram_indexes -> 0005_add_patient_relation -> 0006_add_patient_daily_routine`. A fourth root-level SQL file, `bootstrap_alembic_version.sql`, is infrastructure rather than schema — see §6.5.
 - Nine API routers under `backend/app/api/v1/`: `auth`, `patients`, `medications`, `conditions`, `symptoms`, `timeline`, `schedule`, `analysis`, `reference_drugs`.
 - Deterministic analysis modules under `backend/app/analysis/`: `drug_interaction_engine.py`, `adr_engine.py`, `adherence_engine.py`, `safety_score_engine.py`, `timeline_engine.py`.
 - AI orchestration under `backend/app/services/`: `patient_context_builder.py`, `evidence_retrieval.py`, `llm_service.py`, `llm_providers.py`, `langgraph_workflow.py`.
@@ -107,6 +107,25 @@ An earlier design draft proposed a `term_type` column (RxNorm Term Type, or TTY,
 ### 6.4 Migration tooling
 
 **Accepted correction to prior phasing:** migration tooling adoption (e.g., Alembic, or an equivalent tracked-migration mechanism) was originally placed in a late-stage "enterprise scale" phase, reasoned to matter only once team/environment count grows. This ordering was reconsidered: the cost of adopting tracked migrations is proportional to how much untracked migration history exists at adoption time — every additional manually-applied file between now and eventual adoption increases the retroactive-reconciliation burden. **Final decision:** migration tooling adoption should occur while migration-file count remains low (early), not deferred to a late phase. See Section 24 (Roadmap) for exact placement (Part 3 — not yet authored).
+
+### 6.5 Alembic version-table bootstrap for new databases
+
+**Problem.** Alembic 1.13.2 creates its bookkeeping table with a fixed-width column — `Column("version_num", String(32), nullable=False)` in `alembic/runtime/migration.py`. Two revision identifiers in this repository exceed that width: `0003_add_rxnorm_concept_relations` (33 characters) and `0004_add_reference_drug_search_trigram_indexes` (46). On a stock version table, `alembic upgrade head` therefore aborts while recording the `0002 -> 0003` transition. `env.py` wraps the run in a single transaction and does not set `transaction_per_migration`, so the failure is atomic: the database rolls back to `0001_baseline` rather than being left half-migrated.
+
+**Decision.** A fourth root-level SQL file, `bootstrap_alembic_version.sql`, pre-creates `alembic_version` with `version_num VARCHAR(64)`, `NOT NULL`, and a single-column primary key named `alembic_version_pkc` — exactly the shape Alembic would create, only wider. Alembic adopts it rather than replacing it, because `_ensure_version_table()` calls `self._version.create(..., checkfirst=True)` and issues no DDL when the table already exists; it never inspects or alters the column type.
+
+**What this decision does not change.**
+
+- The legacy `001`–`003` SQL files remain the schema bootstrap source. `bootstrap_alembic_version.sql` defines no application schema.
+- **No new baseline migration is introduced.** `0001_baseline` remains a marker-only revision, and revisions `0002`–`0006` remain the sole record of post-baseline schema change. A full from-scratch baseline stays a possible future step, not part of this decision.
+- No change to `env.py`, `alembic.ini`, or any existing revision.
+- Existing databases need nothing. They already hold a version table and are already at `0006`.
+
+**Ordering.** The bootstrap file runs **first**, before `001_initial_schema.sql`. It refuses to execute when `public.patients` already exists, and `001` creates that table — so the guard is only meaningful while the bootstrap runs ahead of it. The version table has no dependency on any object in `001`–`003`, so running it first is safe.
+
+**Online commands required.** The `stamp` and `upgrade` steps must connect directly to the database. Alembic's offline `--sql` mode cannot query the database and emits its own unconditional `CREATE TABLE` for the version table at the default `VARCHAR(32)`, so generated offline SQL is not a valid substitute for the bootstrap sequence.
+
+**Defense in depth.** Future revision identifiers should preferably stay at or under 32 characters even though the version table is now `VARCHAR(64)`. The wider column removes the immediate failure; a shorter-identifier convention keeps the project correct against a default-width version table in any environment that was created outside the documented sequence.
 
 ---
 
