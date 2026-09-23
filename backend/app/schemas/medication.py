@@ -16,7 +16,13 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.dose_rule import (
+    DoseRuleCreate,
+    DoseRuleResponse,
+    validate_rule_collection,
+)
 
 MedicationStatus = Literal["active", "completed", "completed_early", "paused", "discontinued"]
 
@@ -35,7 +41,15 @@ class MedicationBase(BaseModel):
 
 
 class MedicationCreate(MedicationBase):
-    pass
+    #: Optional at create time. An incomplete set is accepted and simply
+    #: leaves the medication not yet schedulable -- completeness is checked
+    #: at generation, not here.
+    dose_rules: list[DoseRuleCreate] = Field(default_factory=list)
+
+    @field_validator("dose_rules")
+    @classmethod
+    def _check_rules(cls, v: list[DoseRuleCreate]) -> list[DoseRuleCreate]:
+        return validate_rule_collection(v)
 
 
 class MedicationUpdate(BaseModel):
@@ -54,6 +68,27 @@ class MedicationUpdate(BaseModel):
     status: MedicationStatus | None = None
     start_date: date | None = None
     end_date: date | None = None
+    #: Whole-collection replacement. Absent leaves existing rules alone
+    #: (standard exclude_unset semantics); [] clears them; a list replaces
+    #: the set outright. Rule ids are not preserved across a replacement.
+    #:
+    #: An explicit null is rejected rather than treated as either of those:
+    #: it reads naturally as "no change" but would have to be implemented as
+    #: "clear", and guessing wrong silently destroys a prescription's timing.
+    #: The annotation allows None only so the absent case has a default;
+    #: field validators do not run on defaults, so the check below sees None
+    #: only when a client actually sent one.
+    dose_rules: list[DoseRuleCreate] | None = None
+
+    @field_validator("dose_rules")
+    @classmethod
+    def _check_rules(cls, v: list[DoseRuleCreate] | None) -> list[DoseRuleCreate] | None:
+        if v is None:
+            raise ValueError(
+                "dose_rules may not be null. Omit the field to leave the "
+                "existing rules unchanged, or send [] to clear them."
+            )
+        return validate_rule_collection(v)
 
 
 class MedicationResponse(MedicationBase):
@@ -69,3 +104,5 @@ class MedicationResponse(MedicationBase):
     drug_generic_name: str | None = None
     drug_term_type: str | None = None
     drug_source: str | None = None
+    #: Ordered by `sequence`. Empty when the course has no timing rules.
+    dose_rules: list[DoseRuleResponse] = Field(default_factory=list)

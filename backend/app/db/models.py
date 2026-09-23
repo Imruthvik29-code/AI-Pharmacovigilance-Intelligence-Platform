@@ -69,6 +69,13 @@ rxnorm_term_type_enum = ENUM(
     "DF", "DFG", "ET", "PSN", "SY", "TMSY",
     name="rxnorm_term_type_enum", create_type=False,
 )
+dose_anchor_enum = ENUM(
+    "breakfast", "lunch", "dinner", "clock_time",
+    name="dose_anchor_enum", create_type=False,
+)
+dose_relation_enum = ENUM(
+    "before", "with", "after", name="dose_relation_enum", create_type=False
+)
 
 
 class Patient(Base):
@@ -209,6 +216,36 @@ class Medication(Base):
     drug: Mapped["ReferenceDrug"] = relationship()
 
 
+class MedicationDoseRule(Base):
+    """One daily dose slot: when it is taken, relative to patient routine.
+
+    Frequency stays on `Medication.times_per_day`; these rows say *when*,
+    not *how many*. The two are reconciled at schedule generation rather
+    than at write, so a partly specified prescription stays saveable.
+
+    `dose` is NULL unless this particular slot differs from the course
+    default on `Medication.dose`.
+    """
+
+    __tablename__ = "medication_dose_rules"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    medication_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("medications.id", ondelete="CASCADE"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    anchor_type: Mapped[str] = mapped_column(dose_anchor_enum, nullable=False)
+    #: NULL exactly when anchor_type == "clock_time".
+    anchor_relation: Mapped[str | None] = mapped_column(dose_relation_enum)
+    #: Non-negative magnitude; direction comes from anchor_relation.
+    offset_minutes: Mapped[int | None] = mapped_column(Integer)
+    #: Set exactly when anchor_type == "clock_time".
+    clock_time: Mapped[time_of_day | None] = mapped_column(Time(timezone=False))
+    dose: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class MedicationSchedule(Base):
     __tablename__ = "medication_schedule"
 
@@ -233,6 +270,11 @@ class MedicationDose(Base):
     scheduled_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str | None] = mapped_column(dose_status_enum)
     actual_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: Resolved amount frozen when the schedule was generated, so a later
+    #: prescription edit cannot rewrite what this dose represented. NULL on
+    #: rows generated before this column existed -- readers fall back to
+    #: Medication.dose for those.
+    dose: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 

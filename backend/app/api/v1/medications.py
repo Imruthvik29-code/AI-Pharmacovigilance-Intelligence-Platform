@@ -40,12 +40,19 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import CurrentUser, get_current_user
-from app.db.models import Condition, Medication, Patient, ReferenceDrug
+from app.db.models import (
+    Condition,
+    Medication,
+    MedicationDoseRule,
+    Patient,
+    ReferenceDrug,
+)
 from app.db.session import get_db
+from app.schemas.dose_rule import DoseRuleCreate, DoseRuleResponse
 from app.schemas.medication import MedicationCreate, MedicationResponse, MedicationUpdate
 from app.services.timeline_writer import log_timeline_event
 
@@ -107,16 +114,63 @@ async def _get_drug_name(drug_id: uuid.UUID, db: AsyncSession) -> str | None:
     return result.scalar_one_or_none()
 
 
-def _serialize_medication(medication: Medication, drug: ReferenceDrug) -> MedicationResponse:
-    """Build the API response without triggering async relationship loading."""
+def _serialize_medication(
+    medication: Medication,
+    drug: ReferenceDrug,
+    rules: list[MedicationDoseRule] | None = None,
+) -> MedicationResponse:
+    """Build the API response without triggering async relationship loading.
+
+    `rules` is passed in explicitly for the same reason the drug columns
+    are: lazy-loading a relationship here would emit IO on attribute
+    access, which an async session cannot do.
+    """
     return MedicationResponse.model_validate(medication).model_copy(
         update={
             "drug_name": drug.name,
             "drug_generic_name": drug.generic_name,
             "drug_term_type": drug.term_type,
             "drug_source": drug.source,
+            "dose_rules": [DoseRuleResponse.model_validate(r) for r in (rules or [])],
         }
     )
+
+
+async def _load_rules(
+    medication_ids: list[uuid.UUID], db: AsyncSession
+) -> dict[uuid.UUID, list[MedicationDoseRule]]:
+    """Fetch dose rules for several medications in one query, ordered."""
+    if not medication_ids:
+        return {}
+    result = await db.execute(
+        select(MedicationDoseRule)
+        .where(MedicationDoseRule.medication_id.in_(medication_ids))
+        .order_by(MedicationDoseRule.medication_id, MedicationDoseRule.sequence)
+    )
+    grouped: dict[uuid.UUID, list[MedicationDoseRule]] = {}
+    for rule in result.scalars().all():
+        grouped.setdefault(rule.medication_id, []).append(rule)
+    return grouped
+
+
+def _build_rules(
+    medication_id: uuid.UUID, rules: list[DoseRuleCreate], now: datetime
+) -> list[MedicationDoseRule]:
+    return [
+        MedicationDoseRule(
+            id=uuid.uuid4(),
+            medication_id=medication_id,
+            sequence=r.sequence,
+            anchor_type=r.anchor_type,
+            anchor_relation=r.anchor_relation,
+            offset_minutes=r.offset_minutes,
+            clock_time=r.clock_time,
+            dose=r.dose,
+            created_at=now,
+            updated_at=now,
+        )
+        for r in sorted(rules, key=lambda r: r.sequence)
+    ]
 
 
 async def _assert_condition_belongs_to_patient(
@@ -149,7 +203,12 @@ async def list_medications(
         .where(Medication.patient_id == patient_id)
         .order_by(Medication.created_at)
     )
-    return [_serialize_medication(medication, drug) for medication, drug in result.all()]
+    rows = result.all()
+    rules = await _load_rules([medication.id for medication, _ in rows], db)
+    return [
+        _serialize_medication(medication, drug, rules.get(medication.id, []))
+        for medication, drug in rows
+    ]
 
 
 @router.post(
@@ -188,6 +247,10 @@ async def create_medication(
     )
     db.add(medication)
 
+    rules = _build_rules(medication.id, payload.dose_rules, now)
+    for rule in rules:
+        db.add(rule)
+
     await log_timeline_event(
         db,
         patient_id=patient_id,
@@ -213,7 +276,7 @@ async def create_medication(
             "user_id": current_user.id,
         },
     )
-    return _serialize_medication(medication, drug)
+    return _serialize_medication(medication, drug, rules)
 
 
 @router.put("/medications/{medication_id}", response_model=MedicationResponse)
@@ -229,6 +292,14 @@ async def update_medication(
 
     updates = payload.model_dump(exclude_unset=True)
 
+    # dose_rules is a collection, not a column, so it must come out before
+    # the generic setattr loop below. `exclude_unset` gives the three-way
+    # distinction the contract needs: key absent -> leave rules alone;
+    # [] -> clear them; a list -> replace the whole set.
+    replace_rules = "dose_rules" in updates
+    submitted_rules = payload.dose_rules if replace_rules else None
+    updates.pop("dose_rules", None)
+
     drug = await _get_drug(updates["drug_id"], db) if updates.get("drug_id") else await _get_drug(medication.drug_id, db)
 
     if updates.get("condition_id") is not None:
@@ -238,7 +309,22 @@ async def update_medication(
 
     for field, value in updates.items():
         setattr(medication, field, value)
-    medication.updated_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    medication.updated_at = now
+
+    if replace_rules:
+        # Whole-collection replacement in the same transaction as the
+        # medication update, so the two can never disagree. Rule ids are
+        # not preserved -- nothing references them, because a generated
+        # dose snapshots the resolved amount rather than pointing at a rule.
+        await db.execute(
+            delete(MedicationDoseRule).where(
+                MedicationDoseRule.medication_id == medication_id
+            )
+        )
+        await db.flush()
+        for rule in _build_rules(medication_id, submitted_rules or [], now):
+            db.add(rule)
 
     if updates.get("status") == "discontinued" and previous_status != "discontinued":
         await log_timeline_event(
@@ -257,7 +343,8 @@ async def update_medication(
         "Medication updated",
         extra={"medication_id": medication_id, "user_id": current_user.id},
     )
-    return _serialize_medication(medication, drug)
+    rules = (await _load_rules([medication_id], db)).get(medication_id, [])
+    return _serialize_medication(medication, drug, rules)
 
 
 @router.delete("/medications/{medication_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -274,4 +361,67 @@ async def delete_medication(
     logger.info(
         "Medication deleted",
         extra={"medication_id": medication_id, "user_id": current_user.id},
+    )
+
+
+# ── Dose rules are managed as a set, not individually ────────────────────
+#
+# Rules form an ordered collection whose size must match
+# `medications.times_per_day` for the course to be schedulable, so they are
+# replaced wholesale through PUT /medications/{id} rather than edited one at
+# a time -- per-rule writes could leave a set that satisfies no invariant.
+# These guards exist so the prohibition is explicit at the route rather than
+# implied by a 404, following the same convention as the symptom item routes.
+#
+# GET is guarded too, and not only for symmetry: with no GET route
+# registered, Starlette answers a GET with its own 405 whose Allow header
+# names the first matching route's method -- advertising POST, the very
+# method these guards refuse. An explicit GET route keeps the Allow header
+# honest. It is empty on every guard because this path supports no methods
+# at all, which RFC 9110 states as an empty Allow field value.
+
+_DOSE_RULE_GUARD_DETAIL = (
+    "Dose rules are managed as a set. Send the full collection as "
+    "`dose_rules` on PUT /api/v1/medications/{medication_id}; an empty "
+    "list clears them."
+)
+
+
+@router.get("/dose-rules/{dose_rule_id}", status_code=status.HTTP_405_METHOD_NOT_ALLOWED)
+async def read_dose_rule_not_allowed(dose_rule_id: uuid.UUID):
+    """Dose rules are not addressable individually; read them on the medication."""
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail=_DOSE_RULE_GUARD_DETAIL,
+        headers={"Allow": ""},
+    )
+
+
+@router.post("/dose-rules/{dose_rule_id}", status_code=status.HTTP_405_METHOD_NOT_ALLOWED)
+async def create_dose_rule_not_allowed(dose_rule_id: uuid.UUID):
+    """Dose rules cannot be created individually."""
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail=_DOSE_RULE_GUARD_DETAIL,
+        headers={"Allow": ""},
+    )
+
+
+@router.put("/dose-rules/{dose_rule_id}", status_code=status.HTTP_405_METHOD_NOT_ALLOWED)
+async def update_dose_rule_not_allowed(dose_rule_id: uuid.UUID):
+    """Dose rules cannot be updated individually."""
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail=_DOSE_RULE_GUARD_DETAIL,
+        headers={"Allow": ""},
+    )
+
+
+@router.delete("/dose-rules/{dose_rule_id}", status_code=status.HTTP_405_METHOD_NOT_ALLOWED)
+async def delete_dose_rule_not_allowed(dose_rule_id: uuid.UUID):
+    """Dose rules cannot be deleted individually."""
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail=_DOSE_RULE_GUARD_DETAIL,
+        headers={"Allow": ""},
     )

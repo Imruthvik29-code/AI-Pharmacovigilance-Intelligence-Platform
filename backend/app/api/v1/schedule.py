@@ -74,13 +74,21 @@ import logging
 import math
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import CurrentUser, get_current_user
-from app.db.models import Medication, MedicationDose, MedicationSchedule, Patient, ReferenceDrug
+from app.db.models import (
+    Medication,
+    MedicationDose,
+    MedicationDoseRule,
+    MedicationSchedule,
+    Patient,
+    ReferenceDrug,
+)
 from app.db.session import get_db
 from app.schemas.schedule import (
     MedicationDoseMarkRequest,
@@ -164,6 +172,171 @@ async def _get_owned_dose(
     return dose, patient_id, drug_name
 
 
+_MEAL_FIELDS = {
+    "breakfast": "breakfast_time",
+    "lunch": "lunch_time",
+    "dinner": "dinner_time",
+}
+
+
+def _resolve_zone(patient: Patient) -> ZoneInfo:
+    """The patient's IANA zone, or 400 when it is absent/unresolvable."""
+    if not patient.timezone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "patient.timezone must be set before a rule-based schedule can "
+                "be generated. Record the patient's daily routine first."
+            ),
+        )
+    try:
+        return ZoneInfo(patient.timezone)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"patient.timezone {patient.timezone!r} is not a resolvable IANA timezone.",
+        ) from exc
+
+
+def _anchor_local_time(rule: MedicationDoseRule, patient: Patient) -> time:
+    """The rule's anchor as a local wall-clock time, or 400 if unrecorded."""
+    if rule.anchor_type == "clock_time":
+        return rule.clock_time
+
+    field = _MEAL_FIELDS[rule.anchor_type]
+    value = getattr(patient, field)
+    if value is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Dose {rule.sequence} is anchored to {rule.anchor_type}, but "
+                f"patient.{field} is not recorded. Record the patient's daily "
+                f"routine first."
+            ),
+        )
+    return value
+
+
+def _apply_offset(anchor: datetime, rule: MedicationDoseRule) -> datetime:
+    """Shift by the rule's offset. Magnitude is non-negative; the relation
+    supplies the direction, so 'before' subtracts and 'after' adds."""
+    if rule.anchor_type == "clock_time" or rule.anchor_relation == "with":
+        return anchor
+    delta = timedelta(minutes=rule.offset_minutes or 0)
+    return anchor - delta if rule.anchor_relation == "before" else anchor + delta
+
+
+def _localize(naive: datetime, zone: ZoneInfo, rule_sequence: int) -> datetime:
+    """Convert a local wall-clock datetime to a UTC instant.
+
+    Two daylight-saving edge cases are handled explicitly rather than left
+    to whatever the library happens to do:
+
+    * Nonexistent (spring forward): the wall-clock time never occurs, so
+      the request is refused with a 400 naming the date. Emitting a dose at
+      a silently shifted time would misrepresent the prescription.
+    * Ambiguous (autumn back): the time occurs twice. `fold=0` selects the
+      first occurrence -- a documented convention, deterministic across
+      runs, not a guess about clinical intent.
+    """
+    local = naive.replace(tzinfo=zone, fold=0)
+    # PEP 495 round-trip test: a nonexistent local time does not survive a
+    # conversion to UTC and back.
+    if local.astimezone(timezone.utc).astimezone(zone).replace(tzinfo=None) != naive:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Dose {rule_sequence} would fall at {naive.isoformat()} local "
+                f"time, which does not exist in {zone.key} because of a "
+                f"daylight-saving transition. Adjust the routine or the rule's "
+                f"offset."
+            ),
+        )
+    return local.astimezone(timezone.utc)
+
+
+def _rule_dose(rule: MedicationDoseRule, medication: Medication) -> str | None:
+    """Resolved amount for this slot: the rule's override, else the course
+    default. Snapshotted at generation so later edits cannot rewrite it."""
+    return rule.dose if rule.dose is not None else medication.dose
+
+
+def _assert_within_course(
+    wall: datetime, medication: Medication, rule: MedicationDoseRule
+) -> None:
+    """Every dose must land on a local calendar date inside the course.
+
+    The window is the medication's own day range, and it is checked against
+    the dose's *resulting* local date so an offset cannot quietly place a
+    dose outside the prescribed course. The check is deliberately in local
+    time: a dose at 03:00 in Asia/Kolkata on the start date is 21:30 UTC the
+    previous day, and is correctly inside the course.
+
+    Offsets are capped at an hour, so an ordinary meal time cannot reach
+    across midnight; a meal recorded within an hour of one still can, which
+    is exactly what this rejects. Nothing is clamped or dropped -- the
+    prescription is refused so it can be corrected.
+    """
+    first = medication.start_date
+    last = first + timedelta(days=medication.duration_days - 1)
+    if first <= wall.date() <= last:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=(
+            f"Dose {rule.sequence} would fall at {wall.isoformat()} local time, "
+            f"outside the course window {first.isoformat()}..{last.isoformat()}. "
+            f"Adjust the rule's offset, the recorded meal time, or the duration."
+        ),
+    )
+
+
+def _assert_no_duplicate_instants(
+    planned: list[tuple[datetime, str | None, int]]
+) -> None:
+    """Two rules must not resolve to the same instant.
+
+    Merging them would silently halve the prescribed frequency and shifting
+    one would invent a time nobody prescribed, so the schedule is refused
+    and the colliding rules are named.
+    """
+    seen: dict[datetime, int] = {}
+    for instant, _dose, sequence in planned:
+        first = seen.get(instant)
+        if first is not None and first != sequence:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Dose rules {first} and {sequence} both resolve to "
+                    f"{instant.isoformat()}. Two doses cannot share an instant; "
+                    f"adjust one rule's anchor or offset."
+                ),
+            )
+        seen.setdefault(instant, sequence)
+
+
+def _compute_rule_schedule(
+    medication: Medication,
+    rules: list[MedicationDoseRule],
+    patient: Patient,
+) -> list[tuple[datetime, str | None]]:
+    """(instant, resolved_dose) for every dose across the whole course."""
+    zone = _resolve_zone(patient)
+    out: list[tuple[datetime, str | None, int]] = []
+    for day in range(medication.duration_days):
+        local_date = medication.start_date + timedelta(days=day)
+        for rule in rules:
+            anchor = datetime.combine(local_date, _anchor_local_time(rule, patient))
+            wall = _apply_offset(anchor, rule)
+            _assert_within_course(wall, medication, rule)
+            out.append(
+                (_localize(wall, zone, rule.sequence), _rule_dose(rule, medication), rule.sequence)
+            )
+    out.sort(key=lambda row: row[0])
+    _assert_no_duplicate_instants(out)
+    return [(instant, dose) for instant, dose, _sequence in out]
+
+
 def _compute_schedule_params(medication: Medication) -> tuple[int, float]:
     """Determine (total_doses, interval_hours) for schedule generation."""
     if medication.times_per_day is not None:
@@ -224,6 +397,18 @@ async def generate_schedule(
     """Generate the dose schedule for a medication owned by the caller."""
     medication = await _get_owned_medication(medication_id, current_user, db)
 
+    rules = list(
+        (
+            await db.execute(
+                select(MedicationDoseRule)
+                .where(MedicationDoseRule.medication_id == medication_id)
+                .order_by(MedicationDoseRule.sequence)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
     if medication.duration_days is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -232,7 +417,39 @@ async def generate_schedule(
                 "generated. Update the medication first via PUT /medications/{id}."
             ),
         )
-    if medication.times_per_day is None and medication.interval_hours is None:
+
+    # Rules and interval_hours express contradictory intent. Refuse rather
+    # than silently preferring one -- picking a winner would be a guess.
+    if rules and medication.interval_hours is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "medication has both dose rules and interval_hours set. These "
+                "describe different schedules; clear one before generating."
+            ),
+        )
+
+    if rules and medication.times_per_day is None and medication.interval_hours is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "medication.times_per_day must be set alongside dose rules so "
+                "the prescribed frequency and the number of rules can be "
+                "reconciled."
+            ),
+        )
+
+    if rules and len(rules) != medication.times_per_day:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"medication.times_per_day is {medication.times_per_day} but "
+                f"{len(rules)} dose rule(s) are defined. They must match before "
+                f"a schedule can be generated."
+            ),
+        )
+
+    if not rules and medication.times_per_day is None and medication.interval_hours is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
@@ -251,7 +468,16 @@ async def generate_schedule(
             detail="A schedule already exists for this medication.",
         )
 
-    total_doses, interval_hours = _compute_schedule_params(medication)
+    # The dose count is derived arithmetically and checked against the cap
+    # BEFORE any dose is materialised. Building the list first would let a
+    # single request with a tiny interval_hours or a huge duration_days
+    # allocate hundreds of millions of entries -- minutes of work and
+    # gigabytes of memory -- before being refused, and would surface a date
+    # overflow as a 500 rather than this 400.
+    if rules:
+        total_doses = len(rules) * medication.duration_days
+    else:
+        total_doses, interval_hours = _compute_schedule_params(medication)
 
     if total_doses > MAX_GENERATED_DOSES:
         raise HTTPException(
@@ -259,16 +485,30 @@ async def generate_schedule(
             detail=(
                 f"Requested schedule would generate {total_doses} doses, exceeding "
                 f"the maximum of {MAX_GENERATED_DOSES}. Reduce times_per_day, "
-                "interval_hours, or duration_days."
+                "interval_hours, dose rules, or duration_days."
             ),
         )
 
-    anchor = datetime.combine(medication.start_date, DEFAULT_FIRST_DOSE_TIME)
+    if rules:
+        # Rule-based: anchors come from the patient's recorded routine, so
+        # the patient row is needed to resolve them.
+        patient = (
+            await db.execute(select(Patient).where(Patient.id == medication.patient_id))
+        ).scalar_one()
+        planned = _compute_rule_schedule(medication, rules, patient)
+    else:
+        # Interval/even-spread: unchanged from the original implementation,
+        # including the documented 08:00 UTC first-dose anchor.
+        anchor = datetime.combine(medication.start_date, DEFAULT_FIRST_DOSE_TIME)
+        planned = [
+            (anchor + timedelta(hours=interval_hours * i), medication.dose)
+            for i in range(total_doses)
+        ]
+
     now = datetime.now(timezone.utc)
 
-    schedule_rows: list[MedicationSchedule] = []
-    for i in range(total_doses):
-        scheduled_time = anchor + timedelta(hours=interval_hours * i)
+    schedule_rows: list[tuple[MedicationSchedule, str | None]] = []
+    for scheduled_time, resolved_dose in planned:
         schedule_row = MedicationSchedule(
             id=uuid.uuid4(),
             medication_id=medication_id,
@@ -276,12 +516,12 @@ async def generate_schedule(
             created_at=now,
         )
         db.add(schedule_row)
-        schedule_rows.append(schedule_row)
+        schedule_rows.append((schedule_row, resolved_dose))
 
     await db.flush()
 
     created_doses: list[MedicationDose] = []
-    for schedule_row in schedule_rows:
+    for schedule_row, resolved_dose in schedule_rows:
         dose_row = MedicationDose(
             id=uuid.uuid4(),
             medication_id=medication_id,
@@ -289,6 +529,9 @@ async def generate_schedule(
             scheduled_time=schedule_row.scheduled_time,
             status=None,
             actual_time=None,
+            # Frozen here: a later edit to the medication or its rules
+            # must not rewrite what this dose represented.
+            dose=resolved_dose,
             created_at=now,
             updated_at=now,
         )
@@ -331,7 +574,10 @@ async def list_upcoming_doses(
             MedicationDose.medication_id,
             MedicationDose.scheduled_time,
             ReferenceDrug.name,
-            Medication.dose,
+            # Prefer the amount frozen at generation. Rows created before
+            # that column existed hold NULL and fall back to the course
+            # default, preserving their previous behaviour.
+            func.coalesce(MedicationDose.dose, Medication.dose),
         )
         .join(Medication, Medication.id == MedicationDose.medication_id)
         .join(ReferenceDrug, ReferenceDrug.id == Medication.drug_id)
