@@ -306,7 +306,18 @@ function PatientPage() {
                         ) : null}
                       </div>
                     </header>
-                    <MedicationList medications={medications} loading={loading} error={medError} showHeading={false} />
+                    <MedicationList
+                      medications={medications}
+                      loading={loading}
+                      error={medError}
+                      showHeading={false}
+                      patient={patient}
+                      onMedicationUpdated={(updated) =>
+                        setMedications((current) =>
+                          current.map((medication) => (medication.id === updated.id ? updated : medication)),
+                        )
+                      }
+                    />
                   </div>
 
                   <section
@@ -352,6 +363,7 @@ function PatientPage() {
                   <SchedulePanel
                     patientId={patientId}
                     medications={medications}
+                    patient={patient}
                     onTimelineRefresh={() => void refreshSecondary()}
                   />
                 </div>

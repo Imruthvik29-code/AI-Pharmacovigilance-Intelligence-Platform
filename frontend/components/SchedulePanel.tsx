@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/lib/api/errors";
 import { generateMedicationSchedule, listUpcomingDoses, markDose } from "@/lib/api/schedule";
-import type { DoseStatus, MedicationResponse, UpcomingDoseResponse } from "@/lib/api/types";
+import type { DoseStatus, MedicationResponse, PatientResponse, UpcomingDoseResponse } from "@/lib/api/types";
 import { displayDrugName } from "@/lib/drugs/nameCache";
+import { ruleScheduleProblem } from "@/lib/medications/doseRules";
 import { IconChip } from "@/components/ui/IconChip";
 import { CheckIcon } from "@/components/icons/Icons";
 import { StatusBanner } from "@/components/StatusBanner";
@@ -13,6 +14,8 @@ type Props = {
   patientId: string;
   medications: MedicationResponse[];
   onTimelineRefresh?: () => void;
+  /** Routine the dose-timing checks refer to. Omitted, those checks are skipped. */
+  patient?: PatientResponse | null;
 };
 
 const statusActions: Array<{ status: DoseStatus; label: string }> = [
@@ -56,6 +59,22 @@ function missingScheduleFields(medication: MedicationResponse): string | null {
   return null;
 }
 
+/**
+ * The first reason the schedule endpoint would refuse this course, with
+ * whether it concerns dose timing. Duration and frequency are checked first,
+ * exactly as before; the dose-timing checks mirror the endpoint's
+ * rule-specific preconditions and apply only when the course has rules.
+ */
+function scheduleBlocker(
+  medication: MedicationResponse,
+  patient: PatientResponse | null | undefined,
+): { reason: string; timing: boolean } | null {
+  const missing = missingScheduleFields(medication);
+  if (missing) return { reason: missing, timing: false };
+  const timing = ruleScheduleProblem(medication, patient);
+  return timing ? { reason: timing, timing: true } : null;
+}
+
 /** The catalog name to show, and whether it is a real name or a placeholder. */
 function medicationLabel(medication: MedicationResponse): { label: string; unnamed: boolean } {
   const cached = displayDrugName(medication.drug_id);
@@ -65,7 +84,7 @@ function medicationLabel(medication: MedicationResponse): { label: string; unnam
   };
 }
 
-export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Props) {
+export function SchedulePanel({ patientId, medications, onTimelineRefresh, patient }: Props) {
   const [doses, setDoses] = useState<UpcomingDoseResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyDoseId, setBusyDoseId] = useState<string | null>(null);
@@ -139,12 +158,21 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
   // away silently.
   const activeMedications = medications.filter((medication) => medication.status === "active");
   const schedulableMedications = activeMedications.filter(
-    (medication) => missingScheduleFields(medication) === null,
+    (medication) => scheduleBlocker(medication, patient) === null,
   );
   const unschedulableMedications = activeMedications.flatMap((medication) => {
-    const reason = missingScheduleFields(medication);
-    return reason === null ? [] : [{ medication, reason }];
+    const blocker = scheduleBlocker(medication, patient);
+    return blocker === null ? [] : [{ medication, reason: blocker.reason, timing: blocker.timing }];
   });
+  // A course with upcoming doses already has a schedule: offering Create
+  // again would only earn a 409. The API has no "schedule exists" field, so
+  // this uses the doses already loaded here. A course whose doses are all in
+  // the past still shows Create, and the endpoint's 409 then says so.
+  const scheduledMedicationIds = new Set(doses.map((dose) => dose.medication_id));
+  // The long-standing copy below names duration and frequency; it stays
+  // word-for-word unless a course is blocked on dose timing instead, where
+  // that wording would no longer be true.
+  const anyTimingBlocker = unschedulableMedications.some((entry) => entry.timing);
 
   return (
     <section aria-labelledby="schedule-heading" className="pv-meds-section">
@@ -187,7 +215,9 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
               <h3 className="pv-meds-empty-title">No upcoming doses</h3>
               <p className="pv-meds-empty-text">
                 {schedulableMedications.length === 0 && unschedulableMedications.length > 0
-                  ? "No active medication has both a recorded duration and dosing frequency, so no schedule can be generated yet."
+                  ? anyTimingBlocker
+                    ? "No active medication is ready to schedule yet. Each one below shows what it still needs."
+                    : "No active medication has both a recorded duration and dosing frequency, so no schedule can be generated yet."
                   : "Generate a schedule for an active medication with a duration and dosing frequency, or check back after the next dose is due."}
               </p>
             </div>
@@ -209,9 +239,13 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
                       <p className={`pv-meds-schedule-name ${unnamed ? "is-unnamed" : ""}`}>{label}</p>
                       <p className="pv-meds-schedule-dose">{medication.dose ?? "Dose not recorded"}</p>
                     </div>
-                    <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className="on-dark pv-meds-dark-button" aria-label={`Create schedule for ${label}`}>
-                      {generatingMedicationId === medication.id ? "Creating…" : "Create schedule"}
-                    </button>
+                    {scheduledMedicationIds.has(medication.id) ? (
+                      <span className="pv-meds-schedule-flag">Schedule created</span>
+                    ) : (
+                      <button type="button" onClick={() => void handleGenerate(medication.id)} disabled={generatingMedicationId !== null} className="on-dark pv-meds-dark-button" aria-label={`Create schedule for ${label}`}>
+                        {generatingMedicationId === medication.id ? "Creating…" : "Create schedule"}
+                      </button>
+                    )}
                   </li>
                 );
               })}
@@ -223,7 +257,11 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh }: Pro
           <div className="pv-meds-schedules">
             <div className="pv-meds-subhead">
               <p className="pv-meds-subhead-title">Not yet schedulable</p>
-              <p className="pv-meds-section-note">These active medications stay on the record. A schedule needs the prescribed duration and frequency.</p>
+              <p className="pv-meds-section-note">
+                {anyTimingBlocker
+                  ? "These active medications stay on the record. Each shows what its schedule still needs."
+                  : "These active medications stay on the record. A schedule needs the prescribed duration and frequency."}
+              </p>
             </div>
             <ul className="pv-meds-card pv-meds-schedule-list">
               {unschedulableMedications.map(({ medication, reason }) => {

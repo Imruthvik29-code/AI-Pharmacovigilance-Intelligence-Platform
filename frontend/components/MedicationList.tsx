@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { IconChip } from "@/components/ui/IconChip";
 import { CapsuleIcon, CheckIcon } from "@/components/icons/Icons";
 import { displayDrugName } from "@/lib/drugs/nameCache";
 import { termTypeLabel } from "@/lib/drugs/termType";
 import { formatCalendarDate } from "@/lib/patient/summaries";
-import type { MedicationResponse } from "@/lib/api/types";
+import type { MedicationResponse, PatientResponse } from "@/lib/api/types";
+import { describeRule } from "@/lib/medications/doseRules";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
+import { DoseRuleEditor } from "@/components/DoseRuleEditor";
 
 /** The recorded course details, in reading order. Absent values are left out. */
 function prescriptionFacts(medication: MedicationResponse): Array<{ label: string; value: string }> {
@@ -32,17 +35,103 @@ function prescriptionFacts(medication: MedicationResponse): Array<{ label: strin
   return facts;
 }
 
+/**
+ * The course's daily dose timing: a read-only summary, and the editor on
+ * request. Nothing here generates a schedule.
+ */
+function DoseTiming({
+  medication,
+  patient,
+  onUpdated,
+}: {
+  medication: MedicationResponse;
+  patient: PatientResponse | null;
+  onUpdated: (updated: MedicationResponse) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const rules = medication.dose_rules;
+
+  // Not part of the response: offering an editor here would risk a save
+  // that clears timing the UI simply never loaded.
+  if (rules === undefined) return null;
+
+  // Interval courses are spaced by hours; dose timing does not apply.
+  if (medication.interval_hours != null && rules.length === 0) {
+    return (
+      <section className="pv-timing" aria-label="Dose timing">
+        <p className="pv-timing-title">Dose timing</p>
+        <p className="pv-timing-empty">
+          Scheduled every {medication.interval_hours} h, so dose timing isn&apos;t used.
+        </p>
+      </section>
+    );
+  }
+
+  // Frequency never recorded: the schedule panel already says so.
+  if (medication.times_per_day == null && rules.length === 0) return null;
+
+  const ordered = [...rules].sort((a, b) => a.sequence - b.sequence);
+  const name = medication.drug_name ?? "this medication";
+
+  return (
+    <section className="pv-timing" aria-label="Dose timing">
+      <div className="pv-timing-head">
+        <p className="pv-timing-title">Dose timing</p>
+        {editing ? null : (
+          <button type="button" onClick={() => setEditing(true)} aria-expanded={false}
+            className="pv-meds-quiet-button" aria-label={`${ordered.length ? "Edit" : "Set"} dose timing for ${name}`}>
+            {ordered.length ? "Edit" : "Set timing"}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <DoseRuleEditor
+          medication={{ ...medication, dose_rules: rules }}
+          patient={patient}
+          onCancel={() => setEditing(false)}
+          onSaved={(updated) => {
+            setEditing(false);
+            onUpdated(updated);
+          }}
+        />
+      ) : ordered.length > 0 ? (
+        <ol className="pv-timing-summary">
+          {ordered.map((rule) => (
+            <li key={rule.id} className="pv-timing-summary-item">
+              <span className="pv-timing-seq" aria-hidden="true">{rule.sequence}</span>
+              <span className="pv-timing-summary-text">
+                <span className="sr-only">Dose {rule.sequence}: </span>
+                {describeRule(rule)}
+                {rule.dose ? <span className="pv-timing-override"> · {rule.dose}</span> : null}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="pv-timing-empty">Not set. Add timing to schedule doses around meals or at set times.</p>
+      )}
+    </section>
+  );
+}
+
 export function MedicationList({
   medications,
   loading,
   error,
   showHeading = true,
+  patient = null,
+  onMedicationUpdated,
 }: {
   medications: MedicationResponse[];
   loading?: boolean;
   error?: string | null;
   /** Off when the surrounding DetailSheet already names the section. */
   showHeading?: boolean;
+  /** Supplies the recorded routine the dose-timing editor refers to. */
+  patient?: PatientResponse | null;
+  /** Enables dose-timing editing. Omitted, cards stay read-only as before. */
+  onMedicationUpdated?: (updated: MedicationResponse) => void;
 }) {
   return (
     <section aria-label="Medications">
@@ -147,6 +236,10 @@ export function MedicationList({
                         </div>
                       ) : null}
                     </dl>
+                  ) : null}
+
+                  {active && onMedicationUpdated ? (
+                    <DoseTiming medication={medication} patient={patient} onUpdated={onMedicationUpdated} />
                   ) : null}
                 </article>
               );

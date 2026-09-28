@@ -43,7 +43,44 @@ export type MedicationResponse = {
   drug_generic_name: string | null;
   drug_term_type: string | null;
   drug_source: string | null;
+  /**
+   * Optional on purpose. `undefined` means the rules were not part of the
+   * response, which is not the same as `[]` (loaded, and there are none).
+   * Treating the two alike would let a save that nobody meant as a clear
+   * wipe a prescription's timing.
+   */
+  dose_rules?: DoseRuleResponse[];
 };
+/** Mirrors backend/app/schemas/dose_rule.py. */
+export type DoseAnchor = "breakfast" | "lunch" | "dinner" | "clock_time";
+export type DoseRelation = "before" | "with" | "after";
+export type DoseRuleInput = {
+  sequence: number;
+  anchor_type: DoseAnchor;
+  anchor_relation?: DoseRelation | null;
+  offset_minutes?: number | null;
+  clock_time?: string | null;
+  /** null inherits the medication-level dose. */
+  dose?: string | null;
+};
+export type DoseRuleResponse = {
+  id: string;
+  medication_id: string;
+  sequence: number;
+  anchor_type: DoseAnchor;
+  anchor_relation: DoseRelation | null;
+  offset_minutes: number | null;
+  clock_time: string | null;
+  dose: string | null;
+  created_at: string;
+  updated_at: string;
+};
+/**
+ * Partial update, backend `exclude_unset` semantics: omit `dose_rules` to
+ * leave them unchanged, send `[]` to clear them, send a list to replace the
+ * set. The backend rejects `null`, so the type does not allow it.
+ */
+export type MedicationUpdate = { dose_rules?: DoseRuleInput[] };
 export type MedicationCreate = { drug_id: string; start_date: string; status?: MedicationStatus; purpose_text?: string | null; dose?: string | null; times_per_day?: number | null; interval_hours?: number | null; duration_days?: number | null; end_date?: string | null; condition_id?: string | null };
 export type ReferenceDrugSearchResult = { id: string; name: string; generic_name: string | null; rxcui: string | null; source: string | null; term_type: string | null };
 export type RiskLevel = "low" | "moderate" | "high";

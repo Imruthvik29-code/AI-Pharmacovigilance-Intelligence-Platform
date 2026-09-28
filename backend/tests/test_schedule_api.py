@@ -35,8 +35,11 @@ from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.core.security import CurrentUser, get_current_user
+from app.db.models import MedicationDose
+from app.db.session import AsyncSessionLocal
 from app.main import app
 
 client = TestClient(app)
@@ -196,6 +199,55 @@ def test_generate_schedule_twice_returns_409(
 
     second_resp = client.post(f"/api/v1/medications/{medication['id']}/schedule")
     assert second_resp.status_code == 409
+
+
+async def _dose_rows(medication_id: str) -> list[tuple]:
+    """Every persisted column a regeneration could touch, in a stable order."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(
+                MedicationDose.id,
+                MedicationDose.schedule_id,
+                MedicationDose.scheduled_time,
+                MedicationDose.status,
+                MedicationDose.dose,
+                MedicationDose.actual_time,
+                MedicationDose.updated_at,
+            )
+            .where(MedicationDose.medication_id == uuid.UUID(medication_id))
+            .order_by(MedicationDose.scheduled_time)
+        )
+        return [tuple(row) for row in result.all()]
+
+
+@pytest.mark.asyncio
+async def test_generate_schedule_twice_with_multiple_doses_returns_409(
+    existing_auth_user_id, existing_drug_id, created_patient_ids
+):
+    # A multi-dose schedule has several medication_schedule rows; the
+    # duplicate check must still answer 409, not raise MultipleResultsFound.
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+
+    patient = _create_patient("Duplicate Multi-Dose Schedule Patient")
+    created_patient_ids.append(uuid.UUID(patient["id"]))
+
+    medication = _create_medication(
+        patient["id"], str(existing_drug_id), times_per_day=2, duration_days=3
+    )
+
+    first = _generate_schedule(medication["id"])
+    assert len(first) == 6
+
+    before = await _dose_rows(medication["id"])
+    assert len(before) == 6
+
+    second_resp = client.post(f"/api/v1/medications/{medication['id']}/schedule")
+    assert second_resp.status_code == 409
+    assert second_resp.json()["detail"] == "A schedule already exists for this medication."
+
+    after = await _dose_rows(medication["id"])
+    assert len(after) == len(before)
+    assert after == before
 
 
 def test_generate_schedule_exceeding_max_doses_returns_400(

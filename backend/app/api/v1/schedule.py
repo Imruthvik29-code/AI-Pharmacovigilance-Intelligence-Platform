@@ -459,8 +459,14 @@ async def generate_schedule(
             ),
         )
 
+    # A generated schedule is one medication_schedule row per dose, so any
+    # schedule with more than one dose returns several rows here. Only
+    # existence matters: limit(1) keeps scalar_one_or_none() from raising
+    # MultipleResultsFound (a 500) where this should answer 409.
     existing = await db.execute(
-        select(MedicationSchedule.id).where(MedicationSchedule.medication_id == medication_id)
+        select(MedicationSchedule.id)
+        .where(MedicationSchedule.medication_id == medication_id)
+        .limit(1)
     )
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(
