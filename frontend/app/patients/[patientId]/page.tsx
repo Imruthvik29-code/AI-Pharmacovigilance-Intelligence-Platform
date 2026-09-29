@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnalysisHero } from "@/components/AnalysisHero";
 import { AuthGate } from "@/components/AuthGate";
@@ -26,7 +26,7 @@ import { listSymptoms } from "@/lib/api/symptoms";
 import { listTimeline } from "@/lib/api/timeline";
 import { usePageTitle } from "@/lib/hooks/usePageTitle";
 import { secondaryButtonClass } from "@/lib/ui/classes";
-import { activeMedicationCount, unresolvedSymptomCount } from "@/lib/patient/summaries";
+import { activeMedicationCount } from "@/lib/patient/summaries";
 import type {
   AnalysisRunResponse,
   MedicationResponse,
@@ -92,8 +92,27 @@ function PatientPage() {
   const [analysisHistoryError, setAnalysisHistoryError] = useState<string | null>(null);
   const [analysisHistoryLoaded, setAnalysisHistoryLoaded] = useState(false);
   const [running, setRunning] = useState(false);
+  // Identifies the latest symptom list request, so an answer that arrives
+  // after a newer load (or after moving to another patient) is ignored.
+  const symptomsRequest = useRef(0);
 
   usePageTitle(patient?.name ?? "Patient");
+
+  const reloadSymptoms = useCallback(async () => {
+    const request = ++symptomsRequest.current;
+    setSymptomsLoading(true);
+    setSymptomsError(null);
+    try {
+      const next = await listSymptoms(patientId);
+      if (request !== symptomsRequest.current) return;
+      setSymptoms(next);
+    } catch (err) {
+      if (request !== symptomsRequest.current) return;
+      setSymptomsError(err instanceof ApiError ? err.detail : "Could not load symptoms.");
+    } finally {
+      if (request === symptomsRequest.current) setSymptomsLoading(false);
+    }
+  }, [patientId]);
 
   const refreshSecondary = useCallback(
     async (isCurrent: () => boolean = () => true, updateAnalysis = true) => {
@@ -130,6 +149,7 @@ function PatientPage() {
     const isCurrent = () => !cancelled;
 
     async function load() {
+      symptomsRequest.current += 1;
       setLoading(true);
       setPatient(null);
       setMedications([]);
@@ -231,7 +251,6 @@ function PatientPage() {
   }
 
   const activeCount = activeMedicationCount(medications);
-  const unresolvedSymptoms = unresolvedSymptomCount(symptoms);
   const showOverview = Boolean(patient) && !openCategory;
 
   return (
@@ -371,23 +390,18 @@ function PatientPage() {
             ) : null}
 
             {openCategory === "symptoms" ? (
-              <>
-                <SymptomPanel
-                  patientId={patientId}
-                  medications={medications}
-                  symptoms={symptoms}
-                  loading={symptomsLoading}
-                  error={symptomsError}
-                  onCreated={(symptom) => {
-                    setSymptoms((current) => [...current, symptom]);
-                    void refreshSecondary();
-                  }}
-                  showHeading={false}
-                />
-                <p className="pv-row-meta px-0.5">
-                  {unresolvedSymptoms} unresolved of {symptoms.length} reported
-                </p>
-              </>
+              <SymptomPanel
+                patientId={patientId}
+                medications={medications}
+                symptoms={symptoms}
+                loading={symptomsLoading}
+                error={symptomsError}
+                onCreated={(symptom) => {
+                  setSymptoms((current) => [...current, symptom]);
+                  void refreshSecondary();
+                }}
+                onRetry={() => void reloadSymptoms()}
+              />
             ) : null}
 
             {openCategory === "timeline" ? (
