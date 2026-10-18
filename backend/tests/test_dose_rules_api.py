@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.v1 import schedule as schedule_api
 from app.core.security import CurrentUser, get_current_user
 from app.main import app
 
@@ -51,6 +52,20 @@ def _clear_dependency_overrides():
 def auth(existing_auth_user_id):
     app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
     return existing_auth_user_id
+
+
+@pytest.fixture
+def snapshot_clock(monkeypatch):
+    """Keep the fixed October course ahead of the API clock on every test run."""
+    now = datetime(2026, 9, 30, tzinfo=timezone.utc)
+
+    class SnapshotDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now.astimezone(tz) if tz is not None else now.replace(tzinfo=None)
+
+    monkeypatch.setattr(schedule_api, "datetime", SnapshotDateTime)
+    return now
 
 
 def _make_patient(created_patient_ids, **routine) -> str:
@@ -262,6 +277,7 @@ def test_rule_based_generation_uses_patient_routine_and_timezone(
     assert times[0].date().isoformat() == "2026-10-01"
 
 
+@pytest.mark.usefixtures("snapshot_clock")
 def test_generation_snapshots_resolved_dose_with_rule_override(
     auth, existing_drug_id, created_patient_ids, created_medication_ids
 ):
@@ -498,6 +514,7 @@ def test_huge_duration_returns_400_not_a_date_overflow_500(
     assert "exceeding the maximum" in resp.json()["detail"]
 
 
+@pytest.mark.usefixtures("snapshot_clock")
 def test_replacing_rules_after_generation_leaves_generated_doses_untouched(
     auth, existing_drug_id, created_patient_ids, created_medication_ids
 ):
@@ -527,6 +544,7 @@ def test_replacing_rules_after_generation_leaves_generated_doses_untouched(
     assert after == before
 
 
+@pytest.mark.usefixtures("snapshot_clock")
 def test_legacy_dose_with_null_snapshot_falls_back_to_medication_dose(
     auth, existing_drug_id, created_patient_ids, created_medication_ids
 ):
@@ -564,6 +582,7 @@ def test_legacy_dose_with_null_snapshot_falls_back_to_medication_dose(
     assert {d["dose"] for d in after} == {"2 tablets"}
 
 
+@pytest.mark.usefixtures("snapshot_clock")
 def test_interval_generated_dose_stores_the_snapshot(
     auth, existing_drug_id, created_patient_ids, created_medication_ids
 ):

@@ -30,16 +30,20 @@ Run with:  pytest backend/tests/test_schedule_api.py -v
 Requires:  at least one row in auth.users (see conftest.py) and the
            seeded reference_drugs from 002_seed_data.sql.
 """
+import asyncio
 import uuid
+
+import httpx
 from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.security import CurrentUser, get_current_user
 from app.db.models import MedicationDose
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, engine, get_db
 from app.main import app
 
 client = TestClient(app)
@@ -805,3 +809,105 @@ def test_sweep_does_not_affect_future_doses(
     mark_resp = client.post(f"/api/v1/doses/{dose_id}/mark", json={"status": "taken"})
     assert mark_resp.status_code == 200
     assert mark_resp.json()["status"] == "taken"
+
+
+@pytest.mark.parametrize("second_request", ["upcoming", "mark"])
+async def test_overlapping_sweeps_log_each_missed_dose_once(
+    existing_auth_user_id, existing_drug_id, created_patient_ids, monkeypatch,
+    second_request,
+):
+    """Concurrent reads, and a read racing a mark, must share one missed event."""
+    from app.api.v1 import schedule as schedule_api
+
+    now = datetime(2026, 9, 30, tzinfo=schedule_api.timezone.utc)
+
+    class SweepDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now.astimezone(tz) if tz is not None else now.replace(tzinfo=None)
+
+    monkeypatch.setattr(schedule_api, "datetime", SweepDateTime)
+    app.dependency_overrides[get_current_user] = _override_current_user(existing_auth_user_id)
+    patient = _create_patient("Concurrent Sweep Patient")
+    patient_id = uuid.UUID(patient["id"])
+    created_patient_ids.append(patient_id)
+    medication = _create_medication(
+        patient["id"], str(existing_drug_id), start_date="2026-09-29",
+        times_per_day=2, duration_days=1,
+    )
+    doses = _generate_schedule(medication["id"])
+    assert len(doses) == 2 and all(d["status"] is None for d in doses)
+
+    async def snapshot():
+        async with AsyncSessionLocal() as session:
+            values = {}
+            for table, query in {
+                "doses": "SELECT to_jsonb(d) FROM medication_doses d JOIN medications m ON m.id=d.medication_id WHERE m.patient_id=:p ORDER BY d.id",
+                "schedules": "SELECT to_jsonb(s) FROM medication_schedule s JOIN medications m ON m.id=s.medication_id WHERE m.patient_id=:p ORDER BY s.id",
+                "events": "SELECT to_jsonb(e) FROM timeline_events e WHERE patient_id=:p ORDER BY id",
+            }.items():
+                values[table] = (await session.execute(text(query), {"p": patient_id})).scalars().all()
+            return values
+
+    before = await snapshot()
+    ready = asyncio.Event()
+    arrivals = 0
+
+    class OverlapSession(AsyncSession):
+        async def execute(self, statement, *args, **kwargs):
+            nonlocal arrivals
+            sql = str(statement)
+            sweep = (
+                "medication_doses.status IS NULL" in sql
+                and "medication_doses.scheduled_time <" in sql
+            )
+            if sweep:
+                arrivals += 1
+                if arrivals == 2:
+                    ready.set()
+                await asyncio.wait_for(ready.wait(), timeout=5)
+                # Let GET lock first after mark has loaded its initial dose.
+                if second_request == "mark" and self.identity_map:
+                    await asyncio.sleep(0.05)
+            result = await super().execute(statement, *args, **kwargs)
+            if sweep:
+                # Expose the real read/write race without changing SQL/results.
+                await asyncio.sleep(0.15)
+            return result
+
+    sessions = async_sessionmaker(engine, class_=OverlapSession, expire_on_commit=False)
+
+    async def overlapping_db():
+        async with sessions() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = overlapping_db
+    path = f"/api/v1/patients/{patient['id']}/doses/upcoming"
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as concurrent_client:
+            first = concurrent_client.get(path)
+            second = (
+                concurrent_client.get(path) if second_request == "upcoming"
+                else concurrent_client.post(
+                    f"/api/v1/doses/{doses[0]['id']}/mark", json={"status": "taken"}
+                )
+            )
+            responses = await asyncio.gather(first, second)
+        assert responses[0].status_code == 200 and responses[0].json() == []
+        assert responses[1].status_code == (200 if second_request == "upcoming" else 409)
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    after = await snapshot()
+    assert {d["id"] for d in after["doses"]} == {d["id"] for d in before["doses"]}
+    assert after["schedules"] == before["schedules"]
+    assert all(d["status"] == "missed" and d["actual_time"] is None for d in after["doses"])
+    added = [e for e in after["events"] if e["id"] not in {e["id"] for e in before["events"]}]
+    assert len(added) == len(doses)
+    assert {e["ref_id"] for e in added} == {d["id"] for d in doses}
+    assert all(e["event_type"] == "dose_missed" and e["payload"]["auto_detected"] for e in added)
+    assert client.get(path).status_code == 200
+    assert await snapshot() == after
+    app.dependency_overrides.clear()

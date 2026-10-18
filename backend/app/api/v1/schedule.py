@@ -364,6 +364,9 @@ async def _sweep_missed_doses(patient_id: uuid.UUID, db: AsyncSession) -> None:
             MedicationDose.status.is_(None),
             MedicationDose.scheduled_time < now,
         )
+        # Serialize overlapping sweeps in a stable order before logging events.
+        .order_by(MedicationDose.id)
+        .with_for_update(of=MedicationDose)
     )
     for dose, drug_name in result.all():
         dose.status = "missed"
@@ -620,6 +623,8 @@ async def mark_dose(
 
     await _sweep_missed_doses(patient_id, db)
     await db.flush()
+    # A concurrent sweep may have changed the initially loaded dose.
+    await db.refresh(dose)
 
     if dose.status is not None:
         # The sweep is a real state-changing operation. If this request is
