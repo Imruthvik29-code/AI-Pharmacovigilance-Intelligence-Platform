@@ -23,6 +23,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Development chunk names are reused after edits. Only content-hashed
+  // Next assets are immutable; caching page.js would pin an old UI forever.
+  if (url.pathname.startsWith("/_next/static/") &&
+      !/[-.\/][a-f0-9]{8,}\.(?:js|css|woff2?)$/i.test(url.pathname)) {
+    return;
+  }
+
   if (request.mode === "navigate" && SHELL_ASSETS.includes(url.pathname)) {
     event.respondWith(
       fetch(request)
