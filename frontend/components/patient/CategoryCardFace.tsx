@@ -11,10 +11,10 @@ import type { Category, CategoryId } from "@/components/patient/categories";
  * sets them as a quiet line instead of an inset summary panel.
  */
 function hasNoRecord(id: CategoryId, data: WorkspaceData): boolean {
-  if (id === "safety") return !data.analysis;
+  if (id === "safety") return !data.analysis && !data.analysisHistoryError;
   if (id === "medications") return data.medications.length === 0;
-  if (id === "symptoms") return data.symptoms.length === 0;
-  return data.timeline.length === 0;
+  if (id === "symptoms") return !data.symptomsError && data.symptoms.length === 0;
+  return !data.timelineError && data.timeline.length === 0;
 }
 
 /**
@@ -43,7 +43,8 @@ export function CategoryCardFace({
 }) {
   const rows = briefRows(category.id, data);
   const empty = hasNoRecord(category.id, data);
-  const offerRun = category.id === "safety" && !data.analysis && Boolean(onRunAnalysis);
+  const offerRun = category.id === "safety" && !data.analysis
+    && !data.analysisHistoryError && Boolean(onRunAnalysis);
 
   return (
     <>

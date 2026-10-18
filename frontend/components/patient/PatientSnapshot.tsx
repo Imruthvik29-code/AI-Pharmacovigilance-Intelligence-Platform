@@ -25,10 +25,12 @@ type Fact = { key: string; Icon: ComponentType<{ className?: string }>; text: st
 export function PatientSnapshot({
   medications,
   analysis,
+  analysisHistoryError,
   timeline,
 }: {
   medications: MedicationResponse[];
   analysis: AnalysisRunResponse | null;
+  analysisHistoryError?: string | null;
   timeline: TimelineEventResponse[];
 }) {
   const facts: Fact[] = [];
@@ -48,7 +50,9 @@ export function PatientSnapshot({
     Icon: ShieldIcon,
     text: analysis?.risk_level
       ? `${analysis.risk_level[0].toUpperCase()}${analysis.risk_level.slice(1)} risk`
-      : "Not analysed yet",
+      : analysisHistoryError
+        ? "Analysis history unavailable"
+        : "Not analysed yet",
   });
 
   const updated = latestClinicalUpdate(analysis, timeline);

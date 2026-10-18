@@ -43,6 +43,9 @@ export type WorkspaceData = {
   medications: MedicationResponse[];
   symptoms: SymptomResponse[];
   timeline: TimelineEventResponse[];
+  analysisHistoryError?: string | null;
+  symptomsError?: string | null;
+  timelineError?: string | null;
 };
 
 const NEUTRAL = { surface: "var(--surface-2)", ink: "var(--ink-2)" };
@@ -52,12 +55,25 @@ const SEVERITY_TONE = {
   mild: { surface: "var(--mild-bg)", ink: "var(--mild-fg)" },
 } as const;
 
+function unavailableMessage(id: CategoryId, data: WorkspaceData): string | null {
+  if (id === "safety" && !data.analysis && data.analysisHistoryError) {
+    return "Analysis history unavailable";
+  }
+  if (id === "symptoms" && data.symptomsError) return "Symptom data unavailable";
+  if (id === "timeline" && data.timelineError) return "Timeline data unavailable";
+  return null;
+}
+
 /**
  * Compact metadata rows for the overview card — the reference's three-line
  * card body. Every value is read from the API payload; nothing is computed,
  * estimated or carried over between renders.
  */
 export function briefRows(id: CategoryId, data: WorkspaceData): BriefRow[] {
+  const unavailable = unavailableMessage(id, data);
+  if (unavailable) {
+    return [{ key: "unavailable", Icon: AlertIcon, text: unavailable, ...NEUTRAL }];
+  }
   if (id === "safety") return safetyRows(data.analysis);
   if (id === "medications") return medicationRows(data.medications);
   if (id === "symptoms") return symptomRows(data.symptoms);
@@ -66,6 +82,8 @@ export function briefRows(id: CategoryId, data: WorkspaceData): BriefRow[] {
 
 /** One-line summary used by the desktop ribbon stack. */
 export function briefSummary(id: CategoryId, data: WorkspaceData): string {
+  const unavailable = unavailableMessage(id, data);
+  if (unavailable) return unavailable;
   if (id === "safety") {
     if (!data.analysis) return "Not analysed yet";
     const breakdown = findingBreakdown(data.analysis);

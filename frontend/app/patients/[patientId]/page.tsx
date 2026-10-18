@@ -413,7 +413,7 @@ function PatientPage() {
         {patient && showOverview ? (
           <div className="pv-overview">
             <PatientHero patient={patient} backHref="/dashboard" backLabel="Back to patients">
-              <PatientSnapshot medications={medications} analysis={analysis} timeline={timeline} />
+              <PatientSnapshot analysisHistoryError={analysisHistoryError} medications={medications} analysis={analysis} timeline={timeline} />
             </PatientHero>
             <div className="pv-sheet">
               {analysisError ? (
@@ -429,7 +429,10 @@ function PatientPage() {
                 onOpen={openDetail}
                 onRunAnalysis={() => void handleRunAnalysis()}
                 analysisRunning={running}
-                data={{ analysis, medications, symptoms, timeline }}
+                data={{
+                  analysis, medications, symptoms, timeline,
+                  analysisHistoryError, symptomsError, timelineError,
+                }}
               />
             </div>
           </div>
