@@ -324,7 +324,7 @@ def deterministic_nodes(monkeypatch):
 FAILURE_MODES = [
     pytest.param(
         lambda: LLMExplanationError("All configured LLM providers failed: gemini: HTTP 503"),
-        "all configured llm providers failed",
+        "all providers failed",
         id="LLMExplanationError",
     ),
     pytest.param(
@@ -497,11 +497,10 @@ async def test_real_task_cancellation_still_cancels_the_node(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_unexpected_exception_is_logged_with_logger_exception(caplog, monkeypatch):
+async def test_unexpected_exception_keeps_error_severity_and_sanitized_stack(caplog, monkeypatch):
     """
-    Unexpected failures are still bugs: they must be logged at ERROR with a
-    full traceback (`logger.exception`), not quietly downgraded to the
-    WARNING used for the two documented failure modes.
+    Unexpected failures remain ERROR diagnostics with a type and call stack,
+    while sensitive exception payloads and patient identifiers stay private.
     """
     monkeypatch.setattr(
         workflow_module, "generate_explanation", _raises(lambda: RuntimeError("boom"))
@@ -516,9 +515,10 @@ async def test_unexpected_exception_is_logged_with_logger_exception(caplog, monk
     assert len(records) == 1
     record = records[0]
     assert record.levelno == logging.ERROR
-    assert record.exc_info is not None  # logger.exception() attaches the traceback
-    assert record.exc_info[0] is RuntimeError
-    assert getattr(record, "patient_id", None) == PATIENT_ID
+    assert record.exc_info is None
+    assert record.error_type == "RuntimeError"
+    assert record.stack_info
+    assert not hasattr(record, "patient_id")
 
 
 @pytest.mark.asyncio
@@ -532,7 +532,7 @@ async def test_unexpected_exception_is_logged_with_logger_exception(caplog, monk
 async def test_documented_failures_still_log_at_warning_without_traceback(
     exc_factory, caplog, monkeypatch
 ):
-    """Existing behavior for the two documented modes is preserved exactly."""
+    """Expected failure severity and traceback exclusion remain intact."""
     monkeypatch.setattr(workflow_module, "generate_explanation", _raises(exc_factory))
     node = _llm_explanation_node(_FakeSession())
 
@@ -806,6 +806,16 @@ class _FakeProvider:
         self.call_count += 1
         if self._error is not None:
             raise self._error
+        if self._raw == VALID_JSON:
+            # Valid fallback now selects exact request-bound evidence, not prose.
+            import json
+            catalog = json.loads(prompt.split("EVIDENCE_CATALOG\n", 1)[1])
+            data = {"scope": catalog["scope"], "confidence_score": 95,
+                    "confidence_level": "high"}
+            for section in ("summary", "reasoning", "recommendations"):
+                data[section] = [s["id"] for s in catalog["statements"]
+                                 if s["section"] == section]
+            return LLMCompletion(text=json.dumps(data))
         return LLMCompletion(text=self._raw)
 
 
@@ -867,7 +877,7 @@ async def test_unnormalized_transport_error_still_falls_back_to_the_next_provide
 
     result = await _generate()
 
-    assert result.summary == "All clear."
+    assert result.summary == "Recorded safety score: 25/100. Risk level: high."
     assert gemini.call_count == 1
     assert openrouter.call_count == 1
 
@@ -908,7 +918,7 @@ async def test_non_string_response_text_still_falls_back_to_the_next_provider(mo
 @pytest.mark.asyncio
 async def test_provider_error_and_parse_error_still_normalize_as_before(monkeypatch):
     """The pre-existing normalization paths are untouched by this PR."""
-    gemini = _FakeProvider("gemini", error=LLMProviderError("gemini", "HTTP 503", retryable=True))
+    gemini = _FakeProvider("gemini", error=LLMProviderError("gemini", "HTTP 503", retryable=True, category="http_error", status_code=503))
     openrouter = _FakeProvider("openrouter", raw="not json at all")
     monkeypatch.setattr(llm_service, "_PROVIDERS", (gemini, openrouter))
 
@@ -916,7 +926,7 @@ async def test_provider_error_and_parse_error_still_normalize_as_before(monkeypa
         await _generate()
 
     message = str(excinfo.value)
-    assert "gemini: HTTP 503" in message
+    assert "gemini/" in message and "http_error HTTP 503" in message
     assert "openrouter" in message
 
 
@@ -935,3 +945,31 @@ async def test_llm_service_does_not_swallow_cancellation(monkeypatch):
         await _generate()
 
     assert openrouter.call_count == 0  # chain aborted, not continued
+
+
+@pytest.fixture(autouse=True)
+def _isolated_model_cooldowns(monkeypatch):
+    # Each unit case owns fresh process state; concurrency/recovery across
+    # requests is exercised explicitly in test_llm_failover.py.
+    from app.services.llm_failover import CooldownRegistry
+    monkeypatch.setattr(llm_service, "_COOLDOWNS", CooldownRegistry())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error_type", [LLMExplanationError, RuntimeError])
+async def test_workflow_failure_diagnostics_do_not_emit_sensitive_details(
+    error_type, caplog, monkeypatch,
+):
+    marker = "SYNTHETIC_PRIVATE_PATIENT_TEXT_AND_CREDENTIAL"
+    monkeypatch.setattr(workflow_module, "generate_explanation",
+                        _raises(lambda: error_type(marker)))
+    state = _node_state()
+    with caplog.at_level(logging.DEBUG, logger="app.langgraph_workflow"):
+        result = await _llm_explanation_node(_FakeSession())(state)
+    records = [r for r in caplog.records if r.name == "app.langgraph_workflow"]
+    assert records and result["llm_result"] is None
+    assert marker not in caplog.text
+    assert marker not in result["llm_error"]
+    assert str(state["patient_id"]) not in caplog.text
+    assert all(not hasattr(r, "patient_id") and r.exc_info is None for r in records)
+    assert records[0].error_type == error_type.__name__

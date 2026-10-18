@@ -76,7 +76,7 @@ class _FakeProvider:
         if self._error:
             raise self._error
         return LLMCompletion(
-            text=self._raw,
+            text=selection_for_prompt(prompt) if self._raw == VALID_JSON else self._raw,
             prompt_tokens=self._prompt_tokens,
             completion_tokens=self._completion_tokens,
             total_tokens=self._total_tokens,
@@ -124,6 +124,18 @@ VALID_JSON = (
     '"recommendations": "Continue routine monitoring.", "confidence_score": 95, '
     '"confidence_level": "high"}'
 )
+
+
+def selection_for_prompt(prompt):
+    """A compliant synthetic provider response, bound to this request catalog."""
+    catalog = json.loads(prompt.split("EVIDENCE_CATALOG\n", 1)[1])
+    return json.dumps({
+        "scope": catalog["scope"],
+        **{section: [s["id"] for s in catalog["statements"]
+                     if s["section"] == section]
+           for section in ("summary", "reasoning", "recommendations")},
+        "confidence_score": 40, "confidence_level": "low",
+    })
 
 
 # ---------------------------------------------------------------------
@@ -728,13 +740,8 @@ def _findings_fixture() -> tuple[SafetyScoreResult, EvidenceBundle]:
 
 
 @pytest.mark.asyncio
-async def test_summary_is_returned_verbatim_from_provider(monkeypatch):
-    """
-    Phase 15 task 2 (Summary Generation): the provider's `summary` field
-    must surface on `LLMExplanationResult.summary` exactly as sent --
-    the service is a pass-through explanation layer and must not
-    rewrite, truncate, or re-order the generated summary text.
-    """
+async def test_unbound_summary_prose_is_rejected(monkeypatch):
+    """Unbound prose no longer passes through, even if it sounds plausible."""
     summary_text = (
         "Warfarin and Aspirin are being taken together, which the safety "
         "engine flagged as a severe interaction."
@@ -752,12 +759,10 @@ async def test_summary_is_returned_verbatim_from_provider(monkeypatch):
     monkeypatch.setattr(llm_service, "_PROVIDERS", (gemini,))
 
     safety_result, bundle = _findings_fixture()
-    result = await generate_explanation(
-        _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
-    )
-
-    assert result.summary == summary_text
-    assert result.reasoning == "Both drugs independently increase bleeding risk."
+    with pytest.raises(LLMExplanationError):
+        await generate_explanation(
+            _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+        )
 
 
 @pytest.mark.asyncio
@@ -776,7 +781,7 @@ async def test_summary_generation_prompt_carries_deterministic_findings(monkeypa
 
         async def complete(self, prompt: str, *, timeout_seconds: float) -> LLMCompletion:
             captured["prompt"] = prompt
-            return LLMCompletion(text=VALID_JSON)
+            return LLMCompletion(text=selection_for_prompt(prompt))
 
     monkeypatch.setattr(llm_service, "_PROVIDERS", (_CapturingProvider(),))
 
@@ -786,10 +791,10 @@ async def test_summary_generation_prompt_carries_deterministic_findings(monkeypa
     )
 
     prompt = captured["prompt"]
-    assert "Safety score: 70/100" in prompt
+    assert "Recorded safety score: 70/100" in prompt
     assert "Risk level: moderate" in prompt
     assert "Warfarin + Aspirin interaction (severe)" in prompt
-    assert "-30 pts" in prompt
+    assert "30 points" in prompt
     # The evidence backing the finding is supplied too, so the summary
     # never has to invent a rationale.
     assert "Additive bleeding risk." in prompt
@@ -826,13 +831,8 @@ async def test_summary_rejected_when_provider_omits_it(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_recommendations_returned_verbatim_from_provider(monkeypatch):
-    """
-    Phase 15 task 3 (Recommendation Generation): generated
-    recommendations surface exactly as produced, on their own field --
-    kept distinct from `summary`/`reasoning` so a client can render (or
-    withhold) suggestive content separately from factual explanation.
-    """
+async def test_unbound_recommendation_prose_is_rejected(monkeypatch):
+    """Recommendations must use policy-bound IDs, not unvalidated prose."""
     recommendations_text = (
         "Consider discussing the Warfarin-Aspirin combination with the "
         "prescribing clinician before the next dose."
@@ -849,13 +849,10 @@ async def test_recommendations_returned_verbatim_from_provider(monkeypatch):
     monkeypatch.setattr(llm_service, "_PROVIDERS", (_FakeProvider("gemini", raw=raw),))
 
     safety_result, bundle = _findings_fixture()
-    result = await generate_explanation(
-        _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
-    )
-
-    assert result.recommendations == recommendations_text
-    assert result.recommendations != result.summary
-    assert result.recommendations != result.reasoning
+    with pytest.raises(LLMExplanationError):
+        await generate_explanation(
+            _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+        )
 
 
 @pytest.mark.asyncio
@@ -874,7 +871,7 @@ async def test_recommendation_prompt_supplies_deterministic_recommendation(monke
 
         async def complete(self, prompt: str, *, timeout_seconds: float) -> LLMCompletion:
             captured["prompt"] = prompt
-            return LLMCompletion(text=VALID_JSON)
+            return LLMCompletion(text=selection_for_prompt(prompt))
 
     monkeypatch.setattr(llm_service, "_PROVIDERS", (_CapturingProvider(),))
 
@@ -888,7 +885,7 @@ async def test_recommendation_prompt_supplies_deterministic_recommendation(monke
     # ask it to compute anything deterministic.
     lowered = prompt.lower()
     assert "recommendations" in lowered
-    assert "do not alter" in lowered
+    assert "do not write prose" in lowered
 
 
 @pytest.mark.asyncio
@@ -967,7 +964,7 @@ async def test_recommendations_rejected_when_provider_omits_them(monkeypatch):
                     ),
                 ),
             ),
-            False,
+            True,
         ),
     ],
 )
@@ -1021,12 +1018,7 @@ async def test_deterministic_result_never_mutated_by_llm_behavior(
 
 @pytest.mark.asyncio
 async def test_llm_result_exposes_no_score_or_risk_fields(monkeypatch):
-    """
-    Phase 15 task 1: `LLMExplanationResult` must have no channel through
-    which a model could return a safety_score/risk_level/severity. Even
-    if the provider emits those keys, they are dropped -- the result
-    object carries explanation text and self-reported confidence only.
-    """
+    """Extra clinical fields are rejected, never silently discarded."""
     raw = json.dumps(
         {
             "summary": "All clear.",
@@ -1042,13 +1034,18 @@ async def test_llm_result_exposes_no_score_or_risk_fields(monkeypatch):
     monkeypatch.setattr(llm_service, "_PROVIDERS", (_FakeProvider("gemini", raw=raw),))
 
     safety_result, bundle = _findings_fixture()
-    result = await generate_explanation(
-        _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
-    )
-
-    assert not hasattr(result, "safety_score")
-    assert not hasattr(result, "risk_level")
-    assert not hasattr(result, "severity")
+    with pytest.raises(LLMExplanationError):
+        await generate_explanation(
+            _empty_patient_context(), safety_result, bundle, _empty_timeline_context()
+        )
     # And the deterministic values the model tried to override are intact.
     assert safety_result.safety_score == 70
     assert safety_result.risk_level == "moderate"
+
+
+@pytest.fixture(autouse=True)
+def _isolated_model_cooldowns(monkeypatch):
+    # Each unit case owns fresh process state; concurrency/recovery across
+    # requests is exercised explicitly in test_llm_failover.py.
+    from app.services.llm_failover import CooldownRegistry
+    monkeypatch.setattr(llm_service, "_COOLDOWNS", CooldownRegistry())

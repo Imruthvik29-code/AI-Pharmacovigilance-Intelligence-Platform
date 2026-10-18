@@ -486,3 +486,29 @@ async def test_gemini_provider_request_url_uses_configured_model(monkeypatch):
     await provider.complete("prompt", timeout_seconds=5.0)
 
     assert "gemini-custom-test-model" in captured_urls[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", [GeminiProvider, OpenRouterProvider])
+@pytest.mark.parametrize("value", [None, 42, True, [], {}, "   "])
+async def test_non_text_completion_is_normalized_without_retry(monkeypatch, provider, value):
+    data = ({"candidates": [{"content": {"parts": [{"text": value}]}}]}
+            if provider is GeminiProvider else {"choices": [{"message": {"content": value}}]})
+    client = _SequencedAsyncClient([_FakeResponse(200, data)])
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: client)
+    with pytest.raises(LLMProviderError, match="empty response text"):
+        await provider().complete("synthetic", timeout_seconds=1)
+    assert client.call_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", [GeminiProvider, OpenRouterProvider])
+async def test_malformed_optional_usage_does_not_crash_completion(monkeypatch, provider):
+    data = ({"candidates": [{"content": {"parts": [{"text": "{}"}]}}],
+             "usageMetadata": [1]}
+            if provider is GeminiProvider else
+            {"choices": [{"message": {"content": "{}"}}], "usage": [1]})
+    client = _SequencedAsyncClient([_FakeResponse(200, data)])
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: client)
+    answer = await provider().complete("synthetic", timeout_seconds=1)
+    assert answer.text == "{}" and answer.total_tokens is None

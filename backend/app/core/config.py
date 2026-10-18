@@ -38,6 +38,9 @@ are reasonable starting points, not guarantees of current availability.
 """
 from functools import lru_cache
 from pathlib import Path
+import re
+
+from pydantic import Field, field_validator
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -61,13 +64,32 @@ class Settings(BaseSettings):
     #: "fail at call time, not import time" convention (see
     #: api/v1/auth.py's _supabase_headers()).
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    # Retained for direct/legacy single-model adapter calls. Runtime failover
+    # uses the explicit candidate list below, independently of GEMINI_MODEL.
+    gemini_model: str = "gemini-3.8-flash"
+    gemini_candidate_models: tuple[str, ...] = Field(
+        default=("gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"),
+        min_length=1, max_length=3,
+    )
+    llm_failover_deadline_seconds: float = Field(default=45.0, gt=0, le=120)
+    llm_cooldown_seconds: float = Field(default=60.0, gt=0, le=3600)
+    llm_failure_cooldown_seconds: float = Field(default=15.0, gt=0, le=3600)
+    llm_failure_threshold: int = Field(default=2, ge=1, le=10)
+
+    @field_validator("gemini_candidate_models")
+    @classmethod
+    def validate_gemini_candidates(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(values)) != len(values) or any(
+            not re.fullmatch(r"gemini-[a-z0-9.-]+", value) for value in values
+        ):
+            raise ValueError("Gemini candidates must be unique model IDs.")
+        return values
 
     #: OpenRouter is the fallback provider, tried only if Gemini fails
     #: (network/HTTP error) or returns output that fails schema
     #: validation. Same fail-closed behavior as Gemini if unconfigured.
     openrouter_api_key: str = ""
-    openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"
+    openrouter_model: str = "openrouter/free"
 
     #: Shared per-request timeout for both providers' outbound HTTP
     #: calls, mirroring the existing http_timeout_seconds pattern used

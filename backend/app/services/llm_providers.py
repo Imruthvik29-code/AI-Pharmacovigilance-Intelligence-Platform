@@ -1,49 +1,18 @@
+"""REST provider adapters with sanitized structured errors and bounded retries.
+
+Gemini accepts an explicit model per instance. Direct/legacy calls retain one
+transient retry (including 429). The ordered production chain disables 429
+retries, advances immediately and records model/project cooldowns instead.
+Permanent credentials/configuration failures are never retried. Retry-After
+sleeps must fit inside the candidate's total budget. OpenRouter never retries.
+No raw HTTP error bodies, headers, prompts or completions enter error logs.
 """
-LLM provider abstraction (Phase 15).
-
-Defines a single, provider-agnostic interface (`LLMProvider.complete`) that
-`llm_service.py` calls without knowing whether it's talking to Gemini or
-OpenRouter. Both providers are called over plain REST via `httpx` (already
-a project dependency, used elsewhere in `api/v1/auth.py` for the Supabase
-Auth proxy) -- no new dependency added, no provider SDK, per the approved
-Phase 15 design.
-
-Per spec section 4, Gemini is primary and OpenRouter is fallback; the
-actual Gemini-then-OpenRouter ordering/fallback logic lives in
-`llm_service.py`, not here -- this module only knows how to make a single
-call to a single provider and turn it into a normalized result or error.
-It has no knowledge of prompts, JSON schemas, or fallback ordering,
-keeping it a thin, swappable I/O boundary.
-
-Every failure (network error, timeout, non-2xx response, unexpected
-response shape, empty body, missing configuration) is normalized to
-`LLMProviderError` so callers never need to catch httpx-specific
-exceptions or reach into either provider's raw response shape.
-
-## `complete()` return shape
-
-`complete()` returns an `LLMCompletion` (raw text + optional token usage),
-not a bare string. This is deliberate rather than storing per-call
-metadata as instance state on the provider: `_PROVIDERS` (see
-`llm_service.py`) holds a single long-lived instance of each provider
-class shared across all requests, so any per-call data written onto
-`self` would be a race condition under concurrent requests. Returning an
-immutable value keeps each call's data local to that call.
-
-## Retry (Gemini only)
-
-`GeminiProvider.complete()` retries exactly once, and only for transient
-failures -- HTTP 429/500/502/503/504 or a network timeout
-(`httpx.TimeoutException`). Every other failure (missing/invalid API key,
-a non-transient 4xx, a malformed/unexpected response shape) is raised
-immediately with no retry. This is tracked via `LLMProviderError.retryable`,
-set at the point each error is raised so the retry decision never has to
-pattern-match an error message. `OpenRouterProvider` never retries --
-retrying only the primary provider, once, before the existing
-Gemini -> OpenRouter fallback in `llm_service.py` takes over, is the
-approved Phase 15 design.
-"""
+import asyncio
 import logging
+import math
+import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from dataclasses import dataclass
 
 import httpx
@@ -52,6 +21,7 @@ from app.core.config import get_settings
 
 logger = logging.getLogger("app.llm_providers")
 settings = get_settings()
+_sleep = asyncio.sleep
 
 # HTTP status codes considered transient for Gemini's single retry.
 # Deliberately narrow: a 4xx outside this set (bad request, auth failure,
@@ -89,10 +59,65 @@ class LLMProviderError(Exception):
     retrying.
     """
 
-    def __init__(self, provider: str, message: str, *, retryable: bool = False):
+    def __init__(
+        self, provider: str, message: str, *, retryable: bool = False,
+        category: str = "provider_error", status_code: int | None = None,
+        retry_after_seconds: float = 0.0, provider_wide: bool = False,
+    ):
         self.provider = provider
         self.retryable = retryable
+        self.category = category
+        self.status_code = status_code
+        self.retry_after_seconds = retry_after_seconds
+        self.provider_wide = provider_wide
         super().__init__(f"{provider}: {message}")
+
+
+def _retry_after(response: httpx.Response) -> float:
+    value = getattr(response, "headers", {}).get("Retry-After")
+    if not value:
+        return 0.0
+    try:
+        seconds = float(value)
+    except (ValueError, TypeError):
+        try:
+            date = parsedate_to_datetime(value)
+            if date.tzinfo is None:
+                date = date.replace(tzinfo=timezone.utc)
+            seconds = (date - datetime.now(timezone.utc)).total_seconds()
+        except (ValueError, TypeError, OverflowError):
+            return 0.0
+    return max(0.0, seconds) if math.isfinite(seconds) else 0.0
+
+
+def _project_quota(response: httpx.Response) -> bool:
+    """Only explicit quota violations without a model dimension are shared.
+
+    Unknown 429 scope is not proof of independent quotas. The orchestrator
+    probes each eligible candidate at most once; all failures cool down.
+    """
+    try:
+        details = response.json().get("error", {}).get("details", [])
+        violations = [v for d in details for v in d.get("violations", [])]
+        return bool(violations) and any(
+            v.get("quotaMetric") and not v.get("quotaDimensions", {}).get("model")
+            for v in violations
+        )
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
+def _http_failure(provider: str, response: httpx.Response) -> LLMProviderError:
+    status = response.status_code
+    category = ("rate_limit" if status == 429 else
+                "authentication" if status in (401, 403) else
+                "configuration" if status in (400, 404) else "http_error")
+    return LLMProviderError(
+        provider, f"HTTP {status}", category=category, status_code=status,
+        retryable=status in _RETRYABLE_STATUS_CODES,
+        retry_after_seconds=_retry_after(response),
+        provider_wide=status in (401, 403) or (status == 429 and _project_quota(response)),
+    )
 
 
 class LLMProvider:
@@ -131,25 +156,41 @@ class GeminiProvider(LLMProvider):
 
     name = "gemini"
 
+    def __init__(self, model_id: str | None = None, *, retry_rate_limits: bool = True) -> None:
+        self._model_id = model_id
+        self._retry_rate_limits = retry_rate_limits
+
     @property
     def model(self) -> str:
-        return settings.gemini_model
+        return self._model_id or settings.gemini_model
 
     async def complete(self, prompt: str, *, timeout_seconds: float) -> LLMCompletion:
         if not settings.gemini_api_key:
-            raise LLMProviderError(self.name, "GEMINI_API_KEY is not configured.")
-
+            raise LLMProviderError(
+                self.name, "GEMINI_API_KEY is not configured.",
+                category="configuration", provider_wide=True,
+            )
+        deadline = time.monotonic() + timeout_seconds
         try:
             return await self._request_once(prompt, timeout_seconds)
         except LLMProviderError as exc:
-            if not exc.retryable:
+            if (not exc.retryable or exc.provider_wide
+                    or (exc.category == "rate_limit" and not self._retry_rate_limits)):
                 raise
-            logger.warning(
-                "Gemini call failed with a transient error, retrying once: %s", exc
-            )
-            # Second and final attempt. Whatever this produces (success or
-            # failure) is returned/raised as-is -- no further retries.
-            return await self._request_once(prompt, timeout_seconds)
+            remaining = deadline - time.monotonic()
+            delay = exc.retry_after_seconds
+            if delay >= remaining:
+                raise
+            logger.warning("Gemini transient retry", extra={
+                "provider_used": self.name, "model_used": self.model,
+                "outcome": exc.category, "http_status": exc.status_code,
+            })
+            if delay:
+                await _sleep(delay)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise
+            return await self._request_once(prompt, remaining)
 
     async def _request_once(self, prompt: str, timeout_seconds: float) -> LLMCompletion:
         url = (
@@ -170,30 +211,28 @@ class GeminiProvider(LLMProvider):
                 resp = await client.post(url, headers=headers, json=payload)
         except httpx.TimeoutException as exc:
             raise LLMProviderError(
-                self.name, f"request timed out: {exc}", retryable=True
+                self.name, "request timed out", retryable=True, category="timeout"
             ) from exc
         except httpx.RequestError as exc:
-            raise LLMProviderError(self.name, f"request failed: {exc}") from exc
+            raise LLMProviderError(self.name, "request failed", category="transport") from exc
 
         if resp.status_code >= 400:
-            raise LLMProviderError(
-                self.name,
-                f"HTTP {resp.status_code}: {resp.text[:500]}",
-                retryable=resp.status_code in _RETRYABLE_STATUS_CODES,
-            )
+            raise _http_failure(self.name, resp)
 
         try:
             data = resp.json()
             text = data["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, ValueError, TypeError) as exc:
-            raise LLMProviderError(self.name, f"unexpected response shape: {exc}") from exc
+            raise LLMProviderError(self.name, "unexpected response shape", category="invalid_response") from exc
 
-        if not text or not text.strip():
-            raise LLMProviderError(self.name, "empty response text.")
+        if not isinstance(text, str) or not text.strip():
+            raise LLMProviderError(self.name, "empty response text.", category="invalid_response")
 
         # usageMetadata is best-effort -- absent on some Gemini responses;
         # .get() throughout so a missing/partial block never raises here.
-        usage = data.get("usageMetadata") or {}
+        usage = data.get("usageMetadata")
+        if not isinstance(usage, dict):
+            usage = {}
         return LLMCompletion(
             text=text,
             prompt_tokens=usage.get("promptTokenCount"),
@@ -223,7 +262,7 @@ class OpenRouterProvider(LLMProvider):
 
     async def complete(self, prompt: str, *, timeout_seconds: float) -> LLMCompletion:
         if not settings.openrouter_api_key:
-            raise LLMProviderError(self.name, "OPENROUTER_API_KEY is not configured.")
+            raise LLMProviderError(self.name, "OPENROUTER_API_KEY is not configured.", category="configuration", provider_wide=True)
 
         url = "https://openrouter.ai/api/v1/chat/completions"
         payload = {
@@ -240,25 +279,25 @@ class OpenRouterProvider(LLMProvider):
             async with httpx.AsyncClient(timeout=timeout_seconds) as client:
                 resp = await client.post(url, headers=headers, json=payload)
         except httpx.RequestError as exc:
-            raise LLMProviderError(self.name, f"request failed: {exc}") from exc
+            raise LLMProviderError(self.name, "request failed", category="transport") from exc
 
         if resp.status_code >= 400:
-            raise LLMProviderError(
-                self.name, f"HTTP {resp.status_code}: {resp.text[:500]}"
-            )
+            raise _http_failure(self.name, resp)
 
         try:
             data = resp.json()
             text = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, ValueError, TypeError) as exc:
-            raise LLMProviderError(self.name, f"unexpected response shape: {exc}") from exc
+            raise LLMProviderError(self.name, "unexpected response shape", category="invalid_response") from exc
 
-        if not text or not text.strip():
-            raise LLMProviderError(self.name, "empty response text.")
+        if not isinstance(text, str) or not text.strip():
+            raise LLMProviderError(self.name, "empty response text.", category="invalid_response")
 
         # usage is best-effort -- some OpenRouter models/free-tier
         # responses omit it; .get() throughout so that never raises here.
-        usage = data.get("usage") or {}
+        usage = data.get("usage")
+        if not isinstance(usage, dict):
+            usage = {}
         return LLMCompletion(
             text=text,
             prompt_tokens=usage.get("prompt_tokens"),

@@ -86,10 +86,10 @@ previously aborted `graph.ainvoke()` before `persist` ever ran, which
 silently discarded a perfectly valid deterministic result (no
 `analysis_runs` row, no timeline event, no `analysis_run_id`). Such an
 exception still indicates a genuine bug, so it is logged with
-`logger.exception(...)` (full traceback, ERROR level) rather than the
-`logger.warning(...)` used for the two documented failure modes -- the
-bug stays loud and diagnosable in the logs, it just no longer takes the
-deterministic result down with it.
+ERROR severity with the exception class and call stack rather than raw
+exception text, patient identifiers or exception objects. Expected failures
+use WARNING. The bug stays visible without exporting sensitive failure
+payloads; deterministic persistence remains independent of explanations.
 
 The catch is deliberately `except Exception`, never a bare `except`:
 `asyncio.CancelledError` derives from `BaseException` (Python 3.8+), so
@@ -265,13 +265,11 @@ def _unexpected_llm_error_message(exc: BaseException) -> str:
     raised with no message) -- `llm_error` is the only in-state signal
     that the explanation is missing *because something went wrong*, as
     opposed to simply never having been attempted, so it must never
-    degrade to `""`. The exception class name is included so the log
-    record and the persisted-run diagnostics agree on what actually
-    failed.
+    degrade to `""`. Only the exception class is retained; arbitrary
+    exception details may contain patient evidence or credentials. This
+    internal diagnostic is not persisted as part of the analysis run.
     """
-    detail = str(exc).strip()
-    base = f"unexpected {type(exc).__name__} during LLM explanation"
-    return f"{base}: {detail}" if detail else base
+    return f"unexpected {type(exc).__name__} during LLM explanation"
 
 
 def _llm_explanation_node(db: AsyncSession):
@@ -291,11 +289,13 @@ def _llm_explanation_node(db: AsyncSession):
             # validation. Either way, the deterministic pipeline still
             # persists successfully -- see llm_service.py's docstring.
             logger.warning(
-                "LLM explanation unavailable for this analysis run: %s",
-                exc,
-                extra={"patient_id": state["patient_id"]},
+                "LLM explanation unavailable; retaining deterministic results.",
+                extra={"error_type": type(exc).__name__},
             )
-            return {"llm_result": None, "llm_error": str(exc)}
+            error = ("all providers failed (LLMExplanationError)."
+                     if isinstance(exc, LLMExplanationError)
+                     else "LLM explanation not implemented (NotImplementedError).")
+            return {"llm_result": None, "llm_error": error}
         except Exception as exc:  # noqa: BLE001 -- deliberate, see below.
             # Any UNEXPECTED failure of the LLM layer (a provider raising
             # a raw httpx/network error that escaped llm_service.py's
@@ -312,13 +312,13 @@ def _llm_explanation_node(db: AsyncSession):
             # `asyncio.CancelledError` (a BaseException since Python 3.8)
             # still propagates and task cancellation is never swallowed.
             #
-            # Logged via logger.exception() so the full traceback is
-            # captured at ERROR level: this path always indicates a bug
-            # worth fixing, unlike the expected failures above.
-            logger.exception(
+            # Keep severity, type and call stack without serializing the
+            # exception payload or patient ID into application logs.
+            logger.error(
                 "Unexpected error in the LLM explanation node; persisting the "
                 "deterministic analysis without an explanation.",
-                extra={"patient_id": state["patient_id"]},
+                extra={"error_type": type(exc).__name__},
+                stack_info=True,
             )
             return {"llm_result": None, "llm_error": _unexpected_llm_error_message(exc)}
         return {"llm_result": result, "llm_error": None}
