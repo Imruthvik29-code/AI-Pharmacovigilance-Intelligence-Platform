@@ -83,6 +83,7 @@ export function SymptomPanel({
     <div className="pv-symptoms">
       <section className="pv-symptoms-section" aria-labelledby={headingId}>
         <header className="pv-symptoms-section-head">
+          <p className="pv-detail-kicker">Patient-reported history</p>
           <div className="pv-symptoms-section-row">
             <h2 id={headingId} className="pv-symptoms-section-title">Recorded symptoms</h2>
             {ready && symptoms.length > 0 ? (
@@ -128,11 +129,10 @@ export function SymptomPanel({
               ))
             : null}
         </div>
-      </section>
 
       <section
         aria-label="Report a symptom"
-        className={`pv-symptoms-card pv-symptoms-report ${reporting ? "is-open" : ""}`}
+        className={`pv-symptoms-report ${reporting ? "is-open" : ""}`}
       >
         <button
           type="button"
@@ -168,6 +168,7 @@ export function SymptomPanel({
           </div>
         ) : null}
       </section>
+      </section>
     </div>
   );
 }
@@ -182,19 +183,18 @@ function SymptomRecord({
   const resolved = Boolean(symptom.resolved_date);
 
   return (
-    <article className={`pv-symptoms-card pv-symptoms-item ${resolved ? "is-resolved" : ""}`}>
+    <article className={`pv-symptoms-item ${resolved ? "is-resolved" : ""}`}>
+      <div className="pv-symptoms-onset">
+        <span>Onset</span>
+        <time dateTime={symptom.onset_date}>{formatCalendarDate(symptom.onset_date)}</time>
+      </div>
+      <div className="pv-symptoms-record-body">
       <div className="pv-symptoms-item-head">
-        <IconChip
-          Icon={PulseIcon}
-          surface={resolved ? "var(--surface-2)" : "var(--symptoms-bg)"}
-          ink={resolved ? "var(--ink-3)" : "var(--symptoms-fg)"}
-          size="md"
-        />
         <div className="pv-symptoms-identity">
           <h3 className="pv-symptoms-name">{symptom.description}</h3>
           <div className="pv-symptoms-tags">
             <span className="pv-symptoms-severity">
-              <span className="sr-only">Severity: </span>
+              <span className="pv-symptoms-severity-label">Reported severity: </span>
               <SeverityPill severity={symptom.severity} />
             </span>
             <span className={`pv-symptoms-status ${resolved ? "" : "is-ongoing"}`}>
@@ -205,10 +205,6 @@ function SymptomRecord({
       </div>
 
       <dl className="pv-symptoms-facts">
-        <div className="pv-symptoms-fact">
-          <dt>Onset</dt>
-          <dd>{formatCalendarDate(symptom.onset_date)}</dd>
-        </div>
         {symptom.resolved_date ? (
           <div className="pv-symptoms-fact">
             <dt>Resolved</dt>
@@ -226,6 +222,7 @@ function SymptomRecord({
           </div>
         ) : null}
       </dl>
+      </div>
     </article>
   );
 }

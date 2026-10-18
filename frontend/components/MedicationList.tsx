@@ -169,7 +169,7 @@ export function MedicationList({
         ) : null}
 
         {!loading && medications.length > 0
-          ? medications.map((medication) => {
+          ? medications.map((medication, index) => {
               const cached = displayDrugName(medication.drug_id);
               const name = medication.drug_name ?? cached.name;
               const termType = medication.drug_term_type
@@ -188,37 +188,35 @@ export function MedicationList({
               return (
                 <article
                   key={medication.id}
+                  id={`medication-${medication.id}`}
                   className={`pv-meds-card pv-meds-item ${active ? "" : "is-inactive"}`}
                 >
-                  <div className="pv-meds-item-head">
-                    <IconChip
-                      Icon={CapsuleIcon}
-                      surface={active ? "var(--medications-bg)" : "var(--surface-2)"}
-                      ink={active ? "var(--medications-fg)" : "var(--ink-3)"}
-                      size="md"
-                    />
-                    <div className="pv-meds-identity">
-                      <h3
-                        className={`pv-meds-name ${identityVerified || cached.cached ? "" : "is-unnamed"}`}
-                      >
-                        {name}
-                      </h3>
-                      <p className="pv-meds-kind">
-                        {[termType, genericContext, medication.dose].filter(Boolean).join(" · ") ||
-                          "Medication details not recorded"}
-                      </p>
-                      <div className="pv-meds-tags">
-                        <span className={`pv-meds-status ${active ? "is-active" : ""}`}>
-                          <span className="pv-meds-status-text">{medication.status.replace(/_/g, " ")}</span>
-                        </span>
-                        {identityVerified ? (
-                          <span className="pv-meds-verified">
-                            <CheckIcon className="pv-meds-verified-icon" />
-                            <span>Verified</span>
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
+                  <header className="pv-meds-record-header">
+                    <span className="pv-meds-course-label">
+                      <CapsuleIcon className="h-4 w-4" />
+                      Course {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className={`pv-meds-status ${active ? "is-active" : ""}`}>
+                      <span className="pv-meds-status-text">{medication.status.replace(/_/g, " ")}</span>
+                    </span>
+                  </header>
+                  <div className="pv-meds-identity">
+                    <h3 className={`pv-meds-name ${identityVerified || cached.cached ? "" : "is-unnamed"}`}>
+                      {name}
+                    </h3>
+                    <dl className="pv-meds-dose-record">
+                      <dt>Recorded dose</dt>
+                      <dd>{medication.dose ?? "Not recorded"}</dd>
+                    </dl>
+                    {termType || genericContext || identityVerified ? (
+                      <details className="pv-meds-catalog">
+                        <summary>
+                          Catalog details
+                          {identityVerified ? <span className="pv-meds-verified"><CheckIcon className="pv-meds-verified-icon" /><span>Verified</span></span> : null}
+                        </summary>
+                        <p className="pv-meds-kind">{[termType, genericContext, medication.dose].filter(Boolean).join(" · ") || "Catalog identity verified"}</p>
+                      </details>
+                    ) : null}
                   </div>
 
                   {facts.length > 0 || medication.purpose_text ? (

@@ -41,6 +41,7 @@ export type BriefRow = {
 export type WorkspaceData = {
   analysis: AnalysisRunResponse | null;
   medications: MedicationResponse[];
+  medicationsError?: string | null;
   symptoms: SymptomResponse[];
   timeline: TimelineEventResponse[];
   analysisHistoryError?: string | null;
@@ -75,7 +76,7 @@ export function briefRows(id: CategoryId, data: WorkspaceData): BriefRow[] {
     return [{ key: "unavailable", Icon: AlertIcon, text: unavailable, ...NEUTRAL }];
   }
   if (id === "safety") return safetyRows(data.analysis);
-  if (id === "medications") return medicationRows(data.medications);
+  if (id === "medications") return medicationRows(data.medications, data.medicationsError);
   if (id === "symptoms") return symptomRows(data.symptoms);
   return timelineRows(data.timeline);
 }
@@ -93,6 +94,7 @@ export function briefSummary(id: CategoryId, data: WorkspaceData): string {
       : `${breakdown.total} ${breakdown.total === 1 ? "finding" : "findings"}`;
   }
   if (id === "medications") {
+    if (data.medicationsError) return "Medication data unavailable";
     return `${activeMedicationCount(data.medications)} active of ${data.medications.length}`;
   }
   if (id === "symptoms") {
@@ -152,7 +154,16 @@ function safetyRows(analysis: AnalysisRunResponse | null): BriefRow[] {
   return rows;
 }
 
-function medicationRows(medications: MedicationResponse[]): BriefRow[] {
+function medicationRows(medications: MedicationResponse[], error?: string | null): BriefRow[] {
+  if (error) {
+    return [{
+      key: "unavailable",
+      Icon: AlertIcon,
+      text: "Medication data unavailable",
+      sub: error,
+      ...NEUTRAL,
+    }];
+  }
   const active = activeMedicationCount(medications);
   const rows: BriefRow[] = [
     {

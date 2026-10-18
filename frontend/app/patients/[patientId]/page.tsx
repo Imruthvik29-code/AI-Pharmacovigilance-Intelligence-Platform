@@ -87,6 +87,7 @@ function PatientPage() {
   const [medError, setMedError] = useState<string | null>(null);
   const [symptomsLoading, setSymptomsLoading] = useState(true);
   const [symptomsError, setSymptomsError] = useState<string | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(true);
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisHistoryError, setAnalysisHistoryError] = useState<string | null>(null);
@@ -95,6 +96,11 @@ function PatientPage() {
   // Identifies the latest symptom list request, so an answer that arrives
   // after a newer load (or after moving to another patient) is ignored.
   const symptomsRequest = useRef(0);
+  // The same for the timeline, which is refreshed after several actions.
+  const timelineRequest = useRef(0);
+  // Ignore obsolete analysis responses after navigation or a newer run.
+  const recordGeneration = useRef(0);
+  const analysisRequest = useRef(0);
 
   usePageTitle(patient?.name ?? "Patient");
 
@@ -114,22 +120,45 @@ function PatientPage() {
     }
   }, [patientId]);
 
+  const reloadTimeline = useCallback(async () => {
+    const request = ++timelineRequest.current;
+    setTimelineLoading(true);
+    setTimelineError(null);
+    try {
+      const next = await listTimeline(patientId);
+      if (request !== timelineRequest.current) return;
+      setTimeline(next);
+    } catch (err) {
+      if (request !== timelineRequest.current) return;
+      setTimelineError(err instanceof ApiError ? err.detail : "Could not load timeline.");
+    } finally {
+      if (request === timelineRequest.current) setTimelineLoading(false);
+    }
+  }, [patientId]);
+
   const refreshSecondary = useCallback(
     async (isCurrent: () => boolean = () => true, updateAnalysis = true) => {
+      const request = ++timelineRequest.current;
+      const generation = recordGeneration.current;
+      const historyRequest = analysisRequest.current;
       const [timelineResult, runsResult] = await Promise.allSettled([
         listTimeline(patientId),
         listAnalysisRuns(patientId),
       ]);
-      if (!isCurrent()) return;
+      if (!isCurrent() || generation !== recordGeneration.current) return;
 
-      if (timelineResult.status === "fulfilled") {
-        setTimeline(timelineResult.value);
-        setTimelineError(null);
-      } else {
-        const err = timelineResult.reason;
-        setTimelineError(err instanceof ApiError ? err.detail : "Could not load timeline.");
+      if (request === timelineRequest.current) {
+        if (timelineResult.status === "fulfilled") {
+          setTimeline(timelineResult.value);
+          setTimelineError(null);
+        } else {
+          const err = timelineResult.reason;
+          setTimelineError(err instanceof ApiError ? err.detail : "Could not load timeline.");
+        }
+        setTimelineLoading(false);
       }
 
+      if (historyRequest !== analysisRequest.current) return;
       if (runsResult.status === "fulfilled") {
         if (updateAnalysis && runsResult.value.length > 0) setAnalysis(runsResult.value[0]);
         setAnalysisHistoryError(null);
@@ -146,11 +175,14 @@ function PatientPage() {
 
   useEffect(() => {
     let cancelled = false;
+    recordGeneration.current += 1;
+    analysisRequest.current += 1;
     const isCurrent = () => !cancelled;
 
     async function load() {
       symptomsRequest.current += 1;
       setLoading(true);
+      setRunning(false);
       setPatient(null);
       setMedications([]);
       setSymptoms([]);
@@ -159,6 +191,7 @@ function PatientPage() {
       setAnalysisHistoryLoaded(false);
       setAnalysisHistoryError(null);
       setSymptomsLoading(true);
+      setTimelineLoading(true);
       setPageError(null);
       setMedError(null);
       setSymptomsError(null);
@@ -214,6 +247,8 @@ function PatientPage() {
     void load();
     return () => {
       cancelled = true;
+      recordGeneration.current += 1;
+      analysisRequest.current += 1;
     };
   }, [patientId, loadAttempt, refreshSecondary]);
 
@@ -224,19 +259,23 @@ function PatientPage() {
 
   async function handleRunAnalysis() {
     if (running) return;
+    const generation = recordGeneration.current;
+    const request = ++analysisRequest.current;
+    const isCurrent = () => generation === recordGeneration.current && request === analysisRequest.current;
     setRunning(true);
     setAnalysisError(null);
     try {
       const nextRun = await runAnalysis(patientId);
+      if (!isCurrent()) return;
       setAnalysis(nextRun);
       setAnalysisHistoryError(null);
       setAnalysisHistoryLoaded(true);
       // Keep the run we just received; history may lag behind it.
-      await refreshSecondary(() => true, false);
+      await refreshSecondary(isCurrent, false);
     } catch (err) {
-      setAnalysisError(err instanceof ApiError ? err.detail : "Analysis request failed.");
+      if (isCurrent()) setAnalysisError(err instanceof ApiError ? err.detail : "Analysis request failed.");
     } finally {
-      setRunning(false);
+      if (isCurrent()) setRunning(false);
     }
   }
 
@@ -405,7 +444,12 @@ function PatientPage() {
             ) : null}
 
             {openCategory === "timeline" ? (
-              <TimelineList events={timeline} error={timelineError} showHeading={false} />
+              <TimelineList
+                events={timeline}
+                loading={timelineLoading}
+                error={timelineError}
+                onRetry={() => void reloadTimeline()}
+              />
             ) : null}
           </DetailScreen>
         ) : null}
@@ -413,7 +457,13 @@ function PatientPage() {
         {patient && showOverview ? (
           <div className="pv-overview">
             <PatientHero patient={patient} backHref="/dashboard" backLabel="Back to patients">
-              <PatientSnapshot analysisHistoryError={analysisHistoryError} medications={medications} analysis={analysis} timeline={timeline} />
+              <PatientSnapshot
+                analysisHistoryError={analysisHistoryError}
+                medications={medications}
+                medicationsError={medError}
+                analysis={analysis}
+                timeline={timeline}
+              />
             </PatientHero>
             <div className="pv-sheet">
               {analysisError ? (
@@ -430,7 +480,7 @@ function PatientPage() {
                 onRunAnalysis={() => void handleRunAnalysis()}
                 analysisRunning={running}
                 data={{
-                  analysis, medications, symptoms, timeline,
+                  analysis, medications, medicationsError: medError, symptoms, timeline,
                   analysisHistoryError, symptomsError, timelineError,
                 }}
               />

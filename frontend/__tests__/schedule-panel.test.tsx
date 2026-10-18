@@ -81,7 +81,8 @@ describe("SchedulePanel", () => {
     render(<SchedulePanel patientId="patient-1" medications={[medication]} />);
 
     expect(await screen.findByText("No upcoming doses")).toBeInTheDocument();
-    expect(screen.getByText("Examplecin")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Course 01 · View record for Examplecin" })).toHaveAttribute("href", "#medication-medication-1");
+    expect(screen.getByText("Dose 500 mg · 2× daily · 7 days")).toBeVisible();
     expect(screen.queryByText(/medication-1/)).not.toBeInTheDocument();
     expect(displayDrugName).toHaveBeenCalledWith("drug-1");
 
@@ -98,7 +99,7 @@ describe("SchedulePanel", () => {
     displayDrugName.mockReturnValue({ name: "Name not cached in this browser", cached: false, termType: null });
     render(<SchedulePanel patientId="patient-1" medications={[medication]} />);
 
-    expect(await screen.findByText("Name not cached in this browser")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /View record for Name not cached in this browser/ })).toBeInTheDocument();
     expect(screen.queryByText(/drug-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/medication-1/)).not.toBeInTheDocument();
   });

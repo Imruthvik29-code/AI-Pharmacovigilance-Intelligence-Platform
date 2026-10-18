@@ -24,11 +24,13 @@ type Fact = { key: string; Icon: ComponentType<{ className?: string }>; text: st
  */
 export function PatientSnapshot({
   medications,
+  medicationsError,
   analysis,
   analysisHistoryError,
   timeline,
 }: {
   medications: MedicationResponse[];
+  medicationsError?: string | null;
   analysis: AnalysisRunResponse | null;
   analysisHistoryError?: string | null;
   timeline: TimelineEventResponse[];
@@ -38,8 +40,9 @@ export function PatientSnapshot({
   facts.push({
     key: "medications",
     Icon: CapsuleIcon,
-    text:
-      medications.length === 0
+    text: medicationsError
+      ? "Medication data unavailable"
+      : medications.length === 0
         ? "No medications recorded"
         : `${activeMedicationCount(medications)} of ${medications.length} medications`,
   });

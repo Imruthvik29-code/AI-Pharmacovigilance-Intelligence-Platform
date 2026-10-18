@@ -80,7 +80,7 @@ function FindingGroup({
 }) {
   const hasFindings = count > 0;
   return (
-    <div className="pv-safety-card pv-safety-group">
+    <div className="pv-safety-finding-group">
       <div className="pv-safety-group-head">
         <IconChip
           Icon={Icon}
@@ -115,7 +115,9 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
   const interactionCount = result?.interaction_findings.length ?? 0;
   const adrCount = result?.adr_findings.length ?? 0;
   const adherenceCount = result?.adherence_findings.length ?? 0;
-  const llmAvailable = Boolean(run.llm_summary);
+  const llmAvailable = Boolean(run.llm_summary?.trim());
+  const startingScore = run.deterministic_result?.starting_score;
+  const deductedPoints = run.deterministic_result?.total_points_deducted;
 
   const breakdown = findingBreakdown(run);
   const severity = peakSeverity(run);
@@ -127,7 +129,11 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
   return (
     <article className="pv-safety-report" aria-label="Safety analysis report">
       <section className="pv-safety-card pv-safety-summary" aria-label="Current safety summary">
-        <SafetyScoreCard safetyScore={run.safety_score} riskLevel={run.risk_level} />
+        <div className="pv-safety-summary-main">
+          <p className="pv-detail-kicker">Recorded safety assessment</p>
+          <SafetyScoreCard safetyScore={run.safety_score} riskLevel={run.risk_level} />
+          <p className="pv-safety-boundary">A recorded score is not a guarantee of clinical safety.</p>
+        </div>
 
         <div className="pv-safety-facts">
           {breakdown ? (
@@ -159,6 +165,7 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
         </div>
       </section>
 
+      <div className="pv-safety-columns">
       <Section title="Findings" note="Identified by the safety rules.">
         <div className="pv-safety-groups">
           <FindingGroup
@@ -217,7 +224,14 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
       </Section>
 
       <Section title="Score deductions" note="Recorded with this analysis and not recalculated here.">
-        <div className="pv-safety-card pv-safety-rows">
+        <div className="pv-safety-ledger">
+          {typeof startingScore === "number" && typeof deductedPoints === "number" ? (
+            <dl className="pv-safety-calculation">
+              <div><dt>Starting score</dt><dd>{startingScore}</dd></div>
+              <div><dt>Recorded deductions</dt><dd>{deductedPoints === 0 ? "0" : `−${deductedPoints}`}</dd></div>
+              <div><dt>Recorded score</dt><dd>{run.safety_score ?? "Not recorded"}</dd></div>
+            </dl>
+          ) : null}
           {result && result.penalties.length > 0 ? (
             <ul className="pv-safety-items">
               {result.penalties.map((penalty, index) => (
@@ -240,6 +254,8 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
           )}
         </div>
       </Section>
+
+      </div>
 
       {result && result.adherence_findings.length > 0 ? (
         <Section
@@ -270,14 +286,18 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
         title="AI explanation"
         note="Written from the recorded findings above."
         aside={
-          run.confidence_score !== null && run.confidence_level ? (
-            <span className="pv-safety-confidence">
-              Confidence · {run.confidence_level} ({run.confidence_score})
-            </span>
-          ) : null
+          <div className="pv-safety-explanation-status">
+            <span>{llmAvailable ? "Explanation stored" : "No explanation stored"}</span>
+            {llmAvailable && run.confidence_score !== null && run.confidence_level ? (
+              <span className="pv-safety-confidence">
+                AI confidence · {run.confidence_level} ({run.confidence_score})
+              </span>
+            ) : null}
+          </div>
         }
       >
-        <div className="pv-safety-explanation">
+        <div className="pv-safety-explanation" data-analysis-id={run.id}>
+          <p className="pv-safety-explanation-context">For the analysis recorded {formatDateTime(run.created_at)}</p>
           {llmAvailable ? (
             <>
               <p className="pv-safety-lead">{run.llm_summary}</p>
@@ -295,22 +315,25 @@ export function AnalysisReport({ run }: { run: AnalysisRunResponse }) {
               ) : null}
               <p className="pv-safety-footnote">
                 AI explains the findings above. It does not set the safety score or add findings.
+                Any confidence shown is reported by the model, not a measure of clinical certainty.
               </p>
             </>
           ) : (
             <>
               <p className="pv-safety-unavailable-title">AI explanation unavailable for this analysis.</p>
               <p className="pv-safety-footnote">
-                The safety score and findings above come from the safety rules.
+                The safety score and findings above come from the safety rules. A new analysis can
+                request a new explanation; this stored report remains unchanged.
               </p>
             </>
           )}
         </div>
       </Section>
 
-      <div className="pv-safety-disclaimer">
+      <details className="pv-safety-disclaimer">
+        <summary>About this research report</summary>
         <Disclaimer compact />
-      </div>
+      </details>
     </article>
   );
 }

@@ -130,3 +130,24 @@ describe("AnalysisReport", () => {
     expect(screen.getByText("No penalties were recorded for this run.")).toBeInTheDocument();
   });
 });
+
+
+it("replaces the previous explanation with the new run's unavailable state", () => {
+  const { rerender } = render(<AnalysisReport run={run({
+    id: "old-run", llm_summary: "Previous explanation.",
+    llm_reasoning: "Previous reasoning.", llm_recommendations: "Previous recommendations.",
+  })} />);
+  expect(screen.getByText("Previous explanation.")).toBeInTheDocument();
+  rerender(<AnalysisReport run={run({ id: "new-run" })} />);
+  expect(screen.getByText("AI explanation unavailable for this analysis.")).toBeInTheDocument();
+  expect(screen.queryByText("Previous explanation.")).not.toBeInTheDocument();
+  expect(screen.queryByText("Previous reasoning.")).not.toBeInTheDocument();
+  expect(screen.queryByText("Previous recommendations.")).not.toBeInTheDocument();
+});
+
+it("does not present whitespace-only output or orphaned confidence as an explanation", () => {
+  render(<AnalysisReport run={run({ llm_summary: "   ", confidence_score: 95, confidence_level: "high" })} />);
+  expect(screen.getByText("AI explanation unavailable for this analysis.")).toBeInTheDocument();
+  expect(screen.queryByText(/Confidence/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Safety score")).toHaveTextContent("42");
+});

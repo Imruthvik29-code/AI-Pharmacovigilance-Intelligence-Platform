@@ -12,7 +12,7 @@ import type { Category, CategoryId } from "@/components/patient/categories";
  */
 function hasNoRecord(id: CategoryId, data: WorkspaceData): boolean {
   if (id === "safety") return !data.analysis && !data.analysisHistoryError;
-  if (id === "medications") return data.medications.length === 0;
+  if (id === "medications") return !data.medicationsError && data.medications.length === 0;
   if (id === "symptoms") return !data.symptomsError && data.symptoms.length === 0;
   return !data.timelineError && data.timeline.length === 0;
 }

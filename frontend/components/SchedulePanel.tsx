@@ -7,7 +7,7 @@ import type { DoseStatus, MedicationResponse, PatientResponse, UpcomingDoseRespo
 import { displayDrugName } from "@/lib/drugs/nameCache";
 import { ruleScheduleProblem } from "@/lib/medications/doseRules";
 import { IconChip } from "@/components/ui/IconChip";
-import { CheckIcon } from "@/components/icons/Icons";
+import { ClockIcon } from "@/components/icons/Icons";
 import { StatusBanner } from "@/components/StatusBanner";
 
 type Props = {
@@ -82,6 +82,16 @@ function medicationLabel(medication: MedicationResponse): { label: string; unnam
     label: medication.drug_name ?? cached.name,
     unnamed: !(medication.drug_name || cached.cached),
   };
+}
+
+/** Recorded prescription identifies the course linked to its full medication record. */
+function scheduleIdentity(medication: MedicationResponse): string {
+  return [
+    medication.dose ? `Dose ${medication.dose}` : "Dose not recorded",
+    medication.times_per_day != null ? `${medication.times_per_day}× daily` : null,
+    medication.interval_hours != null ? `Every ${medication.interval_hours} h` : null,
+    medication.duration_days != null ? `${medication.duration_days} ${medication.duration_days === 1 ? "day" : "days"}` : null,
+  ].filter(Boolean).join(" · ");
 }
 
 export function SchedulePanel({ patientId, medications, onTimelineRefresh, patient }: Props) {
@@ -177,6 +187,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh, patie
   return (
     <section aria-labelledby="schedule-heading" className="pv-meds-section">
       <header className="pv-meds-section-head">
+        <p className="pv-detail-kicker">Scheduled doses</p>
         <div className="pv-meds-section-row">
           <h2 id="schedule-heading" className="pv-meds-section-title">What is due next</h2>
           <button type="button" onClick={() => void loadDoses()} disabled={loading} className="pv-meds-quiet-button">
@@ -209,8 +220,8 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh, patie
             </div>
           ))
         ) : !error ? (
-          <div className="pv-meds-card pv-meds-empty">
-            <IconChip Icon={CheckIcon} surface="var(--mild-bg)" ink="var(--mild-fg)" size="md" />
+          <div className="pv-dose-empty">
+            <IconChip Icon={ClockIcon} surface="var(--surface-2)" ink="var(--ink-2)" size="md" />
             <div className="min-w-0">
               <h3 className="pv-meds-empty-title">No upcoming doses</h3>
               <p className="pv-meds-empty-text">
@@ -218,12 +229,18 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh, patie
                   ? anyTimingBlocker
                     ? "No active medication is ready to schedule yet. Each one below shows what it still needs."
                     : "No active medication has both a recorded duration and dosing frequency, so no schedule can be generated yet."
-                  : "Generate a schedule for an active medication with a duration and dosing frequency, or check back after the next dose is due."}
+                  : "No future, unmarked doses were returned. A course may be unscheduled, already marked or in the past. Review its recorded details and schedule status below."}
               </p>
             </div>
           </div>
         ) : null}
 
+        <section className="pv-schedule-workspace" aria-label="Schedule actions">
+          <div className="pv-schedule-workspace-head">
+            <p className="pv-detail-kicker">Actions</p>
+            <h3>Schedule management</h3>
+            <p>Creating or marking doses changes the patient record. Recorded course details are shown separately.</p>
+          </div>
         {schedulableMedications.length > 0 ? (
           <div className="pv-meds-schedules">
             <div className="pv-meds-subhead">
@@ -232,12 +249,15 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh, patie
             </div>
             <ul className="pv-meds-card pv-meds-schedule-list">
               {schedulableMedications.map((medication) => {
-                const { label, unnamed } = medicationLabel(medication);
+                const { label } = medicationLabel(medication);
                 return (
                   <li key={medication.id} className="pv-meds-schedule">
                     <div className="pv-meds-schedule-copy">
-                      <p className={`pv-meds-schedule-name ${unnamed ? "is-unnamed" : ""}`}>{label}</p>
-                      <p className="pv-meds-schedule-dose">{medication.dose ?? "Dose not recorded"}</p>
+                      <a className="pv-meds-course-link" href={`#medication-${medication.id}`}>
+                        Course {String(medications.findIndex((item) => item.id === medication.id) + 1).padStart(2, "0")} · View record
+                        <span className="sr-only"> for {label}</span>
+                      </a>
+                      <p className="pv-meds-schedule-name">{scheduleIdentity(medication)}</p>
                     </div>
                     {scheduledMedicationIds.has(medication.id) ? (
                       <span className="pv-meds-schedule-flag">Schedule created</span>
@@ -265,11 +285,15 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh, patie
             </div>
             <ul className="pv-meds-card pv-meds-schedule-list">
               {unschedulableMedications.map(({ medication, reason }) => {
-                const { label, unnamed } = medicationLabel(medication);
+                const { label } = medicationLabel(medication);
                 return (
                   <li key={medication.id} className="pv-meds-schedule">
                     <div className="pv-meds-schedule-copy">
-                      <p className={`pv-meds-schedule-name ${unnamed ? "is-unnamed" : ""}`}>{label}</p>
+                      <a className="pv-meds-course-link" href={`#medication-${medication.id}`}>
+                        Course {String(medications.findIndex((item) => item.id === medication.id) + 1).padStart(2, "0")} · View record
+                        <span className="sr-only"> for {label}</span>
+                      </a>
+                      <p className="pv-meds-schedule-name">{scheduleIdentity(medication)}</p>
                       <p className="pv-meds-schedule-dose">{reason}</p>
                     </div>
                     <span className="pv-meds-schedule-flag">Schedule unavailable</span>
@@ -279,6 +303,7 @@ export function SchedulePanel({ patientId, medications, onTimelineRefresh, patie
             </ul>
           </div>
         ) : null}
+        </section>
       </div>
     </section>
   );
